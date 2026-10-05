@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Next.js / Supabase migration source (2026-10-05)
+
+- User-approved migration source on a feature branch: Next.js route handlers preserve the SPA, Google popup/OTP and domain services through transaction-backed PostgreSQL adapters. No live import, deployment or cutover yet; legacy sources remain unchanged.
+- Private `crs` schema/RLS, typed keys/constraints, atomic projection/History/Operation commits, source archive with malformed authorization quarantined, exact journal JSON/hash/ID/counter preservation, empty-target idempotent importer and original image verification.
+- Private immutable Storage uploads, backend ownership/version/MIME/digest checks, session-gated short-lived delivery, placeholders, guarded STARTED recovery and post-commit queued cleanup. No public source/bucket sharing.
+- Added migration/Next acceptance tests and CI; local preview verifies 109 operational rows, 120 archived source rows and three current images. Four historical originals absent from the supplied ZIP were retrieved read-only from the authorized Drive source into a separate private supplemental archive. The complete preview verifies all seven image digests/MIME/byte lengths; no cloud import is claimed.
+- Import accepts independently hashed supplemental archives, rejects duplicate resources and requires an exact committed manifest on replay. The baseline modal-wheel test waits for its existing delayed autofocus (10/10 repeat checks), without changing UI behavior.
+- Added secure environment template and provisioning/cutover/backup/rollback runbook. Live cloud/auth/concurrency/restore acceptance remains required.
+- Restore refuses unrelated or changed resource reservations, commits archive/metadata atomically and invalidates prior authentication sessions/proofs. Embedded PostgreSQL tests cover these guards; a full cloud database+Storage restore drill remains outstanding.
+
 ### 0.1.12 (2026-10-02)
 
 - Deployed as Apps Script v22 to the existing Pilot app and OAuth callback bridge from source commit 9fc84cc; the app endpoint returned HTTP 200 and contained the authenticated image fallback RPC.

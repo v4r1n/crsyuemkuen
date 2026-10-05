@@ -2,18 +2,37 @@
   "name": "crs-yuem-kuen-system",
   "version": "0.1.12",
   "private": true,
-  "description": "Local automated acceptance tests for CRS Yuem-Kuen on Google Apps Script.",
+  "description": "CRS Yuem-Kuen on Next.js, PostgreSQL and private Supabase Storage.",
   "scripts": {
-    "test": "npm run test:contracts && npm run test:backend && npm run test:frontend",
+    "dev": "node tools/build-web.mjs && next dev",
+    "build": "node tools/build-web.mjs && next build",
+    "start": "next start",
+    "test:migration": "node --test tests/migration/*.test.mjs",
+    "test:next": "playwright test --config=playwright.next.config.js",
+    "migrate:preview": "node tools/import-legacy.mjs",
+    "db:migrate": "node tools/database.mjs migrate",
+    "test": "npm run test:contracts && npm run test:backend && npm run test:frontend && npm run test:migration && npm run test:next",
     "test:contracts": "node --test tests/contracts/project-contract.test.js",
     "test:backend": "node --test tests/backend/*.test.cjs",
     "test:frontend": "playwright test",
     "test:frontend:headed": "playwright test --headed"
   },
-  "devDependencies": {
-    "@playwright/test": "1.62.1"
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
+    "jose": "6.2.12",
+    "next": "16.3.8",
+    "pg": "8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@playwright/test": "1.62.1",
+    "exceljs": "4.4.0",
+    "jszip": "3.10.1"
+  },
+  "overrides": { "exceljs": { "uuid": "11.1.1" } },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

@@ -1,6 +1,14 @@
 .clasp.json
 .clasprc.json
 .env
+.env.*
+!.env.example
+.next/
+.vercel/
+public/crs/
+.migration/
+*.xlsx
+*.zip
 *.log
 node_modules/
 coverage/
@@ -8,4 +16,3 @@ playwright-report/
 test-results/
 .DS_Store
 Thumbs.db
-

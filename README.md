@@ -1,5 +1,11 @@
 # CRS Yuem-Kuen
 
+## Migration branch — ยังไม่ cutover
+
+ผู้ใช้อนุมัติย้ายไป Next.js/Vercel + Supabase PostgreSQL/private Storage (Singapore) โดยคง UI และ business rules เดิม Source ใน branch นี้เตรียม transport/repository, schema, importer และ tests แล้ว แต่ยังไม่เชื่อมบัญชี/นำเข้าข้อมูล/ทดสอบระบบจริง อ่าน [คู่มือ migration และ cutover](docs/MIGRATION_NEXT_SUPABASE.md) สำหรับ `.env.local`, setup, backup/restore และ acceptance gates ข้อมูล Google เดิมและเอกสารด้านล่างเป็น baseline/rollback ไม่ใช่ runtime ใหม่
+
+ใช้ Node.js 22+: `npm ci`, `npx playwright install chromium`, `npm test`; ตั้งค่า `.env.local` จาก [.env.example](.env.example) แล้ว `npm run dev` ห้ามส่ง credentials ในแชตหรือ commit ไฟล์ข้อมูลจริง
+
 CRS Yuem-Kuen คือระบบเว็บภาษาไทยสำหรับจัดการอุปกรณ์ส่วนกลาง ตั้งแต่ค้นหาและสแกน QR ไปจนถึงขอยืม อนุมัติ รับอุปกรณ์ แจ้งคืน ตรวจสภาพ และบันทึกประวัติ โดยใช้บริการของ Google Workspace เป็นหลักและไม่ต้องมีเซิร์ฟเวอร์แยก
 
 ## เทคโนโลยี

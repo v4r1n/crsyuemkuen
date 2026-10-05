@@ -37,6 +37,9 @@ test('equipment editor scrolls its fields with the mouse while header and action
   await page.locator('[data-action="add-equipment"]').click();
   const modal = page.locator('#equipment-editor-modal');
   await expect(modal).toBeVisible();
+  // The editor intentionally focuses SKU after opening. Wait for that focus
+  // before scrolling so it cannot reset scrollTop during this assertion.
+  await expect(modal.locator('[name="sku"]')).toBeFocused();
   const body = modal.locator('.modal-body');
   const before = await body.evaluate((element) => ({
     clientHeight: element.clientHeight,

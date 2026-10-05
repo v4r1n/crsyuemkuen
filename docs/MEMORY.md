@@ -1,6 +1,19 @@
 # CRS Yuem-Kuen Project Memory
 
-Last updated: 2026-10-02
+Last updated: 2026-10-05
+
+## Current migration phase — authoritative continuation state
+
+- User completed the grilling decision tree (Q1–Q10) and authorized implementation: fresh free-first Next.js/Vercel + Supabase private PostgreSQL/Storage in Singapore, current UI/rules/Google popup+OTP retained, new QR allowed, agreed freeze, malformed/legacy data preserved as non-authorizing Admin archive. CRS team under the user's primary owner account. No paid resources or new UI/business features authorized.
+- Active branch `feat/next-supabase-migration`, based on main `4bb3b53`, package version remains 0.1.12 (not a published migration release). Node route handlers + preserved SPA and trusted domain code use repository/crypto/auth/image adapters; no live GAS/Sheet/Drive calls. This is a transitional lossless JSONB/typed-key model, not a React rewrite; ADR-027/runbook explain the boundary.
+- Preview of the supplied latest XLSX/ZIP: 109 operational rows, 120 raw archive rows, 1 quarantined malformed Users row, five legacy tables/ten rows archive-only; 27 COMPLETED Operations retain hashes and unique History. Three current PNG originals (6,423,259 bytes, 1254 × 1254 each) verified. Authorized read-only Drive retrieval also obtained the four historical upload binaries absent from the ZIP; a separate ignored supplemental ZIP preserves them without modifying the original export. Full preview verifies seven originals (11,582,875 bytes), all journal digests/MIME/lengths, no missing historical upload bytes. Sources/private backups in ignored `.migration/`, no data/resource IDs committed.
+- Source acceptance: final `npm test` passed all 179 checks (17 contracts + 83 backend + 51 frontend + 24 migration + 4 actual Next/browser). Restore reservation/session invalidation coverage was added afterward; `npm run test:migration` passes 26, making 181 checks across the current accepted suites. Next production build passes through browser test setup, including signed-image Blob/fallback. Full dependency audit has no vulnerabilities. Mocks/PGlite do not prove live Supavisor concurrency or Google sign-in.
+- Diagnosed the baseline modal-wheel test flake: an existing 200 ms SKU autofocus resets scroll when the test starts scrolling too early. The test now waits for that focus; 10/10 repeated runs and the full 51-test frontend suite passed, without changing application behavior.
+- Prepared private schema, tracked immutable upload reservation/verification/recovery, exact same-command retry, original image import with supplemental archive provenance and exact-manifest replay checks, Admin archive/repair/cleanup, canonical origin, .env template, database+Storage backup/empty-target restore and CI. No cloud write/provision/deploy was performed.
+- Block for the next phase: no confirmed Supabase/Vercel connection or local `.env.local` credentials. Plugin discovery found both providers available and offered connection; neither is confirmed connected. Do not infer access from screenshots or guess the new project ref. After a confirmed connection, continue without repeating this blocker; any remaining Google/server credentials stay private in local env/Vercel. Verify the correct Singapore project and callback. A wizard stage-order confirmation was offered asynchronously; do not author/run an interactive wizard before the user confirms its scoped stages.
+- Exact next phase: connect approved accounts securely → provision private schema/bucket → fresh-source preview/import under freeze → Vercel branch preview → Workspace/Gmail/browser/live workflow+native concurrency+cloud restore drill → explicit stable-domain cutover. Do not mark migration complete from source tests or deploy main while it remains GAS-only. Preserve unrelated dirty U+F01B file.
+
+Legacy status below is historical baseline/rollback documentation; its old stack, branch and next-phase statements do not override this section. Read `docs/MIGRATION_NEXT_SUPABASE.md` before infrastructure/data/deployment actions.
 
 ## Current state
 
