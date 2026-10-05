@@ -4,6 +4,7 @@ import { transaction } from './db.mjs';
 import { config } from './config.mjs';
 import { digest, secret, loadDomain, saveDomain } from './domain.mjs';
 import { fail } from './errors.mjs';
+import { createAuthDiagnostics } from './auth-diagnostics.mjs';
 const googleKeys = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const now = () => Math.floor(Date.now()/1000);
 const equal = (left,right) => typeof left==='string' && typeof right==='string' && Buffer.byteLength(left)===Buffer.byteLength(right) && timingSafeEqual(Buffer.from(left),Buffer.from(right));
@@ -69,34 +70,52 @@ export async function beginSignIn(input,requestKey) {
   for(const [key,value] of Object.entries({client_id:cfg.GOOGLE_OAUTH_CLIENT_ID,redirect_uri:callback.toString(),response_type:'code',scope:'openid email profile',state,nonce,code_challenge:digest(verifier),code_challenge_method:'S256',prompt:'select_account'})) authorization.searchParams.set(key,value);
   return {flowId,authorizationUrl:authorization.toString(),expiresAt};
 }
-export async function oauthCallback(parameters) {
-  if(['state','code','error'].some(key=>parameters.getAll(key).length>1)) rejectAuth();
-  const state=parameters.get('state');
-  if(!/^callback1_[A-Za-z0-9_-]{43}$/.test(state||'')) rejectAuth();
-  const claim=await transaction(async client=>{
-    const result=await client.query('SELECT * FROM crs.auth_flows WHERE state_hash=$1 AND expires_at>now() FOR UPDATE',[digest(state)]);
-    const flow=result.rows[0];
-    if(!flow || flow.status!=='PENDING') rejectAuth();
-    await client.query("UPDATE crs.auth_flows SET status='PROCESSING' WHERE id=$1",[flow.id]);
-    return flow;
-  });
+export async function oauthCallback(parameters,diagnostic=createAuthDiagnostics()) {
+  let claim;
   try {
+    diagnostic.stage('CALLBACK_INPUT');
+    if(['state','code','error'].some(key=>parameters.getAll(key).length>1)) rejectAuth();
+    const state=parameters.get('state');
+    if(!/^callback1_[A-Za-z0-9_-]{43}$/.test(state||'')) rejectAuth();
+    diagnostic.stage('FLOW_CLAIM');
+    claim=await transaction(async client=>{
+      const result=await client.query('SELECT * FROM crs.auth_flows WHERE state_hash=$1 AND expires_at>now() FOR UPDATE',[digest(state)]);
+      const flow=result.rows[0];
+      if(!flow || flow.status!=='PENDING') rejectAuth();
+      await client.query("UPDATE crs.auth_flows SET status='PROCESSING' WHERE id=$1",[flow.id]);
+      return flow;
+    });
+    diagnostic.stage('PROVIDER_CALLBACK');
     if(parameters.has('error') || !parameters.get('code')) rejectAuth();
+    diagnostic.stage('CONFIGURATION');
     const cfg=config();
     if(claim.data.clientId!==cfg.GOOGLE_OAUTH_CLIENT_ID) rejectAuth();
+    diagnostic.stage('TOKEN_EXCHANGE');
     const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',signal:AbortSignal.timeout(15000),
       headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({code:parameters.get('code'),client_id:claim.data.clientId,
         client_secret:process.env.GOOGLE_OAUTH_CLIENT_SECRET,redirect_uri:claim.data.redirectUri,grant_type:'authorization_code',code_verifier:claim.data.verifier})});
-    if(!response.ok) rejectAuth();
+    if(!response.ok) {
+      // Read only a standard provider error code; never log body/description.
+      let providerError;
+      try {providerError=(await response.json()).error;} catch { /* Non-JSON response. */ }
+      diagnostic.providerResponse(response.status,providerError);
+      rejectAuth();
+    }
     const tokens=await response.json();
+    diagnostic.stage('TOKEN_VERIFICATION');
     const verified=await jwtVerify(tokens.id_token,googleKeys,{algorithms:['RS256'],issuer:['https://accounts.google.com','accounts.google.com'],audience:cfg.GOOGLE_OAUTH_CLIENT_ID});
+    diagnostic.stage('IDENTITY_CLAIMS');
     const identity=assertGoogleClaims(verified.payload,{clientId:cfg.GOOGLE_OAUTH_CLIENT_ID,nonce:claim.data.nonce,domains:cfg.ALLOWED_DOMAINS});
     const otp=String(randomInt(1000000)).padStart(6,'0'),copyToken=secret('copy1_');
+    diagnostic.stage('FLOW_RECHECK');
     await transaction(async client=>{
       const latest=(await client.query('SELECT * FROM crs.auth_flows WHERE id=$1 AND expires_at>now() FOR UPDATE',[claim.id])).rows[0];
       if(!latest || latest.status!=='PROCESSING') rejectAuth();
+      diagnostic.stage('USERS_LOAD');
       const domain=await loadDomain(client);
+      diagnostic.stage('USER_AUTHORIZATION');
       const user=domain.context.requireUserForIdentity_(identity);
+      diagnostic.stage('OTP_COMMIT');
       const data={ clientId:claim.data.clientId,expiresAt:claim.data.expiresAt,
         candidate:{subject:identity.subject,email:identity.email,userId:user.user_id,clientId:claim.data.clientId,expiresAt:now()+cfg.AUTH_SESSION_TTL_SECONDS},
         otpHash:otpDigest(claim.id,otp),otpExpiresAt:Math.min(claim.data.expiresAt,now()+300),attempts:0,copyHash:digest(copyToken) };
@@ -104,7 +123,14 @@ export async function oauthCallback(parameters) {
     });
     return {otp,copyToken,flowHash:claim.id};
   } catch(error) {
-    await transaction(client=>client.query("UPDATE crs.auth_flows SET status='DENIED',data=$2 WHERE id=$1 AND status='PROCESSING'",[claim.id,JSON.stringify({expiresAt:claim.data.expiresAt})]));
+    diagnostic.failed(error);
+    if(claim) {
+      try {
+        await transaction(client=>client.query("UPDATE crs.auth_flows SET status='DENIED',data=$2 WHERE id=$1 AND status='PROCESSING'",[claim.id,JSON.stringify({expiresAt:claim.data.expiresAt})]));
+      } catch(denialError) {
+        diagnostic.stage('FLOW_DENIAL');diagnostic.failed(denialError);throw denialError;
+      }
+    }
     throw error;
   }
 }

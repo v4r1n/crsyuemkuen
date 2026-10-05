@@ -83,6 +83,7 @@ Supabase CLI login is optional for the existing database/Storage provisioning co
 | GOOGLE_OAUTH_REDIRECT_URI | Exact `${WEB_APP_URL}/auth/callback`, also in Google's Authorized redirect URIs. |
 | ALLOWED_DOMAINS | Explicit exact comma-separated approved domains, e.g. `yru.ac.th,gmail.com`; imported Users still must exist and be ACTIVE. |
 | WRITE_FREEZE | `true` for import/backup/cutover; `false` only after acceptance. This freezes **new** runtime mutations, not old GAS automatically. |
+| AUTH_DIAGNOSTICS | Temporary callback-stage diagnostics, default `false`. Enable only for the approved Preview investigation; Vercel Production ignores it. Never log OAuth query strings, credentials, tokens, OTPs or identities. Disable after diagnosis. |
 
 Keep TTL/image defaults unless consciously changing configuration. To freeze the old system, stop users writing and restrict access during the agreed window; setting the new environment variable does not freeze GAS. Do not manually delete/edit canonical rows or Operations to unblock migration.
 
@@ -109,6 +110,14 @@ Do not assume a CLI flag proves the environment. Vercel CLI converts `--target p
 The current protected Preview is READY with `staging` metadata and `sin1` functions; its canonical alias matches the Preview-only server configuration. Operator `vercel curl` smoke checks passed for the rendered shell/static transport, server-key absence in tested client responses, missing-state callback (400), cross-origin mutation (403), sessionless read (UNAUTHENTICATED), frozen mutation (WRITE_FROZEN), and one real PostgreSQL-backed OAuth start with the exact configured callback/state/nonce/PKCE. This created only an expiring PENDING flow, not a session or business record. All 109 operational rows remain unchanged. Anonymous HTTP redirects to Vercel; protection was not disabled. The operator must add the exact Preview callback to Google and sign in through the normal Google/OTP flow; successful OAuth start does not prove token exchange or account authorization.
 
 Avoid selecting `main` for migration deployment while it still contains the old GAS-only project. Branch source passing tests is not authorization to merge or replace a working deployment. Promote only after the checks below and explicit cutover.
+
+### Preview Google callback investigation
+
+The operator saved the exact Preview callback in the Google Web OAuth client. The supplied private log export captures four distinct code+state callbacks returning HTTP 400 before OTP, with no provider error parameter. This demonstrates redirect delivery, not successful token exchange or identity authorization. Existing callback error handling concealed the failing stage; subsequent poll errors are only the resulting UNAUTHENTICATED symptom. Do not replay the export's one-time Google codes or weaken checks to make a test pass.
+
+User-approved temporary diagnostics use `[DEBUG-crs-oauth-v1]` and a fresh independent request UUID. Only controlled stage/outcome, allowlisted error codes, and bounded failed-provider HTTP status/error enums are emitted. No callback URL/query, state/flow hash, Google/CRS tokens, OTP/copy proofs, email/subject, payload, free-form exception text/stack, or database URI is logged. Duplicate error reporting is suppressed; a log sink failure cannot affect denial/commit behavior. The generic callback page, current Users checks, one-time state/PKCE/nonce, and write freeze remain unchanged.
+
+Enable `AUTH_DIAGNOSTICS=true` only in Preview and redeploy with the explicit built-in staging target. Confirm a missing-state request produces a safe CALLBACK_INPUT event, then request **one fresh normal Google sign-in from the main app**, not a refresh of a consumed callback. Inspect only tagged events, filtering raw platform log exports locally because the platform's request metadata can independently contain callback query strings. Capture stage/code, not secrets. A READY diagnostic deployment or passing local callback fixtures does not prove live login is fixed. Disable the flag and remove temporary diagnostics once the actual cause has been repaired and live acceptance passes.
 
 ## Live acceptance / cutover gates
 

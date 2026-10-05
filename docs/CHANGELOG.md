@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Preview OAuth diagnostic instrumentation (2026-10-05)
+
+- User-approved temporary, opt-in callback-stage diagnostics distinguish flow claim, Google token exchange, signature/claims, current Users authorization, OTP commit and rendering failures. Logs use bounded allowlists and independent request UUIDs, never callback queries, tokens, proofs, identities or free-form exception details; default off and disabled in Vercel Production.
+- Added an isolated 14-case fixture exercising the actual callback route and embedded PostgreSQL to verify stage accuracy, redaction, unchanged failure/OTP behavior, replay/inactive-user denial, rollback, default-off/Production gating and log-sink failure isolation. No authentication/business-rule bypass or write-freeze change; live sign-in cause/repair remain unproven until a fresh operator attempt.
+- Fresh clean install and all 183 top-level checks/Next build pass. Diagnostic Preview is READY with Singapore functions; cloud smoke confirms the bounded missing-state diagnostic, protection/write freeze and OAuth start, while frozen backup tables remain unchanged. No Production promotion or sign-in success claim.
+
 ### Frozen cloud import and Preview deployment (2026-10-05)
 
 - Connected to the privately corrected Transaction pooler using the official Supabase CA; TLS and hostname verification remain enabled. Installed the private PostgreSQL schema and imported the exact supplied snapshot: 109 operational rows, 120 raw archive rows and all seven verified original images. Same-manifest replay creates no duplicates or overwrites; no source sharing changed.
