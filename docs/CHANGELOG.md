@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Cloud account setup preparation (2026-10-05)
 
+- Verified newly supplied server Storage credentials and provisioned the private image bucket with a 10 MiB hard limit and image MIME allowlist; no images/data imported. Setup preflight found `DATABASE_URL` mistakenly set to the HTTPS project URL. Clarified that it must be the PostgreSQL Transaction pooler URI; schema/deployment remain pending that correction.
 - Installed private local Supabase/Vercel CLI tools; verified the CRS Hobby team and created/linked an empty Next.js project with the repository build settings. No Supabase schema/import or Vercel app deployment/cutover yet; database, Storage and Google server credentials remain operator-supplied privately.
 - Added modern Supabase server-secret support with legacy service-role JWT fallback; publishable/anon keys fail closed for private Storage. Added regression coverage and private-source upload/cache exclusions.
 - Full 182-test suite and Next production build pass; application dependency audit is clean. Isolated CLI dependency advisories are documented separately and are not claimed as demonstrated application vulnerabilities.

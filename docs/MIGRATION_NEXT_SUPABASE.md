@@ -1,6 +1,6 @@
 # Next.js / Supabase migration
 
-Status: source verified; an empty Vercel project is linked, but the app is not deployed and Supabase is not provisioned/imported. User confirmed Q1–Q10, including free-first, fresh pre-production target, write freeze and new QR. Preserve the old GAS/Sheets/Drive system as read-only rollback evidence. Do not delete it or make any source/bucket public.
+Status: source verified; an empty Vercel project is linked and private Storage is provisioned. The app is not deployed and PostgreSQL schema/data are not installed/imported. User confirmed Q1–Q10, including free-first, fresh pre-production target, write freeze and new QR. Preserve the old GAS/Sheets/Drive system as read-only rollback evidence. Do not delete it or make any source/bucket public.
 
 ## Architecture and preserved contracts
 
@@ -54,9 +54,9 @@ All application uploads are reserved in PostgreSQL before external creation, so 
 
 ## Account configuration — secrets stay local
 
-The operator chose to configure `.env.local` and log in manually; no interactive wizard is required. Local tools are installed privately under ignored `.migration/cli/` (Supabase 2.119.0 and Vercel 62.2.0). Vercel login and the CRS Hobby team were verified; a new empty Next.js project was created and linked locally for the requested setup. Its project identity remains in ignored `.vercel/`, not this runbook. Supabase's public Auth settings API is reachable, but PostgreSQL credentials, private Storage access and Google OAuth configuration have not been verified. Supabase CLI login and plugin connections remain unconfirmed. None of these checks is a completed schema/import/deployment.
+The operator chose to configure `.env.local` and log in manually; no interactive wizard is required. Local tools are installed privately under ignored `.migration/cli/` (Supabase 2.119.0 and Vercel 62.2.0). Vercel login and the CRS Hobby team were verified; a new empty Next.js project was created and linked locally for the requested setup. Its project identity remains in ignored `.vercel/`, not this runbook. Supabase's public API is reachable and the server secret successfully listed Storage buckets. The private image bucket was created and verified with a 10 MiB hard limit and JPEG/PNG/WebP/GIF allowlist; no image objects were uploaded. PostgreSQL and live Google OAuth remain unverified. Supabase CLI login and plugin connections remain unconfirmed. These checks are not a completed schema/import/deployment.
 
-Use the existing ignored `.env.local` in a private editor; if it does not exist, copy `.env.example`. Never paste its contents into chat, print it in logs or commit it. Rotate any database password previously disclosed in chat **before** entering the new value. No browser `NEXT_PUBLIC_*` key is needed. The current blockers are the missing database URL, server secret key and Google OAuth client/secret. Keep `WRITE_FREEZE=true` throughout setup.
+Use the existing ignored `.env.local` in a private editor; if it does not exist, copy `.env.example`. Never paste its contents into chat, print it in logs or commit it. Rotate any database password previously disclosed in chat **before** entering the new value. No browser `NEXT_PUBLIC_*` key is needed. Credentials are now present, but the configured `DATABASE_URL` is an HTTPS project URL rather than a PostgreSQL URI; this prevents database setup. Replace it using **Connect → Transaction pooler**, which begins with `postgresql://` and uses the copied pooler host/username/port. Do not use `SUPABASE_URL` in its place or guess the host. Origin/callback still use localhost and must be configured for the eventual Preview before live OAuth acceptance. Keep `WRITE_FREEZE=true` throughout setup.
 
 Local CLI installation can be reproduced without a global install:
 
