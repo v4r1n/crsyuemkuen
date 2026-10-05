@@ -15,5 +15,9 @@ test-results/
 coverage/
 *.xlsx
 *.zip
+*.7z
+*.rar
+*.tar
+*.gz
 *.log
 

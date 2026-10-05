@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Frozen cloud import and Preview deployment (2026-10-05)
+
+- Connected to the privately corrected Transaction pooler using the official Supabase CA; TLS and hostname verification remain enabled. Installed the private PostgreSQL schema and imported the exact supplied snapshot: 109 operational rows, 120 raw archive rows and all seven verified original images. Same-manifest replay creates no duplicates or overwrites; no source sharing changed.
+- Verified private schema/RLS/public-access denial, actual read-only advisory-lock ordering and a private database+seven-binary backup. Full cloud restore and business/load/account acceptance remain gates, not claimed complete.
+- Fixed clean-install failure from a JSZip package/lock pin mismatch, excluded additional compressed archives from source uploads, and passed a fresh `npm ci`, all 182 tests/Next build and a zero-advisory application audit.
+- First CLI submission was implicitly assigned Production and failed before application execution. The successful build uses the explicit built-in REST staging/Preview target with Singapore functions, protected canonical Preview alias and Preview-only server credentials/write freeze. No working Production deployment, promotion or cutover.
+- Real Preview smoke checks verify shell/static responses, callback-state rejection, cross-origin/session denial, write freeze and PostgreSQL-backed OAuth flow creation with exact callback/state/nonce/PKCE. Google token exchange/OTP/account identity and complete authenticated workflows remain live acceptance work; no bypass visitor/session was created.
+
 ### Cloud account setup preparation (2026-10-05)
 
 - Verified newly supplied server Storage credentials and provisioned the private image bucket with a 10 MiB hard limit and image MIME allowlist; no images/data imported. Setup preflight found `DATABASE_URL` mistakenly set to the HTTPS project URL. Clarified that it must be the PostgreSQL Transaction pooler URI; schema/deployment remain pending that correction.
