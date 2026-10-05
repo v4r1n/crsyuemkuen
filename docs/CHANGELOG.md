@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Cloud account setup preparation (2026-10-05)
+
+- Installed private local Supabase/Vercel CLI tools; verified the CRS Hobby team and created/linked an empty Next.js project with the repository build settings. No Supabase schema/import or Vercel app deployment/cutover yet; database, Storage and Google server credentials remain operator-supplied privately.
+- Added modern Supabase server-secret support with legacy service-role JWT fallback; publishable/anon keys fail closed for private Storage. Added regression coverage and private-source upload/cache exclusions.
+- Full 182-test suite and Next production build pass; application dependency audit is clean. Isolated CLI dependency advisories are documented separately and are not claimed as demonstrated application vulnerabilities.
+
 ### Next.js / Supabase migration source (2026-10-05)
 
 - User-approved migration source on a feature branch: Next.js route handlers preserve the SPA, Google popup/OTP and domain services through transaction-backed PostgreSQL adapters. No live import, deployment or cutover yet; legacy sources remain unchanged.

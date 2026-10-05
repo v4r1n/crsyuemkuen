@@ -7,7 +7,7 @@ import { createDomain,loadDomain,saveDomain } from '../../server/domain.mjs';
 import { fields,tables } from '../../server/schema.mjs';
 import { canonicalUrl,config } from '../../server/config.mjs';
 import { assertGoogleClaims } from '../../server/auth.mjs';
-import { validateImage,inspectResources,storageMissing } from '../../server/storage.mjs';
+import { validateImage,inspectResources,storageMissing,serverSupabaseKey } from '../../server/storage.mjs';
 import { transaction } from '../../server/db.mjs';
 import { envelope,fail } from '../../server/errors.mjs';
 const require=createRequire(import.meta.url);
@@ -89,6 +89,18 @@ test('canonical origin never accepts numbered Google browser routes or arbitrary
   for(const input of ['https://example.test/u/1/','https://example.test/?token=x','https://user:pass@example.test']) assert.throws(()=>canonicalUrl(input));
   const domain=createDomain({}, {runtimeConfig:config()});
   assert.equal(domain.context.buildAssetUrl_('AST-000003'),'https://example.test?view=equipment-detail&id=AST-000003');
+});
+
+test('private Storage accepts server secret keys and legacy service-role JWTs, never publishable/anon keys',()=>{
+  const modern='sb_secret_'+'A'.repeat(32);
+  const jwt=role=>'testHeader.'+Buffer.from(JSON.stringify({role})).toString('base64url')+'.testSignature';
+  assert.equal(serverSupabaseKey({SUPABASE_SECRET_KEY:modern}),modern);
+  assert.equal(serverSupabaseKey({SUPABASE_SERVICE_ROLE_KEY:jwt('service_role')}),jwt('service_role'));
+  assert.equal(serverSupabaseKey({SUPABASE_SECRET_KEY:modern,SUPABASE_SERVICE_ROLE_KEY:jwt('anon')}),modern);
+  for(const value of ['', 'sb_publishable_'+'A'.repeat(32),jwt('anon'),jwt('authenticated'),'bad-value']) {
+    assert.throws(()=>serverSupabaseKey({SUPABASE_SECRET_KEY:value}),/server secret key/);
+  }
+  assert.throws(()=>serverSupabaseKey({SUPABASE_SECRET_KEY:'sb_publishable_'+'A'.repeat(32),SUPABASE_SERVICE_ROLE_KEY:jwt('service_role')}));
 });
 test('Google authority requires nonce, audience, exact allowed domain, verified email and hd',()=>{
   const claims={iss:'https://accounts.google.com',aud:'client',exp:200,iat:99,nonce:'proof',sub:'subject',email:'user@example.com',email_verified:true,hd:'example.com'};

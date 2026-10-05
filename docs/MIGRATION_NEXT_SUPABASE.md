@@ -1,6 +1,6 @@
 # Next.js / Supabase migration
 
-Status: source preparation, not deployed or imported. User confirmed Q1–Q10, including free-first, fresh pre-production target, write freeze and new QR. Preserve the old GAS/Sheets/Drive system as read-only rollback evidence. Do not delete it or make any source/bucket public.
+Status: source verified; an empty Vercel project is linked, but the app is not deployed and Supabase is not provisioned/imported. User confirmed Q1–Q10, including free-first, fresh pre-production target, write freeze and new QR. Preserve the old GAS/Sheets/Drive system as read-only rollback evidence. Do not delete it or make any source/bucket public.
 
 ## Architecture and preserved contracts
 
@@ -54,14 +54,27 @@ All application uploads are reserved in PostgreSQL before external creation, so 
 
 ## Account configuration — secrets stay local
 
-Supabase and Vercel integrations were found and offered, but neither connection is confirmed yet. Connecting approved accounts is the preferred next step. For CLI/server credentials, copy `.env.example` to ignored `.env.local` in a private editor. Never paste its contents into chat or commit it. No browser `NEXT_PUBLIC_*` key is needed. The agent currently has neither a confirmed cloud account connection nor local credentials.
+The operator chose to configure `.env.local` and log in manually; no interactive wizard is required. Local tools are installed privately under ignored `.migration/cli/` (Supabase 2.119.0 and Vercel 62.2.0). Vercel login and the CRS Hobby team were verified; a new empty Next.js project was created and linked locally for the requested setup. Its project identity remains in ignored `.vercel/`, not this runbook. Supabase's public Auth settings API is reachable, but PostgreSQL credentials, private Storage access and Google OAuth configuration have not been verified. Supabase CLI login and plugin connections remain unconfirmed. None of these checks is a completed schema/import/deployment.
+
+Use the existing ignored `.env.local` in a private editor; if it does not exist, copy `.env.example`. Never paste its contents into chat, print it in logs or commit it. Rotate any database password previously disclosed in chat **before** entering the new value. No browser `NEXT_PUBLIC_*` key is needed. The current blockers are the missing database URL, server secret key and Google OAuth client/secret. Keep `WRITE_FREEZE=true` throughout setup.
+
+Local CLI installation can be reproduced without a global install:
+
+```powershell
+npm install --prefix .migration/cli --save-exact --no-fund supabase@2.119.0 vercel@62.2.0
+# Only when the corresponding account is not already logged in:
+& .\.migration\cli\node_modules\.bin\supabase.cmd login
+& .\.migration\cli\node_modules\.bin\vercel.cmd login
+```
+
+Supabase CLI login is optional for the existing database/Storage provisioning command, which uses local server credentials. Never place access tokens in command-line arguments. The isolated CLI dependency audit reports advisories; the application dependency audit is clean. These are tooling advisories, not demonstrated application exploits. An older Vercel CLI had more advisories, so it was not retained; do not apply blind major-version overrides or `audit fix --force`. Review the tooling before deployment, and use a confirmed provider integration/dashboard if needed. `.vercelignore` excludes local credentials, exports, backups, CLI dependencies and Supabase caches from CLI source uploads.
 
 | Variable | Where to obtain / set |
 | --- | --- |
 | DATABASE_URL | Supabase **Connect → Transaction pooler**; exact Singapore-project host/user/password. URI-encode special password characters. Server-only. |
 | DATABASE_CA | Optional PEM certificate from Database Settings → SSL configuration. TLS/hostname verification stays enabled; never solve connection errors by disabling it. |
 | SUPABASE_URL | Singapore project URL from Connect/project dashboard; use the actual value, not a guessed screenshot ID. |
-| SUPABASE_SERVICE_ROLE_KEY | Project Settings → API Keys → legacy service_role key; backend/CLI only, never publishable/anon key. |
+| SUPABASE_SECRET_KEY | Project Settings → API Keys → Secret key (`sb_secret_...`); backend/CLI only, never publishable/anon key. `SUPABASE_SERVICE_ROLE_KEY` is supported only as a legacy service-role JWT fallback. |
 | IMAGE_BUCKET | `crs-images` private bucket; setup command creates it with 10 MiB hard limit and image MIME allowlist. |
 | WEB_APP_URL | The selected stable Vercel HTTPS origin, without path/query/hash. Local development may use `http://localhost:3000`. |
 | GOOGLE_OAUTH_CLIENT_ID / SECRET | Google Cloud Console → APIs & Services → Credentials → Web application OAuth client. Preserve old rollback redirects. |

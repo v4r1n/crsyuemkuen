@@ -3,9 +3,22 @@ import { config } from './config.mjs';
 import { digest, createDomain } from './domain.mjs';
 import { fail } from './errors.mjs';
 let client;
+export function serverSupabaseKey(env=process.env) {
+  const key=env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if(/^sb_secret_[A-Za-z0-9_-]{20,}$/.test(key)) return key;
+  if(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(key)) {
+    try {
+      if(JSON.parse(Buffer.from(key.split('.')[1],'base64url').toString('utf8')).role==='service_role') return key;
+    } catch {}
+  }
+  // Configuration validation only: Supabase still verifies the key's
+  // authenticity. Never silently use a publishable/anon key for the backend.
+  throw new Error('A Supabase server secret key is required; publishable/anon keys cannot access private Storage');
+}
 export function supabase() {
-  if(!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Supabase server configuration required');
-  client ||= createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  if(!process.env.SUPABASE_URL) throw new Error('Supabase server configuration required');
+  const key=serverSupabaseKey();
+  client ||= createClient(process.env.SUPABASE_URL,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
   return client;
 }
 export async function privateStorage() {

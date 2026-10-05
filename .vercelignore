@@ -1,0 +1,19 @@
+# Never send private source exports, credentials or local tools to Vercel.
+.migration/
+supabase/.temp/
+supabase/.branches/
+.env
+.env.*
+.clasp.json
+.clasprc.json
+.git/
+.next/
+.vercel/
+node_modules/
+playwright-report/
+test-results/
+coverage/
+*.xlsx
+*.zip
+*.log
+
