@@ -5,11 +5,34 @@ import { config } from './config.mjs';
 import { fields, keys, tables } from './schema.mjs';
 import { fail } from './errors.mjs';
 
-const modules = ['Config','Constants','Schema','Errors','Utils','Validation','ServiceUtils','DataStore',
-  'Migrations','Auth','OperationService','HistoryService','CategoryService','UserService',
-  'EquipmentService','BorrowService','DashboardService','IntegrityService','ImageService',
-  'ImageIntegrityService','OperationAdminService','Api'];
-const source = modules.map(name => readFileSync(new URL(`../src/${name}.gs`, import.meta.url),'utf8')).join('\n');
+// Literal reads are required at this bundler boundary. A dynamic URL in the
+// map was folded to Config.gs in production, losing all other services. A map
+// of reads also widens file tracing to the whole project: keep each path static.
+// Preserve the trusted source order and test the compiled module and its trace.
+const source = [
+  readFileSync(new URL('../src/Config.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Constants.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Schema.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Errors.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Utils.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Validation.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/ServiceUtils.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/DataStore.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Migrations.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Auth.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/OperationService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/HistoryService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/CategoryService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/UserService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/EquipmentService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/BorrowService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/DashboardService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/IntegrityService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/ImageService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/ImageIntegrityService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/OperationAdminService.gs',import.meta.url),'utf8'),
+  readFileSync(new URL('../src/Api.gs',import.meta.url),'utf8')
+].join('\n');
 export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : Buffer.from(value)).digest('base64url');
 export const secret = prefix => prefix + randomBytes(32).toString('base64url');
 const copy = value => JSON.parse(JSON.stringify(value));

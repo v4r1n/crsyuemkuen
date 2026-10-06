@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Production domain-loading login repair (2026-10-06)
+
+- Reproduced the live USER_AUTHORIZATION failure in the actual Next production artifact: dynamic legacy-source URLs were compiled to repeated Config.gs reads, removing authorization/business services. Replaced them with literal file reads in the original order; Google verification, current Users authorization, business rules and write freeze are unchanged.
+- Added compiled-artifact regression gates for Active authorization, inactive/unknown denial, guarded bootstrap/service availability and private-file tracing. The normal Next acceptance command now builds once, checks that artifact, then runs browser tests against it. Source-only tests had not caught the bundling failure. Live operator Google/OTP acceptance remains required after Preview redeployment.
+- Fresh install and all 187 top-level checks/production build pass. Fixed-source Preview is READY with Singapore functions and unchanged canonical callback; cloud smoke, protected access, frozen writes and unchanged backup-table comparison pass. No Production promotion or actual operator login success is claimed yet; temporary safe diagnostics stay pending that final acceptance.
+
 ### Preview OAuth diagnostic instrumentation (2026-10-05)
 
 - User-approved temporary, opt-in callback-stage diagnostics distinguish flow claim, Google token exchange, signature/claims, current Users authorization, OTP commit and rendering failures. Logs use bounded allowlists and independent request UUIDs, never callback queries, tokens, proofs, identities or free-form exception details; default off and disabled in Vercel Production.
