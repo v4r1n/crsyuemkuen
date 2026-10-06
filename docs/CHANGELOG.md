@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Authorized frozen Production rollout (2026-10-06)
+
+- User requested Production after successful Preview sign-in. Prepared Production-only canonical callback/server configuration with verified TLS/private images and unchanged Preview env; keep writes frozen while manual Google callback and write-cutover/source-freshness confirmation remain pending.
+- Reverified original image/reference/private-access and frozen business fields, and created a new private verified database+seven-image backup. This does not claim cloud restore, load or full workflow acceptance; no source sharing, business data or authentication rules changed.
+- Rebuilt accepted source on explicit Production target: READY, Singapore functions and canonical production domain. Standard Protection keeps Preview/generated URLs gated while the Production shell uses CRS auth. Anonymous cloud smoke passes authorization/origin/callback/freeze checks and exact canonical OAuth start; manual Production Google/OTP acceptance is still pending. Fresh install, all 187 checks/Next build and zero application dependency advisories pass.
+
 ### Verified login and diagnostic cleanup (2026-10-06)
 
 - Operator confirmed real Google/OTP login after the packaged-domain repair; safe cloud evidence shows a consumed flow and active session, while an inactive account remains denied. Disabled the Preview-only flag and removed all temporary runtime callback diagnostics without changing verification, current Users checks, generic errors or security headers.
