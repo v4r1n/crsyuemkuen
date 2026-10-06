@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { callbackPage as realCallbackPage } from '../../server/callback-page.mjs';
 
+// Module doubles live only in the isolated experimental test worker.
 const privateValues=['PRIVATE-CODE','PRIVATE-STATE','PRIVATE-TOKEN','PRIVATE-SECRET',
   'PRIVATE-DESCRIPTION','PRIVATE-DATABASE','private-person@gmail.com'];
 let db,logs,claims,verifyError,renderError,queryFailure,tokenResponse;
@@ -34,7 +35,6 @@ before(async()=>{
 });
 after(async()=>{mock.restoreAll();await db.close();});
 beforeEach(async()=>{
-  process.env.AUTH_DIAGNOSTICS='true';process.env.VERCEL_ENV='preview';
   process.env.GOOGLE_OAUTH_CLIENT_ID='test.apps.googleusercontent.com';
   process.env.GOOGLE_OAUTH_CLIENT_SECRET='PRIVATE-SECRET';
   process.env.ALLOWED_DOMAINS='gmail.com';process.env.WRITE_FREEZE='true';
@@ -61,96 +61,73 @@ async function callback(query=new URLSearchParams({state,code:'PRIVATE-CODE'})){
   return GET(new Request('https://example.test/auth/callback?'+query));
 }
 async function status(){return (await db.query('SELECT status FROM crs.auth_flows WHERE id=$1',[flowId])).rows[0].status;}
-function event(stage,code){
-  assert.equal(logs.length,1,'one bounded event per failure');
-  assert.match(logs[0],/^\[DEBUG-crs-oauth-v1\] /);
-  for(const secret of [...privateValues,state,flowId,'PRIVATE-NONCE','PRIVATE-VERIFIER','PRIVATE-SUBJECT']) assert.ok(!logs[0].includes(secret));
-  const value=JSON.parse(logs[0].slice('[DEBUG-crs-oauth-v1] '.length));
-  assert.equal(value.stage,stage);assert.equal(value.code,code);
-  assert.match(value.requestId,/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/);
-  assert.ok(Object.keys(value).every(key=>['requestId','stage','code','outcome','providerStatus','providerError'].includes(key)));
-  return value;
-}
-async function denied(stage,code){
-  const response=await callback();assert.equal(response.status,400);
+function silent(){assert.deepEqual(logs,[],'callback must not log authorization material');}
+async function denied(query){
+  const response=await callback(query);assert.equal(response.status,400);
   assert.equal(response.headers.get('cache-control'),'no-store');
   const body=await response.text();for(const secret of privateValues) assert.ok(!body.includes(secret));
   assert.doesNotMatch(body,/oauth-handoff-code" readonly/);
   assert.equal(await status(),'DENIED');
   assert.equal((await db.query('SELECT count(*)::int AS count FROM crs.sessions')).rows[0].count,0);
-  return event(stage,code);
+  silent();
 }
-test('missing or duplicate callback state is logged without a flow, and cannot consume it',async()=>{
+test('missing or duplicate callback state cannot consume a flow',async()=>{
   const response=await callback(new URLSearchParams({state:'PRIVATE-STATE',code:'PRIVATE-CODE'}));
-  assert.equal(response.status,400);assert.equal(await status(),'PENDING');
-  event('CALLBACK_INPUT','UNAUTHENTICATED');
-  logs=[];const query=new URLSearchParams({state,code:'PRIVATE-CODE'});query.append('state',state);
-  assert.equal((await callback(query)).status,400);assert.equal(await status(),'PENDING');
-  event('CALLBACK_INPUT','UNAUTHENTICATED');
+  assert.equal(response.status,400);assert.equal(await status(),'PENDING');silent();
+  const query=new URLSearchParams({state,code:'PRIVATE-CODE'});query.append('state',state);
+  assert.equal((await callback(query)).status,400);assert.equal(await status(),'PENDING');silent();
 });
 test('flow replay remains rejected before token exchange',async()=>{
   await db.query("UPDATE crs.auth_flows SET status='DENIED',data='{}' WHERE id=$1",[flowId]);
-  assert.equal((await callback()).status,400);event('FLOW_CLAIM','UNAUTHENTICATED');
+  assert.equal((await callback()).status,400);silent();
   assert.equal(globalThis.fetch.mock.callCount(),0);
 });
-test('provider errors are allowlisted, never token bodies or descriptions',async()=>{
+test('provider errors deny without leaking token bodies or descriptions',async()=>{
   tokenResponse=new Response(JSON.stringify({error:'invalid_client',error_description:'PRIVATE-DESCRIPTION PRIVATE-SECRET',id_token:'PRIVATE-TOKEN'}),{status:401});
-  const value=await denied('TOKEN_EXCHANGE','UNAUTHENTICATED');
-  assert.equal(value.providerStatus,401);assert.equal(value.providerError,'invalid_client');
+  await denied();assert.equal(tokenResponse.bodyUsed,false,'failed provider body is not read');
 });
-test('untrusted provider error strings are reduced to a bounded sentinel',async()=>{
-  tokenResponse=new Response(JSON.stringify({error:'PRIVATE-SECRET'}),{status:400});
-  assert.equal((await denied('TOKEN_EXCHANGE','UNAUTHENTICATED')).providerError,'OTHER');
+test('untrusted provider error strings never reach logs or the error page',async()=>{
+  tokenResponse=new Response(JSON.stringify({error:'PRIVATE-SECRET'}),{status:400});await denied();
 });
-test('network failures log only allowlisted error codes, never messages or stacks',async()=>{
+test('network failures deny without leaking messages or stacks',async()=>{
   globalThis.fetch.mock.mockImplementation(async()=>{throw Object.assign(new Error('PRIVATE-DATABASE PRIVATE-SECRET'),{code:'PRIVATE-TOKEN'});});
-  await denied('TOKEN_EXCHANGE','INTERNAL');
+  await denied();
 });
-test('signature/JWKS failure is distinguished from authoritative-claim rejection',async()=>{
-  verifyError=Object.assign(new Error('PRIVATE-TOKEN'),{code:'ERR_JWS_SIGNATURE_VERIFICATION_FAILED'});
-  await denied('TOKEN_VERIFICATION','ERR_JWS_SIGNATURE_VERIFICATION_FAILED');
+test('signature/JWKS failure still rejects the callback',async()=>{
+  verifyError=Object.assign(new Error('PRIVATE-TOKEN'),{code:'ERR_JWS_SIGNATURE_VERIFICATION_FAILED'});await denied();
 });
-test('invalid nonce still denies identity without persisting a candidate or OTP',async()=>{
-  claims.nonce='WRONG-NONCE';await denied('IDENTITY_CLAIMS','UNAUTHENTICATED');
+test('invalid nonce denies identity without persisting a candidate or OTP',async()=>{
+  claims.nonce='WRONG-NONCE';await denied();
   const data=(await db.query('SELECT data FROM crs.auth_flows WHERE id=$1',[flowId])).rows[0].data;
   assert.deepEqual(Object.keys(data),['expiresAt']);
 });
-test('current inactive Users still deny access at the authorization stage',async()=>{
-  await db.query("UPDATE crs.users SET data=jsonb_set(data,'{status}','\"INACTIVE\"')");
-  await denied('USER_AUTHORIZATION','USER_DISABLED');
+test('current inactive Users still deny access',async()=>{
+  await db.query("UPDATE crs.users SET data=jsonb_set(data,'{status}','\"INACTIVE\"')");await denied();
 });
-test('database loading and OTP commit errors have separate stages',async()=>{
-  queryFailure={match:'FROM crs.equipment',error:Object.assign(new Error('PRIVATE-DATABASE'),{code:'42501'})};
-  await denied('USERS_LOAD','42501');
+test('database loading failure cannot authorize a visitor',async()=>{
+  queryFailure={match:'FROM crs.equipment',error:Object.assign(new Error('PRIVATE-DATABASE'),{code:'42501'})};await denied();
 });
 test('an interrupted OTP commit rolls back and denies; it never activates a session',async()=>{
-  queryFailure={match:"status='AWAITING_CONFIRMATION'",error:Object.assign(new Error('PRIVATE-DATABASE'),{code:'57014'})};
-  await denied('OTP_COMMIT','57014');
+  queryFailure={match:"status='AWAITING_CONFIRMATION'",error:Object.assign(new Error('PRIVATE-DATABASE'),{code:'57014'})};await denied();
 });
 test('valid callback retains OTP/copy UX without logging OTP, tokens or identity',async()=>{
   const response=await callback();assert.equal(response.status,200);assert.equal(await status(),'AWAITING_CONFIRMATION');
-  const page=await response.text();assert.match(page,/oauth-handoff-code" readonly/);assert.match(page,/acknowledgeOAuthCopy/);
-  const value=event('CALLBACK_READY','OK');assert.equal(value.outcome,'READY');
+  const page=await response.text();assert.match(page,/oauth-handoff-code" readonly/);assert.match(page,/acknowledgeOAuthCopy/);silent();
   const data=(await db.query('SELECT data FROM crs.auth_flows WHERE id=$1',[flowId])).rows[0].data;
   assert.equal(data.candidate.email,claims.email);assert.ok(data.otpHash);assert.equal(data.attempts,0);
-  const otp=/value="(\d{6})"/.exec(page)?.[1];assert.ok(otp);assert.ok(!logs[0].includes(otp));
+  assert.ok(/value="(\d{6})"/.exec(page)?.[1]);
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.match(response.headers.get('content-security-policy'),/frame-ancestors 'none'/);
 });
 test('render failure does not change a verified awaiting-confirmation flow',async()=>{
   renderError=new Error('PRIVATE-TOKEN');assert.equal((await callback()).status,400);
-  assert.equal(await status(),'AWAITING_CONFIRMATION');event('CALLBACK_RENDER','INTERNAL');
+  assert.equal(await status(),'AWAITING_CONFIRMATION');silent();
 });
-test('diagnostics are off by default and cannot be enabled in Vercel Production',async()=>{
-  delete process.env.AUTH_DIAGNOSTICS;
-  assert.equal((await callback(new URLSearchParams())).status,400);assert.deepEqual(logs,[]);
-  process.env.AUTH_DIAGNOSTICS='true';process.env.VERCEL_ENV='production';
-  assert.equal((await callback(new URLSearchParams())).status,400);assert.deepEqual(logs,[]);
+test('provider consent denial consumes the claim without token exchange',async()=>{
+  await denied(new URLSearchParams({state,error:'access_denied'}));assert.equal(globalThis.fetch.mock.callCount(),0);
 });
-test('logger accepts only controlled fields and logging errors cannot break authentication',async()=>{
-  const {createAuthDiagnostics}=await import('../../server/auth-diagnostics.mjs');
-  const diagnostic=createAuthDiagnostics();
-  diagnostic.stage('PRIVATE-SECRET');diagnostic.providerResponse(401,'PRIVATE-TOKEN');
-  diagnostic.failed(Object.assign(new Error('PRIVATE-SECRET'),{code:'PRIVATE-TOKEN',email:'private-person@gmail.com'}));
-  event('CALLBACK_INPUT','INTERNAL');
-  console.error.mock.mockImplementation(()=>{throw new Error('test log sink unavailable');});
-  assert.doesNotThrow(()=>createAuthDiagnostics().failed(new Error('PRIVATE-SECRET')));
+test('unknown Users remain denied without auto-provisioning',async()=>{
+  const count=Number((await db.query('SELECT count(*) AS n FROM crs.users')).rows[0].n);
+  claims.email='unknown-person@gmail.com';await denied();
+  assert.equal(Number((await db.query('SELECT count(*) AS n FROM crs.users')).rows[0].n),count);
 });

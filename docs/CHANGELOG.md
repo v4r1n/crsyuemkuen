@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Verified login and diagnostic cleanup (2026-10-06)
+
+- Operator confirmed real Google/OTP login after the packaged-domain repair; safe cloud evidence shows a consumed flow and active session, while an inactive account remains denied. Disabled the Preview-only flag and removed all temporary runtime callback diagnostics without changing verification, current Users checks, generic errors or security headers.
+- Retained the production-artifact regression gates and converted the 14 actual callback/privacy cases to logger-free denial, rollback and OTP checks. Fresh install, all 187 top-level checks/Next build and a zero-advisory application audit pass.
+- Read-only acceptance reverified all seven original private images and three Equipment references, private schema/RLS/public-image denial, and frozen backup fields except one normal login timestamp. Broader browser/account/workflow/load/restore acceptance and explicit cutover remain required; writes stay frozen and no Production promotion is authorized.
+- Cleanup Preview is READY on explicit staging with Singapore functions and its protected canonical alias. Cloud smoke/frozen-data/protection checks pass; no temporary debug events remain after callback probes. No Production deployment or data cutover.
+
 ### Production domain-loading login repair (2026-10-06)
 
 - Reproduced the live USER_AUTHORIZATION failure in the actual Next production artifact: dynamic legacy-source URLs were compiled to repeated Config.gs reads, removing authorization/business services. Replaced them with literal file reads in the original order; Google verification, current Users authorization, business rules and write freeze are unchanged.
