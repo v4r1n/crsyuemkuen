@@ -2,9 +2,10 @@ import { readFile,writeFile,mkdir } from 'node:fs/promises';
 import { join,resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { database,transaction } from '../server/db.mjs';
-import { snapshotTables,reserveRestore,commitRestore } from './restore-records.mjs';
+import { snapshotTables,reserveRestore,commitRestore,normalizeSnapshot } from './restore-records.mjs';
 import { supabase,privateStorage,validateImage,storageMissing } from '../server/storage.mjs';
 import { config } from '../server/config.mjs';
+import { applyAdditiveMigrations } from '../server/migrations.mjs';
 try{process.loadEnvFile('.env.local');}catch{}
 const action=process.argv[2],pool=database();
 const sql=await readFile(new URL('../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8');
@@ -15,9 +16,10 @@ try{
     if(existing.rows[0].name) {
       // Existence checks detect incomplete installs, not constraint drift.
       // A manually changed schema requires operator review, never a reset.
-      for(const table of snapshotTables) if(!(await pool.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name) throw new Error('Existing schema is incomplete');
+      for(const table of snapshotTables.filter(name=>!['password_credentials','security_mail','equipment_visibility','notifications'].includes(name))) if(!(await pool.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name) throw new Error('Existing schema is incomplete');
       console.log('Schema already exists; not overwritten.');
     }else{await pool.query(sql);console.log('Transactional database schema installed.');}
+    await applyAdditiveMigrations(transaction);
     const bucket=config().DRIVE_FOLDER_ID;
     const found=await supabase().storage.getBucket(bucket);
     if(found.error){
@@ -31,7 +33,7 @@ try{
     const destination=resolve(process.argv[3]||join('.migration','backup-'+new Date().toISOString().replace(/[:.]/g,'-')));
     const storage=await privateStorage(); await mkdir(join(destination,'objects'),{recursive:true});
     const snapshot=await transaction(async db=>{
-      const result={format:1,created_at:new Date().toISOString(),tables:{},objects:[]};
+      const result={format:2,created_at:new Date().toISOString(),tables:{},objects:[]};
       for(const table of snapshotTables) result.tables[table]=(await db.query(`SELECT * FROM crs.${table} ORDER BY 1`)).rows;
       return result;
     });
@@ -54,8 +56,8 @@ try{
     if(process.env.WRITE_FREEZE!=='true' || !process.argv.includes('--confirm-empty')) throw new Error('Restore requires WRITE_FREEZE=true and --confirm-empty; destination must be an empty provisioned project');
     const directory=resolve(process.argv[3]||''),bytes=await readFile(join(directory,'database.json'));
     if(sha(bytes)!==(await readFile(join(directory,'sha256.txt'),'utf8')).trim()) throw new Error('Backup manifest checksum mismatch');
-    const snapshot=JSON.parse(bytes);
-    if(snapshot.format!==1 || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join()) throw new Error('Unknown backup format');
+    const snapshot=normalizeSnapshot(JSON.parse(bytes));
+    if(snapshot.format!==2 || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join()) throw new Error('Unknown backup format');
     const ids=snapshot.objects.map(item=>item.id);
     if(new Set(ids).size!==ids.length || snapshot.tables.image_resources.some(row=>row.state==='READY'&&!ids.includes(row.id))) throw new Error('Backup omits a READY image');
     // Reserve tracked objects before external writes; protect an interrupted

@@ -1,0 +1,47 @@
+/* Presentation uses the established contrast-checked design tokens. */
+.access-card { position:relative; isolation:isolate; }
+.access-card .theme-toggle-login { position:absolute; inset:1rem 1rem auto auto; z-index:2; }
+.login-logo { width:88px; height:88px; object-fit:contain; display:block; margin:0 auto 1rem; }
+.login-password-form { width:100%; margin-block:1.25rem; }
+.password-field { position:relative; }
+.password-field input { padding-inline-end:3.2rem; }
+.password-reveal { position:absolute; inset:2px 2px 2px auto; width:2.8rem; border:0; background:transparent; color:var(--crs-muted); border-radius:var(--crs-radius-sm); display:grid; place-items:center; touch-action:none; }
+.password-reveal:focus-visible { outline:3px solid var(--crs-primary); outline-offset:2px; }
+.login-divider { display:flex; gap:.75rem; align-items:center; color:var(--crs-muted); font-size:.875rem; margin:1rem 0; }
+.login-divider::before,.login-divider::after { content:''; height:1px; background:var(--crs-border); flex:1; }
+.login-footer,.experience-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:center; }
+.login-footer { margin-top:1.5rem; }
+.experience-actions .btn { font-size:.875rem; padding:.4rem .65rem; }
+.settings-global-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem; }
+.theme-toggle i,.sidebar-toggle i,.brand-mark i,.settings-icon-button i { display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+.theme-toggle i::before,.sidebar-toggle i::before,.brand-mark i::before,.settings-icon-button i::before { display:block; line-height:1; }
+.card { --bs-card-inner-border-radius:calc(var(--crs-radius) - 1px); }
+.card > .card-header:first-child { border-radius:var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
+.search-field-with-icon { position:relative; }
+.search-field-with-icon > .input-group-text { position:absolute; inset:0 auto 0 0; z-index:5; background:transparent; border:0; pointer-events:none; }
+.search-field-with-icon > #equipment-search.form-control { margin:0; border-radius:var(--crs-radius-sm) !important; padding-left:2.8rem; width:100%; }
+.experience-dialog { width:min(34rem,calc(100vw - 2rem)); max-height:calc(100dvh - 2rem); overflow:auto; padding:1.75rem; color:var(--crs-ink); border:1px solid var(--crs-border); background:var(--crs-surface); border-radius:var(--crs-radius); box-shadow:var(--crs-shadow); }
+.experience-dialog::backdrop { background:var(--crs-overlay); }
+.experience-dialog header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+.experience-dialog h2 { font-size:1.25rem; margin:0; }
+.experience-dialog button.close-dialog { border:0; background:transparent; color:var(--crs-ink); font-size:1.5rem; }
+.experience-dialog label { display:block; margin-top:1rem; }
+.experience-dialog .btn-primary { margin-top:1rem; }
+.security-settings { text-align:start; }
+.security-settings .form-control { max-width:32rem; }
+.guest-equipment { max-width:80rem; margin:0 auto; padding:1.5rem; }
+.guest-heading { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between; margin-block:1rem 2rem; }
+.guest-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(16rem,100%),1fr)); gap:1rem; }
+.notification-item { display:block; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:1rem; margin-bottom:.5rem; }
+.notification-item[data-unread="true"] { border-inline-start:4px solid var(--crs-primary); }
+.notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
+.login-foil { position:absolute; inset:1.5rem 1rem auto auto; width:10rem; opacity:.16; pointer-events:none; }
+.liquid-glass-cursor { display:none; pointer-events:none; position:absolute; width:7rem; height:7rem; border:1px solid var(--crs-glass-border); border-radius:50%; background:radial-gradient(circle,var(--crs-pink-mist),transparent 70%); opacity:0; z-index:-1; }
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+ .login-foil { transition:opacity .2s; }
+ .login-layout:hover .login-foil { opacity:.32; }
+ .liquid-glass-cursor { display:block; transition:opacity .2s; }
+ .login-layout.has-cursor .liquid-glass-cursor { opacity:.45; }
+}
+@media (hover:none),(pointer:coarse),(prefers-reduced-motion:reduce) { .login-foil,.liquid-glass-cursor { display:none; } }
+@media (max-width:767px) { .login-logo { width:68px;height:68px; } .access-card { padding-top:3rem; } .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} }

@@ -170,7 +170,8 @@ test('six-field OTP supports numeric entry, backward deletion, paste, and access
   await expect(digits).toHaveCount(6);
   for (let index = 0; index < 6; index += 1) {
     await expect(digits.nth(index)).toHaveAttribute('inputmode', 'numeric');
-    await expect(digits.nth(index)).toHaveAttribute('maxlength', '1');
+    await expect(digits.nth(index)).toHaveAttribute('maxlength', '6');
+    await expect(digits.nth(index)).toHaveAttribute('autocomplete', 'one-time-code');
     await expect(digits.nth(index)).toHaveAttribute('aria-label', new RegExp(`${index + 1}.*6`));
   }
 
@@ -180,6 +181,16 @@ test('six-field OTP supports numeric entry, backward deletion, paste, and access
   await digits.nth(2).press('Backspace');
   await expect(digits.nth(1)).toBeFocused();
   await expect(digits.nth(1)).toHaveValue('');
+  await expect(page.locator('#oauth-handoff-submit')).toBeDisabled();
+
+  // Mobile keyboards may supply the entire code via beforeinput/autofill,
+  // with localized digits/separators rather than a ClipboardEvent.
+  await digits.nth(3).evaluate(input=>input.dispatchEvent(new InputEvent('beforeinput',{
+    bubbles:true,cancelable:true,inputType:'insertText',data:'๑๒๓-๔๕๖'
+  })));
+  expect(await digits.evaluateAll(inputs=>inputs.map(input=>input.value))).toEqual(['1','2','3','4','5','6']);
+  await digits.nth(2).fill('۱۲۳۴۵۶');
+  expect(await digits.evaluateAll(inputs=>inputs.map(input=>input.value))).toEqual(['1','2','3','4','5','6']);
 
   await digits.nth(0).evaluate((input) => {
     const transfer = new DataTransfer();
@@ -200,7 +211,7 @@ test('six-field OTP supports numeric entry, backward deletion, paste, and access
   await waitForApplication(page, 'dashboard');
 });
 
-test('theme follows the system by default, persists all three states, and is keyboard accessible', async ({ page }) => {
+test('theme initially follows system but quick toggle persists only Light/Dark and is keyboard accessible', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto('/?view=dashboard');
 
@@ -211,7 +222,7 @@ test('theme follows the system by default, persists all three states, and is key
   await expect(toggle).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-label', /.+/);
   await expect(toggle).toHaveAttribute('title', /.+/);
-  await expect(toggle.locator('[data-theme-icon]')).toHaveClass(/bi-circle-half/);
+  await expect(toggle.locator('[data-theme-icon]')).toHaveClass(/bi-moon-stars-fill/);
   await expect(page.locator('#toast-container')).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem('crs-theme'))).toBeNull();
 
@@ -233,9 +244,9 @@ test('theme follows the system by default, persists all three states, and is key
   expect(await page.evaluate(() => localStorage.getItem('crs-theme'))).toBe('dark');
 
   await toggle.click();
-  await expect(root).toHaveAttribute('data-theme-preference', 'system');
-  await expect(root).toHaveAttribute('data-bs-theme', 'dark');
-  expect(await page.evaluate(() => localStorage.getItem('crs-theme'))).toBe('system');
+  await expect(root).toHaveAttribute('data-theme-preference', 'light');
+  await expect(root).toHaveAttribute('data-bs-theme', 'light');
+  expect(await page.evaluate(() => localStorage.getItem('crs-theme'))).toBe('light');
 
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(root).toHaveAttribute('data-bs-theme', 'light');

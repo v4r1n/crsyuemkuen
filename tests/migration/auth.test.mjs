@@ -8,7 +8,7 @@ import { callbackPage } from '../../server/callback-page.mjs';
 process.env.GOOGLE_OAUTH_CLIENT_ID='test.apps.googleusercontent.com';
 process.env.GOOGLE_OAUTH_CLIENT_SECRET='test-only-confidential-key';
 process.env.ALLOWED_DOMAINS='gmail.com';
-const migration=readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8');
+const migration=readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8')+readFileSync(new URL('../../supabase/migrations/202610070002_identity_experience.sql',import.meta.url),'utf8');
 async function setup(){
   const db=new PGlite();await db.exec(migration);
   await db.query('INSERT INTO crs.users(data) VALUES($1)',[JSON.stringify({user_id:'USR-000001',email:'test@gmail.com',name:'Test',role:'ADMIN',status:'ACTIVE',row_version:1})]);

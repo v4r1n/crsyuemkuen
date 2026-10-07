@@ -169,7 +169,7 @@
   }
 
   function distributeOtp(text, focusLast) {
-    const digits = String(text || '').replace(/\D/g, '').slice(0, 6);
+    const digits = normalizeOtp(text).slice(0, 6);
     const inputs = otpInputs();
     inputs.forEach(function (input, index) { input.value = digits.charAt(index) || ''; });
     setOtpError('');
@@ -185,8 +185,12 @@
   function initializeOtpInputs() {
     const inputs = otpInputs();
     inputs.forEach(function (input, index) {
+      input.addEventListener('beforeinput', function (event) {
+        const digits=normalizeOtp(event.data || (event.dataTransfer && event.dataTransfer.getData('text')));
+        if(digits.length===6) {event.preventDefault();distributeOtp(digits,true);}
+      });
       input.addEventListener('input', function () {
-        const digits = input.value.replace(/\D/g, '');
+        const digits = normalizeOtp(input.value);
         if (digits.length > 1) {
           distributeOtp(digits, true);
           return;
@@ -215,7 +219,7 @@
       });
       input.addEventListener('paste', function (event) {
         const pasted = event.clipboardData && event.clipboardData.getData('text');
-        if (!/^\s*\d{6}\s*$/.test(String(pasted || ''))) return;
+        if (normalizeOtp(pasted).length !== 6) return;
         event.preventDefault();
         distributeOtp(pasted, true);
       });
@@ -253,6 +257,35 @@
       clearOtpInputs(false);
     });
     authState.initialized = true;
+  }
+
+  function normalizeOtp(text) {
+    return String(text || '').normalize('NFKC').replace(/[๐-๙]/g,function(digit){return String(digit.charCodeAt(0)-0x0e50);})
+      .replace(/[٠-٩]/g,function(digit){return String(digit.charCodeAt(0)-0x0660);})
+      .replace(/[۰-۹]/g,function(digit){return String(digit.charCodeAt(0)-0x06f0);}).replace(/\D/g,'');
+  }
+
+  async function passwordSignIn(email, password) {
+    initializeServerOAuth();
+    if (authState.sessionToken || authState.attempt) throw new ClientApiError({code:'AUTH_BUSY',message:'กรุณาจบการลงชื่อเข้าใช้เดิมก่อน'});
+    const attempt={generation:++authState.generation};
+    authState.attempt=attempt;
+    setSignInBusy(true);
+    try {
+      const token=randomBrowserSecret('session1_');
+      const result=await serverRpc('passwordSignIn',[{email:email,password:password,sessionTokenHash:await sha256BrowserSecret(token)}]);
+      if(authState.attempt!==attempt || attempt.generation!==authState.generation) return;
+      if(result.status!=='COMPLETE') throw new ClientApiError({code:'AUTH_PROTOCOL_ERROR'});
+      const remember=document.querySelector('#remember-session');
+      persistApplicationSession(token,result.expiresAt,Boolean(remember && remember.checked));
+      authState.sessionToken=token;authState.sessionExpiresAt=result.expiresAt;
+      const waiting=Boolean(authState.sessionResolve);
+      settleSessionWaiter(null,token);
+      if(!waiting) global.dispatchEvent(new CustomEvent('crs:authentication-required'));
+      return result;
+    } finally {
+      if(authState.attempt===attempt) {authState.attempt=null;setSignInBusy(false);}
+    }
   }
 
   function serverRpc(method, args) {
@@ -622,7 +655,19 @@
     getSessionToken: getSessionToken,
     clearSessionToken: clearSessionToken,
     showGoogleSignIn: showGoogleSignIn,
-    signOut: signOut
+    signOut: signOut,
+    passwordSignIn: passwordSignIn,
+    hasSession: function () { initializeServerOAuth(); return Boolean(authState.sessionToken); },
+    requestSecurity: function (method,input) {
+      if(['requestPasswordOtp','verifyPasswordOtp','changePassword','adminIssueTemporaryPassword','listNotifications','adminSetEquipmentPublic','adminGetEquipmentVisibility'].indexOf(method)===-1) return Promise.reject(new ClientApiError({code:'NOT_FOUND'}));
+      const token=authState.sessionToken;
+      return serverRpc(method,[token,input || {}]).catch(function(error){
+        if(token && error && ['UNAUTHENTICATED','USER_DISABLED'].indexOf(error.code)!==-1 && clearSessionToken(token)) {
+          global.dispatchEvent(new CustomEvent('crs:authentication-required'));
+        }
+        throw error;
+      });
+    }
   });
   global.CRS.api = Object.freeze({
     getAppBootstrap: endpoint('getAppBootstrap'),

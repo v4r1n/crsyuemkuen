@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-028 — Linked local credentials and additive experience
+
+Status: user-authorized source preparation — 2026-10-07; cloud activation pending.
+
+[Linked password identity](adr/0001-linked-password-identity.md) supersedes ADR-027's Google-only and no-new-feature scope only for the explicitly requested Email/Password, email security, Guest projection and notifications. Both providers resolve the same current User; existing roles, no-provision rule, opaque session ceiling, Google proofs and custody transactions remain. Guest publication grants only a narrow public catalog view, not internal data/images or borrowing authority. New private records are additive and require migration before deployment; defaults publish nothing. See [contracts, activation and unresolved live checks](IDENTITY_EXPERIENCE.md). No cloud migration, Production deploy or write-cutover occurred in this phase.
+
 ## ADR-001 — Google Workspace serverless stack
 
 Status: Accepted — 2026-08-21

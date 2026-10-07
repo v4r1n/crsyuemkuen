@@ -29,15 +29,19 @@ export function assertGoogleClaims(claims, expected, current=now()) {
     !expected.domains.includes(domain) || (domain!=='gmail.com' && claims.hd!==domain)) rejectAuth();
   return {email,subject:claims.sub};
 }
-export async function sessionFor(client,token) {
+export async function sessionFor(client,token,{allowRestricted=false}={}) {
   if (!tokenPattern.test(String(token||''))) rejectAuth();
   const found=await client.query('SELECT data FROM crs.sessions WHERE id=$1 AND expires_at > now()',[digest(token)]);
   const session=found.rows[0]?.data, cfg=config();
   if (!session || session.expiresAt<=now() || session.clientId!==cfg.GOOGLE_OAUTH_CLIENT_ID ||
     !cfg.ALLOWED_DOMAINS.includes(session.email?.split('@')[1])) rejectAuth();
-  return session;
+  const credential=(await client.query('SELECT * FROM crs.password_credentials WHERE user_id=$1',[session.userId])).rows[0];
+  if(session.method==='PASSWORD' && (!credential || credential.email!==session.email ||
+    Number(credential.generation)!==session.credentialGeneration)) rejectAuth();
+  if(credential?.must_change && !allowRestricted) fail('PASSWORD_CHANGE_REQUIRED','กรุณาเปลี่ยนรหัสผ่านก่อนใช้งาน');
+  return {...session,mustChangePassword:Boolean(credential?.must_change)};
 }
-async function rateLimit(client,key,limit,ttl) {
+export async function rateLimit(client,key,limit,ttl) {
   const result=await client.query(`INSERT INTO crs.rate_limits(id,count,expires_at) VALUES($1,1,now()+$2 * interval '1 second')
     ON CONFLICT(id) DO UPDATE SET count=CASE WHEN crs.rate_limits.expires_at<=now() THEN 1 ELSE crs.rate_limits.count+1 END,
       expires_at=CASE WHEN crs.rate_limits.expires_at<=now() THEN excluded.expires_at ELSE crs.rate_limits.expires_at END RETURNING count`,[key,ttl]);

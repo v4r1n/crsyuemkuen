@@ -24,7 +24,7 @@ function fixture() {
   return {records,asset,user,admin,session};
 }
 function ok(response) {assert.equal(response.ok,true,JSON.stringify(response.error));return response.data;}
-const migration=readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8');
+const migration=readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8')+readFileSync(new URL('../../supabase/migrations/202610070002_identity_experience.sql',import.meta.url),'utf8');
 test('PostgreSQL adapter completes exact request/approve/checkout/return and preserves journal hashes',async()=>{
   const seed=fixture(),db=new PGlite();
   await db.exec(migration);

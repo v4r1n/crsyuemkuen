@@ -32,6 +32,7 @@ const state='callback1_'+'a'.repeat(43),flowId='b'.repeat(43);
 before(async()=>{
   db=new PGlite();
   await db.exec(readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL('../../supabase/migrations/202610070002_identity_experience.sql',import.meta.url),'utf8'));
 });
 after(async()=>{mock.restoreAll();await db.close();});
 beforeEach(async()=>{

@@ -1,0 +1,13 @@
+<form id="password-login-form" class="login-password-form text-start">
+  <label for="login-email" class="form-label" data-experience-text="email">อีเมล</label>
+  <input id="login-email" class="form-control mb-3" name="email" type="email" autocomplete="username" inputmode="email" maxlength="254" required>
+  <label for="login-password" class="form-label" data-experience-text="password">รหัสผ่าน</label>
+  <div class="password-field mb-3">
+    <input id="login-password" class="form-control" name="password" type="password" autocomplete="current-password" maxlength="512" required>
+    <button type="button" class="password-reveal" data-reveal-for="login-password" aria-label="กดค้างเพื่อดูรหัสผ่าน" aria-pressed="false"><i class="bi bi-eye" aria-hidden="true"></i></button>
+  </div>
+  <p id="password-login-error" class="text-danger small" role="alert" aria-live="polite" hidden></p>
+  <button type="submit" id="password-login-submit" class="btn btn-primary w-100" data-experience-text="signIn">เข้าสู่ระบบ</button>
+  <button type="button" class="btn btn-link px-0 mt-2" data-experience-action="reset-password" data-experience-text="forgot">ลืมรหัสผ่าน?</button>
+</form>
+<div class="login-divider"><span data-experience-text="or">หรือดำเนินการต่อด้วย</span></div>

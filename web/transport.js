@@ -3,13 +3,15 @@
   async function send(method,args,token){
     const response=await fetch('/api/rpc',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{})},body:JSON.stringify({method,args})});
     if(!response.ok) throw new Error('RPC transport failed');
-    return response.json();
+    const result=await response.json();
+    if(result.ok) global.dispatchEvent(new CustomEvent('crs:rpc-completed',{detail:{method}}));
+    return result;
   }
   function digestBase64url(bytes){
     return crypto.subtle.digest('SHA-256',bytes).then(hash=>btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));
   }
   global.CRS_SERVER_RPC=async function(method,args){
-    if(['beginOAuthSignIn','completeOAuthSignIn','logoutSession'].includes(method)) return send(method,args);
+    if(['beginOAuthSignIn','completeOAuthSignIn','logoutSession','passwordSignIn','listPublicEquipment'].includes(method)) return send(method,args);
     const [token,...parameters]=args;
     if(method!=='adminUploadEquipmentImage') return send(method,parameters,token);
     const input=parameters[0],encoded=String(input.base64_data||'').replace(/^data:[^;]+;base64,/,'');

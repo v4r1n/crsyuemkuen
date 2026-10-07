@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { config } from './config.mjs';
 import { fields, keys, tables } from './schema.mjs';
 import { fail } from './errors.mjs';
+import { projectNotifications } from './experience.mjs';
 
 // Literal reads are required at this bundler boundary. A dynamic URL in the
 // map was folded to Config.gs in production, losing all other services. A map
@@ -154,10 +155,12 @@ export async function loadDomain(client, options={}) {
   return createDomain(records,{...options,proofs});
 }
 export async function saveDomain(client, domain) {
-  for(const change of domain.changes()) {
+  const changes=domain.changes();
+  for(const change of changes) {
     if(change.isNew) await client.query(`INSERT INTO crs.${tables[change.table]}(data) VALUES($1::jsonb)`,[JSON.stringify(change.data)]);
     else await client.query(`UPDATE crs.${tables[change.table]} SET data=$1::jsonb WHERE id=$2`,[JSON.stringify(change.data),change.id]);
   }
   for(const [id,proof] of domain.proofWrites) await client.query('INSERT INTO crs.proofs(id,data,expires_at) VALUES($1,$2,to_timestamp($3)) ON CONFLICT(id) DO UPDATE SET data=excluded.data,expires_at=excluded.expires_at',[id,JSON.stringify(proof.data),proof.expiresAt/1000]);
   for(const id of domain.cleanup) await client.query('INSERT INTO crs.cleanup_jobs(id) VALUES($1) ON CONFLICT DO NOTHING',[id]);
+  await projectNotifications(client,domain,changes);
 }

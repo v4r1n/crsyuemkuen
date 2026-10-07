@@ -28,10 +28,10 @@
     const labels = {
       system: ['ธีมตามระบบ', 'ตามระบบ', 'light', 'bi-circle-half'],
       light: ['โหมดสว่าง', 'สว่าง', 'dark', 'bi-sun-fill'],
-      dark: ['โหมดมืด', 'มืด', 'system', 'bi-moon-stars-fill']
+      dark: ['โหมดมืด', 'มืด', 'light', 'bi-moon-stars-fill']
     };
     const nextLabels = { light: 'โหมดสว่าง', dark: 'โหมดมืด', system: 'ตามระบบ' };
-    const meta = labels[preference];
+    const meta = labels[effective];
     Array.prototype.forEach.call(document.querySelectorAll('[data-action="theme-toggle"]'), function (button) {
       const description = 'ธีม: ' + meta[1] + ' · เปลี่ยนเป็น' + nextLabels[meta[2]];
       button.setAttribute('aria-label', description);
@@ -67,7 +67,7 @@
 
   function cycleTheme() {
     const current = validTheme(document.documentElement.dataset.themePreference || readThemePreference());
-    applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length], true);
+    applyTheme(effectiveTheme(current) === 'dark' ? 'light' : 'dark', true);
   }
 
   function isDesktopViewport() {
@@ -880,6 +880,9 @@
 
   CRS.renderRoute = async function (route, params) {
     const target = normalizeRoute(route, params);
+    if(CRS.state.bootstrap && CRS.state.bootstrap.session.mustChangePassword) {
+      target.name='settings';target.params={section:'security'};
+    }
     if (target.name === 'admin' && !(CRS.state.bootstrap && CRS.state.bootstrap.session.isAdmin)) {
       CRS.toast('เฉพาะผู้ดูแลระบบเท่านั้นที่เปิดหน้านี้ได้', 'danger');
       CRS.navigate('dashboard', {}, true);
@@ -1029,6 +1032,8 @@
       (sectionKey === 'keyboard' ? 'Keyboard Shortcuts' : selectedSection.label) + '</h2>' +
       (sectionKey === 'general' ? generalContent : sectionKey === 'appearance' ? appearanceContent : otherContent) +
       '</div></div></section>';
+
+    if(CRS.features) CRS.features.mountSettings(sectionKey,root.querySelector('.settings-content'));
 
     const section = root.querySelector('.settings-page');
     const sidebarToggle = section.querySelector('#settings-sidebar-toggle');
@@ -1294,6 +1299,7 @@
     if (splash) splash.hidden = true;
     if (access) access.hidden = true;
     if (shell) shell.hidden = false;
+    global.dispatchEvent(new CustomEvent('crs:bootstrapped',{detail:data}));
   }
 
   function locationTarget(location) {
@@ -1340,7 +1346,7 @@
       const data = await CRS.api.getAppBootstrap();
       applyBootstrap(data);
       const location = await getInitialLocation();
-      const target = locationTarget(location);
+      const target = CRS.features && CRS.features.loginTarget() || locationTarget(location);
       CRS.renderRoute(target.name, target.params);
     } catch (error) {
       if (error && error.code === 'UNAUTHENTICATED' && CRS.auth &&

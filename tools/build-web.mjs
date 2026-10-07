@@ -66,9 +66,19 @@ for(const name of ['scripts-core','scripts-qr','scripts-dashboard','scripts-admi
   if(/drive\.google\.com|script\.google\.com|result\.base64_data/.test(generated)) throw new Error('Unadapted '+name+' seam');
 }
 index=index.replace('<?= initialView ?>','CRS_INITIAL_VIEW').replace('<?= initialAssetId ?>','CRS_INITIAL_ASSET');
-index=index.replace('</head>','<script src="/crs/transport.js"></script></head>');
+index=index.replace('</head>','<link rel="stylesheet" href="/crs/experience.css"><script src="/crs/transport.js"></script></head>');
 index=index.replace('</body>','<script src="/crs/migration-admin.js"></script></body>');
+const loginControls=await readFile(join(root,'web','login-controls.html'),'utf8');
+index=index.replace('<div class="startup-card access-card">','<div class="startup-card access-card text-center">');
+index=index.replace('<p class="login-welcome">ยินดีต้อนรับกลับมา</p>','');
+index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?<\/span>/,
+  '<img class="login-logo" src="/brand/icon-yuemkuen.png" alt="CRS Yuem-Kuen" width="88" height="88">');
+index=index.replace(/        <button\s+id="google-signin-button"/,match=>loginControls+match);
+if(!index.includes('id="password-login-form"')) throw new Error('Login composition seam changed');
+index=index.replace('</body>','<script src="/crs/experience.js"></script></body>');
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));
+await writeFile(join(output,'experience.js'),await readFile(join(root,'web','experience.js'),'utf8'));
+await writeFile(join(output,'experience.css'),await readFile(join(root,'web','experience.css'),'utf8'));
 if(index.includes('<?')) throw new Error('Unresolved Apps Script template');
 await writeFile(join(output,'shell.html'),index);

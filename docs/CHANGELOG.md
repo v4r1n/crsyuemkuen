@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Linked passwords, email security and equipment experience (2026-10-07)
+
+- Same-existing-User local login alongside preserved Google proofs; unique salted secure hashes, persistent throttles/lockout and generation/session revocation. OTP-confirmed password changes/reset and Admin email-only temporary credentials with expiry/forced replacement and non-secret security History.
+- Verified-TLS SMTP with server-only configuration, bounded one-use email confirmation and no password/OTP payload storage or logging. Command replay never sends another temporary secret; delivery uncertainty requires explicit new issuance, not automatic plaintext recovery.
+- Private-by-default public Guest projection and confirm/login/unchanged borrow-form handoff; authoritative per-recipient notifications committed with workflow History and replay dedup. No internal data/images published, no business transition changed.
+- Supplied logo/local login/hold reveal, Profile Security/inbox/Admin controls, safe configurable Privacy/Terms footer, Guide/TH-EN and two-state quick theme; System only Appearance. Mobile autofill/normalized OTP, icon/header/search geometry and reduced-motion/touch-safe foil/glass effects.
+- Additive private schema/checksum apply and backup format 2 with old-format compatibility; existing business schema/data remain intact. All 218 top-level tests pass, with production build/compiled-artifact/browser checks repeated after final capture assertions; full application dependency audit reports zero advisories. Diff/privacy review and synthetic responsive/language/theme captures include fixed-scroll Login top/footer reachability. No cloud migration/deployment or write-cutover in this phase.
+
 ### Responsive glassmorphism UI (2026-10-07)
 
 - User-authorized blue/pink glass design across Google sign-in, dashboard, catalog, borrowing/admin/settings surfaces, navigation, dialogs and the OTP callback. Responsive desktop/mobile composition, dark/system theme, contrast-safe palette derivatives, visible keyboard focus and opaque blur fallbacks.

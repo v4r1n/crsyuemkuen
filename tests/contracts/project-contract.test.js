@@ -495,7 +495,7 @@ test('project-authored markup keeps the QR scanner passive and HTML safe', () =>
   assert.match(read('src/scripts-qr.html'), /\.scanFile\s*\(/);
 });
 
-test('login access card exposes only Google sign-in and has no retry handler', () => {
+test('preserved legacy GAS login exposes only Google; Next composition adds linked password separately', () => {
   const index = read('src/index.html');
   const core = read('src/scripts-core.html');
   const accessCard = index.match(/<section[\s\S]*?id="access-state"[\s\S]*?<\/section>/);

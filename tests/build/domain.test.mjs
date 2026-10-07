@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {resolve,relative} from 'node:path';
 
@@ -46,13 +46,18 @@ test('production artifact exposes guarded domain services and the authenticated 
   assert.equal(bootstrap.data.app.webAppUrl,'https://example.test');
 });
 
-test('production callback file tracing never packages private workspace exports or credentials',()=>{
-  const path=resolve('.next',entryPath+'.nft.json');
-  const trace=JSON.parse(readFileSync(path,'utf8'));
+test('all production route traces exclude private exports/credentials and public assets contain no server secret configuration',()=>{
   const root=resolve('.');
-  for(const file of trace.files){
-    const name=relative(root,resolve(path,'..',file)).replaceAll('\\','/');
-    assert.ok(!/(^|\/)(\.env[^/]*|\.migration|\.vercel|\.git)(\/|$)|\.(xlsx|zip|7z|rar|tar|gz|log)$/i.test(name) && !name.includes('\uF01B'),
-      'Private workspace data must not be packaged in a function trace');
+  for(const route of ['route.js','auth/callback/route.js','api/rpc/route.js','api/experience/route.js','api/image-placeholder/route.js']) {
+    const path=resolve('.next/server/app',route+'.nft.json'),trace=JSON.parse(readFileSync(path,'utf8'));
+    for(const file of trace.files){
+      const name=relative(root,resolve(path,'..',file)).replaceAll('\\','/');
+      assert.ok(!/(^|\/)(\.env[^/]*|\.migration|\.vercel|\.git)(\/|$)|\.(xlsx|zip|7z|rar|tar|gz|log)$/i.test(name) && !name.includes('\uF01B'),
+        'Private workspace data must not be packaged in a function trace');
+    }
+  }
+  for(const file of readdirSync('public/crs').filter(name=>/\.(js|html)$/.test(name))){
+    const source=readFileSync(resolve('public/crs',file),'utf8');
+    assert.doesNotMatch(source,/PASSWORD_OTP_SECRET|SMTP_PASSWORD|SUPABASE_SECRET_KEY|DATABASE_URL|GOOGLE_OAUTH_CLIENT_SECRET|BEGIN (?:RSA |EC )?PRIVATE KEY/,'Server-only configuration must not appear in browser assets');
   }
 });
