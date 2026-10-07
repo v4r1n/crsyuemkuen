@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Responsive glassmorphism UI (2026-10-07)
+
+- User-authorized blue/pink glass design across Google sign-in, dashboard, catalog, borrowing/admin/settings surfaces, navigation, dialogs and the OTP callback. Responsive desktop/mobile composition, dark/system theme, contrast-safe palette derivatives, visible keyboard focus and opaque blur fallbacks.
+- Finite entrance/menu/card animations and hover feedback honor reduced-motion preferences. Preserve OAuth/OTP, current Users authorization, borrowing rules, private image delivery and canonical links; no backend schema, data, env, write-freeze or cloud deployment changes.
+- Added four actual Next/browser regression checks for responsive layout, palette/alpha-composited text and action contrast, finite/reduced motion and generic callback denial. Local synthetic visual captures are ignored artifacts, not cloud sign-in/workflow acceptance.
+- All 191 top-level checks and the actual production build pass; zero application dependency advisories. Preserve feature-branch delivery only: no UI deployment, main merge, tag or write-cutover in this phase.
+
 ### Authorized frozen Production rollout (2026-10-06)
 
 - User requested Production after successful Preview sign-in. Prepared Production-only canonical callback/server configuration with verified TLS/private images and unchanged Preview env; keep writes frozen while manual Google callback and write-cutover/source-freshness confirmation remain pending.

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#155e75">
+    <meta name="theme-color" content="#014d8b">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="robots" content="noindex, nofollow, noarchive">
     <script>
@@ -83,11 +83,34 @@
       aria-live="assertive"
       hidden
     >
-      <div class="startup-card access-card text-center">
+      <div class="login-layout">
+        <div class="login-story">
+          <div class="login-brand">
+            <span class="brand-mark" aria-hidden="true"><i class="bi bi-box-seam"></i></span>
+            <span>CRS <span class="login-brand-secondary">Yuem-Kuen</span></span>
+          </div>
+          <p class="login-kicker">อุปกรณ์พร้อมใช้ ไอเดียพร้อมไปต่อ</p>
+          <h2 class="login-headline">ยืมง่าย คืนสะดวก<br><span>ทุกอย่างในที่เดียว</span></h2>
+          <p class="login-description">ค้นหาอุปกรณ์ สแกน QR และติดตามรายการยืม–คืน<br class="d-none d-lg-block">ได้สะดวก ทั้งบนคอมพิวเตอร์และมือถือ</p>
+          <div class="login-art" aria-hidden="true">
+            <div class="login-orbit"></div>
+            <div class="login-art-card">
+              <div class="login-art-toolbar"><span class="login-art-dot"></span> CRS / อุปกรณ์</div>
+              <div class="login-art-device"><i class="bi bi-laptop"></i></div>
+              <div class="login-art-row"><span class="login-art-label">พร้อมสำหรับงานถัดไป</span><i class="bi bi-check-circle-fill"></i></div>
+              <div class="login-art-line"></div><div class="login-art-line login-art-line-short"></div>
+            </div>
+            <div class="login-art-chip login-art-chip-qr"><i class="bi bi-qr-code-scan"></i><span>สแกน แล้วเริ่มได้เลย</span></div>
+            <div class="login-art-chip login-art-chip-return"><i class="bi bi-arrow-left-right"></i><span>ยืม–คืน เป็นระบบ</span></div>
+          </div>
+          <div class="login-story-footer"><i class="bi bi-phone" aria-hidden="true"></i><span>พร้อมใช้งานในทุกหน้าจอ</span></div>
+        </div>
+      <div class="startup-card access-card">
+        <p class="login-welcome">ยินดีต้อนรับกลับมา</p>
         <span class="state-icon state-icon-warning mx-auto" aria-hidden="true">
           <i class="bi bi-person-lock"></i>
         </span>
-        <p id="access-state-eyebrow" class="eyebrow mt-4 mb-2" data-app-short-name>CRS Yuem-Kuen</p>
+        <p id="access-state-eyebrow" class="eyebrow mt-3 mb-2" data-app-short-name>CRS Yuem-Kuen</p>
         <h1 id="access-state-title" class="h4 mb-2" data-access-title>กรุณาลงชื่อเข้าใช้ Google</h1>
         <p id="access-state-message" class="text-secondary mb-4" data-access-message>
           เลือกบัญชี Google ที่ได้รับสิทธิ์จากผู้ดูแลระบบ
@@ -95,7 +118,7 @@
         <p id="access-state-request-id" class="request-id mb-4" data-access-request-id></p>
         <button
           id="google-signin-button"
-          class="btn btn-outline-dark px-4 mb-3"
+          class="btn btn-outline-dark login-google-button px-4 mb-3"
           type="button"
           data-action="google-signin"
         >
@@ -120,6 +143,8 @@
           <p id="oauth-handoff-error" class="otp-error" role="alert" aria-live="assertive" hidden></p>
           <button id="oauth-handoff-submit" type="button" class="btn btn-primary mt-3" disabled>ยืนยันการลงชื่อเข้าใช้</button>
         </div>
+        <p class="login-security-note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>ใช้บัญชีที่ได้รับสิทธิ์จากผู้ดูแลระบบ<br>ยืนยันผ่าน Google และรหัสใช้ครั้งเดียว</span></p>
+      </div>
       </div>
     </section>
 

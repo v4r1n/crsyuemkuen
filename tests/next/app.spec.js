@@ -1,4 +1,5 @@
 const {test,expect}=require('@playwright/test');
+const {mkdirSync}=require('node:fs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
 async function mock(page){
@@ -65,4 +66,134 @@ test('private image capability loads a browser Blob and falls back when that ima
   await page.evaluate(()=>document.getElementById('equipment-detail-image').dispatchEvent(new Event('error')));
   await expect(page.locator('#equipment-detail-image')).toBeHidden();
   await expect(page.locator('#equipment-detail-image-fallback')).toBeVisible();
+});
+
+async function captureUi(page, name) {
+  // Opt-in local artifacts use only isolated synthetic fixtures, never live sessions.
+  if (process.env.CRS_UI_CAPTURE !== '1') return;
+  mkdirSync('test-results/ui', { recursive: true });
+  await page.evaluate(async()=>{
+    await document.fonts.ready;
+    await Promise.all(document.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));
+  });
+  await page.screenshot({ path: 'test-results/ui/' + name + '.png', fullPage: true });
+}
+
+async function expectNoOverflow(page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
+test('glass login is responsive, keyboard accessible and retains the Google-only sign-in contract',async({page})=>{
+  // No cloud request or authentication bypass; the signed-out shell needs no identity.
+  for (const viewport of [{width:1440,height:960},{width:768,height:720},{width:390,height:844},{width:320,height:600}]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await expect(page.locator('#access-state')).toBeVisible();
+    await expect(page.locator('.login-layout')).toBeVisible();
+    await expect(page.locator('#access-state-title')).toHaveText('ลงชื่อเข้าใช้ด้วย Google');
+    await expect(page.locator('#google-signin-button')).toBeEnabled();
+    await expect(page.locator('#oauth-handoff-panel')).toBeHidden();
+    await expect(page.locator('.login-security-note')).toContainText('รหัสใช้ครั้งเดียว');
+    const layout = await page.locator('.login-layout').evaluate(element => ({
+      columns:getComputedStyle(element).gridTemplateColumns.split(' ').length,
+      blur:getComputedStyle(element).backdropFilter
+    }));
+    expect(layout.columns).toBe(viewport.width < 768 ? 1 : 2);
+    expect(layout.blur).toBe('blur(20px)');
+    await expectNoOverflow(page);
+    await page.locator('#google-signin-button').focus();
+    await expect(page.locator('#google-signin-button')).toBeFocused();
+    await expect(page.locator('#google-signin-button')).toBeInViewport();
+    if(viewport.width===1440||viewport.width===390) await captureUi(page,'login-light-'+viewport.width);
+  }
+  await page.setViewportSize({width:1440,height:960});
+  await page.evaluate(()=>localStorage.setItem('crs-theme','dark'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme','dark');
+  await expectNoOverflow(page);
+  await captureUi(page,'login-dark-desktop');
+});
+
+test('glass app covers dashboard, catalog, admin, settings and mobile navigation without layout overflow',async({page})=>{
+  const {record}=await mock(page);
+  for(const viewport of [{width:1440,height:960},{width:768,height:900},{width:390,height:844},{width:320,height:700}]) {
+    await page.setViewportSize(viewport);
+    for(const [route,selector] of [['dashboard','#dashboard-content'],['equipment','#equipment-results'],['equipment-detail','#equipment-detail-title'],['admin','#page-admin'],['settings','.settings-content']]) {
+      await page.goto('/?view='+route+(route==='equipment-detail'?'&id='+record.asset_id:''));
+      await expect(page.locator(selector)).toBeVisible();
+      await expectNoOverflow(page);
+      if(route!=='settings') {
+        await expect(page.locator(viewport.width<992?'#mobile-nav':'#desktop-sidebar')).toBeVisible();
+        const bounds=await page.locator(viewport.width<992?'#mobile-nav':'.app-topbar').boundingBox();
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width);
+      }
+      if(viewport.width===1440||viewport.width===390) await captureUi(page,route+'-light-'+viewport.width);
+    }
+  }
+  await page.evaluate(()=>localStorage.setItem('crs-theme','dark'));
+  await page.setViewportSize({width:1440,height:960});
+  await page.goto('/?view=dashboard');
+  await expect(page.locator('#dashboard-content')).toBeVisible();
+  await captureUi(page,'dashboard-dark-desktop');
+});
+
+test('finite animations honor reduced motion and glass text/button tokens retain AA contrast',async({page})=>{
+  await page.emulateMedia({reducedMotion:'no-preference',colorScheme:'light'});
+  await page.goto('/');
+  await expect(page.locator('#access-state')).toBeVisible();
+  await expect(page.locator('.login-layout')).toHaveCSS('animation-name','glass-reveal');
+  await expect(page.locator('.login-layout')).toHaveCSS('animation-iteration-count','1');
+  const palette=await page.evaluate(()=>{
+    const style=getComputedStyle(document.documentElement);
+    return ['blue','pink','blue-mist','pink-mist','white','gray'].map(name=>style.getPropertyValue('--crs-'+name).trim());
+  });
+  expect(palette).toEqual(['#014d8b','#ff488a','#cbdbe8','#ffdbe9','#ffffff','#797979']);
+  for(const theme of ['light','dark']) {
+    await page.evaluate(value=>document.documentElement.setAttribute('data-bs-theme',value),theme);
+    const ratios=await page.evaluate(()=>{
+      const style=getComputedStyle(document.documentElement);
+      const token=name=>style.getPropertyValue('--crs-'+name).trim();
+      const rgb=hex=>[1,3,5].map(index=>parseInt(hex.slice(index,index+2),16));
+      const luminance=channels=>channels.map(value=>value/255).map(value=>value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4).reduce((sum,value,index)=>sum+value*[.2126,.7152,.0722][index],0);
+      const contrast=(foreground,background)=>{const [high,low]=[luminance(foreground),luminance(background)].sort((a,b)=>b-a);return(high+.05)/(low+.05);};
+      // Bound transparency against both ambient extremes rather than assuming white glass.
+      const glass=token('glass-bg').match(/[\d.]+/g).map(Number);
+      const backgrounds=[token('canvas'),token('blue-mist'),token('pink-mist')].map(rgb).map(base=>base.map((channel,index)=>channel*(1-glass[3])+glass[index]*glass[3]));
+      const result={};
+      for(const name of ['ink','heading','label','muted','link']) result[name]=Math.min(...backgrounds.map(bg=>contrast(rgb(token(name)),bg)));
+      result.primaryButton=contrast(rgb(token('on-brand')),rgb(token('action')));
+      result.primaryButtonHover=contrast(rgb(token('on-brand')),rgb(token('action-hover')));
+      return result;
+    });
+    for(const [name,ratio] of Object.entries(ratios)) expect(ratio,theme+' '+name).toBeGreaterThanOrEqual(4.5);
+  }
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await expect(page.locator('.login-layout')).toHaveCSS('animation-name','none');
+  await page.locator('#google-signin-button').hover();
+  await expect(page.locator('#google-signin-button')).toHaveCSS('transform','none');
+  await mock(page);
+  await page.goto('/?view=equipment');
+  await expect(page.locator('#equipment-results')).toBeVisible();
+  await expect(page.locator('.app-page')).toHaveCSS('animation-name','none');
+  await page.locator('.equipment-card').first().hover();
+  await expect(page.locator('.equipment-card').first()).toHaveCSS('transform','none');
+});
+
+test('real callback denial keeps the glass OTP page accessible without revealing any code',async({page})=>{
+  for(const viewport of [{width:1280,height:800},{width:320,height:600}]) {
+    await page.setViewportSize(viewport);
+    const response=await page.goto('/auth/callback');
+    expect(response.status()).toBe(400);
+    expect(response.headers()['cache-control']).toContain('no-store');
+    await expect(page.locator('main h1')).toHaveText('ลงชื่อเข้าใช้ไม่สำเร็จ');
+    await expect(page.locator('#oauth-handoff-code')).toHaveCount(0);
+    await expect(page.locator('main')).toHaveCSS('backdrop-filter','blur(20px)');
+    await expectNoOverflow(page);
+    await captureUi(page,'callback-denied-'+viewport.width);
+  }
+  await page.emulateMedia({reducedMotion:'reduce',colorScheme:'dark'});
+  await expect(page.locator('main')).toHaveCSS('animation-name','none');
+  await expect(page.locator('main h1')).toHaveCSS('color','rgb(245, 247, 250)');
 });
