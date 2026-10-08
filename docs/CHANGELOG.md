@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Reviewed UI protected Preview deployment (2026-10-08)
+
+- Deploy immutable source `79ad2c5` (0.1.12), including Guest-first/cursor/Login polish and the animated native remember checkbox, to explicit staging/Singapore. Candidate checks precede assignment to `https://crsyuemkuen-preview.vercel.app`; canonical cloud checks pass afterward. Production, protected rollback Preview, all environment/protection settings and both write freezes remain unchanged.
+- Verify 156 uploaded Git blobs against the fresh accepted 235-check source/build, repeat all 5 compiled-artifact checks, and pass actual-secret/client asset, public/private authorization, Origin, callback, OAuth-start and live freeze checks. Fresh private database/seven-image backup verifies; durable data/migration guards remain unchanged. No schema, Storage write, real session/email, publication or business mutation.
+- Record activation separately from source-preparation checkpoints. Real Google/OTP, delivered email, device/workflow/load/restore acceptance and explicit Production/write-opening decisions remain pending. Preserve unrelated local edits; deliver phase documentation on the feature branch only.
+
 ### Animated remember-session checkbox (2026-10-08)
 
 - Adapt the supplied Uiverse/faxriddin20 SVG check animation to the existing native `#remember-session`, without changing auth/session storage. Scope the drawing/halo to this control; retain its translated label, 44 px hit target, keyboard focus and disabled semantics. Use contrast-safe Light green and Dark lime, immediate reduced-motion state changes and a native forced-colors fallback.
