@@ -7,6 +7,7 @@ let index=await read('index');
 const includes=[...index.matchAll(/<\?!= include_\('([^']+)'\); \?>/g)];
 for(const match of includes){
   const name=match[1]; let text=await read(name);
+  if(name==='styles')text=text.replace(/\s*\.login-kicker\s*\{[^}]*\}/g,'');
   if(name==='scripts-api') text=text.replace(/  function serverRpc\(method, args\) \{[\s\S]*?\n  function randomBrowserSecret/,`  function serverRpc(method, args) {
     return global.CRS_SERVER_RPC(method, args || []).then(function(response) {
       if (response && response.ok) return response.data;
@@ -73,6 +74,12 @@ index=index.replace('</body>','<script src="/crs/migration-admin.js"></script></
 const loginControls=await readFile(join(root,'web','login-controls.html'),'utf8');
 index=index.replace('<div class="startup-card access-card">','<div class="startup-card access-card text-center">');
 index=index.replace('<p class="login-welcome">ยินดีต้อนรับกลับมา</p>','');
+// Next-only removal preserves the user's unrelated legacy headline edits.
+for(const selector of ['id="access-state-eyebrow"','class="login-kicker"']){
+  const pattern=new RegExp('<p[^>]*'+selector+'[^>]*>[\\s\\S]*?<\\/p>','g');
+  if([...index.matchAll(pattern)].length!==1)throw new Error('Login copy removal seam changed');
+  index=index.replace(pattern,'');
+}
 index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?<\/span>/,'');
 const brandIcon=/(<span class="brand-mark(?: [^"]*)?"[^>]*>)\s*<i class="bi bi-box-seam"[^>]*><\/i>\s*(<\/span>)/g;
 if(!brandIcon.test(index)) throw new Error('Brand mark composition seam changed');
@@ -96,7 +103,9 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/guest-scene.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/guest-scene.js"></script><script src="/crs/login-scene.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/experience.js"></script></body>');
+await writeFile(join(output,'login-scene.js'),await readFile(join(root,'web','login-scene.js'),'utf8'));
+await writeFile(join(output,'recaptcha.js'),await readFile(join(root,'web','recaptcha.js'),'utf8'));
 await writeFile(join(output,'guest-scene.js'),await readFile(join(root,'web','guest-scene.js'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));

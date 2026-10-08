@@ -6,6 +6,7 @@ import { sessionFor, rateLimit } from './auth.mjs';
 import { fail } from './errors.mjs';
 import { assertPassword, hashPassword, verifyPassword, temporaryPassword, emailOtpHash, safeEqual } from './password-crypto.mjs';
 import { mailOptions, sendSecurityEmail } from './mail.mjs';
+import { verifyRecaptcha } from './recaptcha.mjs';
 const tokenPattern = /^session1_[A-Za-z0-9_-]{43}$/;
 const challengePattern = /^password1_[A-Za-z0-9_-]{43}$/;
 const normalizedEmail = value => typeof value === 'string' && value.trim().length<=254 ? value.trim().toLowerCase() : '';
@@ -29,7 +30,7 @@ const credentialFor = async (db,id) => (await db.query('SELECT * FROM crs.passwo
 const generation = credential => Number(credential?.generation || 0);
 
 export function passwordAuth({ transact = transaction, send = sendSecurityEmail, hash = hashPassword,
-  verify = verifyPassword, mailReady = mailOptions, clock = () => Date.now() } = {}) {
+  verify = verifyPassword, mailReady = mailOptions, clock = () => Date.now(), checkAbuse = verifyRecaptcha } = {}) {
   async function signIn(input, requestKey) {
     const email = normalizedEmail(input?.email), password = input?.password;
     if (typeof password !== 'string' || password.length > 512 || !/^[A-Za-z0-9_-]{43}$/.test(input?.sessionTokenHash || '')) invalid();
@@ -42,6 +43,9 @@ export function passwordAuth({ transact = transaction, send = sendSecurityEmail,
       return {user,credential};
     });
     if (snapshot.limited) invalid();
+    // Persistent IP/email quotas commit first. Provider I/O never holds the DB
+    // lock, and proof rejection cannot reach expensive password verification.
+    await checkAbuse(input?.recaptchaToken,'login');
     const matches = await verify(password, snapshot.credential?.password_hash);
     const result = await transact(async db => {
       const user = await userForEmail(db,email), credential = user && await credentialFor(db,user.user_id);
@@ -74,17 +78,29 @@ export function passwordAuth({ transact = transaction, send = sendSecurityEmail,
   }
 
   async function requestOtp(input, token, requestKey) {
+    const purpose = input?.purpose === 'CHANGE' ? 'CHANGE' : 'RESET';
+    const preflight = await transact(async db => {
+      const ipAllowed = await rateLimit(db,'email-ip:' + digest(requestKey),10,3600);
+      const email = purpose === 'CHANGE' ? (await authorizedUser(db,token,true)).session.email : normalizedEmail(input?.email);
+      const emailAllowed = await rateLimit(db,'email-subject:' + digest(email),5,3600);
+      if (!ipAllowed || !emailAllowed) return {error:'RATE_LIMITED'};
+      const previous = (await db.query('SELECT created_at FROM crs.password_challenges WHERE email=$1 ORDER BY created_at DESC LIMIT 1',[email])).rows[0];
+      if (previous && clock() - new Date(previous.created_at).getTime() < 60000) return {error:'RESEND_COOLDOWN'};
+      return {email};
+    });
+    if(preflight.error)fail(preflight.error,'กรุณารอก่อนขอรหัสใหม่');
+    // Session-bound CHANGE retains its existing authorization. Anonymous RESET
+    // requires a new proof before generating/persisting a code or sending mail.
+    if(purpose==='RESET')await checkAbuse(input?.recaptchaToken,'reset');
     mailReady(); // Missing configuration fails closed; no insecure fallback or generated code response.
     emailOtpHash('preflight','000000');
-    const purpose = input?.purpose === 'CHANGE' ? 'CHANGE' : 'RESET';
     const challenge = secret('password1_'), id = digest(challenge);
     const code = String(randomInt(1000000)).padStart(6,'0');
     const expiresAt = Math.floor(clock()/1000)+300;
     const result = await transact(async db => {
-      const ipAllowed = await rateLimit(db,'email-ip:' + digest(requestKey),10,3600);
-      const email = purpose === 'CHANGE' ? (await authorizedUser(db,token,true)).session.email : normalizedEmail(input?.email);
-      const emailAllowed = await rateLimit(db,'email-subject:' + digest(email),5,3600);
-      if (!ipAllowed || !emailAllowed) return { error:'RATE_LIMITED' };
+      const email = purpose === 'CHANGE' ? (await authorizedUser(db,token,true)).session.email : preflight.email;
+      // Recheck cooldown under lock after external verification: racing requests
+      // cannot issue duplicate codes or bypass the original resend cooldown.
       const previous = (await db.query('SELECT created_at FROM crs.password_challenges WHERE email=$1 ORDER BY created_at DESC LIMIT 1',[email])).rows[0];
       if (previous && clock() - new Date(previous.created_at).getTime() < 60000) return { error:'RESEND_COOLDOWN' };
       const user = await userForEmail(db,email), credential = user && await credentialFor(db,user.user_id);

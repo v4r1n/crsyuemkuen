@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Decorative Login glass and action-bound abuse proof (2026-10-08)
+
+- Add a pointer-transparent/aria-hidden 3D WebGL2 Login scene: subtle depth/light/parallax, event-driven capped rendering, hidden-tab suspension, CSS/touch/reduced-motion/context-loss fallback and explicit GPU/listener cleanup. No renderer data/auth/workflow access.
+- Match shared shader precision after reproducing a real WebGL2 link failure; regressions verify visible pixels, pointer response, restoration and resource disposal rather than accepting silent fallback.
+- Remove the two requested Login captions and unused kicker CSS through Next-only composition; reuse the established radius token for local/Google buttons. Preserve unrelated source edits and Guest-first/login-handoff behavior.
+- Require fresh reCAPTCHA v3 proof before password verification and anonymous reset OTP issuance, supplementing committed quotas/lockout. Validate action, canonical hostname, configured score and freshness through bounded server-only verification; tokens never persist/log and Google OAuth remains independent. Add separate public site-key/actions metadata, lazy per-submit browser execution and fail-closed Thai/English errors. No schema/credential/business rewrite; operator key rotation/domain setup and explicit activation remain pending.
+
 ### Reviewed UI protected Preview deployment (2026-10-08)
 
 - Deploy immutable source `79ad2c5` (0.1.12), including Guest-first/cursor/Login polish and the animated native remember checkbox, to explicit staging/Singapore. Candidate checks precede assignment to `https://crsyuemkuen-preview.vercel.app`; canonical cloud checks pass afterward. Production, protected rollback Preview, all environment/protection settings and both write freezes remain unchanged.

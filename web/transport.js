@@ -11,6 +11,15 @@
     return crypto.subtle.digest('SHA-256',bytes).then(hash=>btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));
   }
   global.CRS_SERVER_RPC=async function(method,args){
+    const index=method==='passwordSignIn'?0:method==='requestPasswordOtp'&&args[1]?.purpose!=='CHANGE'?1:-1;
+    if(index>=0){
+      const input={...args[index]};
+      try{input.recaptchaToken=await global.CRSRecaptcha.token(index===0?'login':'reset');}
+      catch{return {ok:false,error:{code:'RECAPTCHA_UNAVAILABLE',message:global.CRS?.language.effective()==='en'?'Security check unavailable. Try again or sign in with Google.':'ไม่สามารถตรวจสอบความปลอดภัยได้ กรุณาลองใหม่ หรือเข้าสู่ระบบด้วย Google',retryable:true}};}
+      const parameters=args.slice();parameters[index]=input;
+      try{return await send(method,index===0?parameters:parameters.slice(1),index===0?undefined:parameters[0]);}
+      finally{delete input.recaptchaToken;}
+    }
     if(['beginOAuthSignIn','completeOAuthSignIn','logoutSession','passwordSignIn','listPublicEquipment'].includes(method)) return send(method,args);
     const [token,...parameters]=args;
     if(method!=='adminUploadEquipmentImage') return send(method,parameters,token);

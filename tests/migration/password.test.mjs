@@ -7,6 +7,7 @@ import { hashPassword,verifyPassword,validPassword } from '../../server/password
 import { digest,secret } from '../../server/domain.mjs';
 import { sessionFor } from '../../server/auth.mjs';
 import { mailOptions,sendSecurityEmail } from '../../server/mail.mjs';
+import {verifyRecaptcha} from '../../server/recaptcha.mjs';
 process.env.GOOGLE_OAUTH_CLIENT_ID='password-fixture.apps.googleusercontent.com';
 process.env.ALLOWED_DOMAINS='example.test';
 process.env.PASSWORD_OTP_SECRET='fixture-only-not-a-deployed-secret-0123456789';
@@ -21,13 +22,44 @@ async function fixture(){
   await db.query('INSERT INTO crs.sessions(id,data,expires_at) VALUES($1,$2,now()+interval \'1 hour\')',[digest(token),JSON.stringify({userId:'USR-000001',email:'admin@example.test',clientId:process.env.GOOGLE_OAUTH_CLIENT_ID,expiresAt:Math.floor(Date.now()/1000)+3600})]);
   const mails=[];
   const transact=async work=>{await db.exec('BEGIN');try{const result=await work(db);await db.exec('COMMIT');return result;}catch(error){await db.exec('ROLLBACK');throw error;}};
-  const deps={transact,mailReady:()=>{},send:async value=>mails.push(value)};
+  const deps={transact,mailReady:()=>{},send:async value=>mails.push(value),checkAbuse:async()=>{}};
   const auth=passwordAuth(deps);
   const add=async(id='USR-000002',email='user@example.test',extra={})=>{
     await db.query('INSERT INTO crs.password_credentials(user_id,email,password_hash,must_change) VALUES($1,$2,$3,$4)',[id,email,await hashPassword(password),extra.mustChange||false]);
   };
   return {db,auth,token,mails,add,deps};
 }
+
+test('abuse rejection commits existing quotas before proof, never hashes password or creates OTP/mail/session',async()=>{
+  const f=await fixture();try{
+    let verifications=0,proofs=0;const rejected=passwordAuth({...f.deps,verify:async()=>{verifications++;return true;},checkAbuse:async()=>{proofs++;const error=Error('Safe synthetic rejection');error.code='RECAPTCHA_FAILED';throw error;}});
+    const input={email:'user@example.test',password,sessionTokenHash:digest(secret('session1_')),recaptchaToken:'fixture-proof'};
+    for(let i=0;i<12;i++)await assert.rejects(rejected.signIn(input,'proof-rejection-ip'));
+    assert.equal(proofs,10);assert.equal(verifications,0);
+    assert.equal((await f.db.query("SELECT count FROM crs.rate_limits WHERE id LIKE 'password-email:%'")).rows[0].count,12);
+    await assert.rejects(rejected.requestOtp({purpose:'RESET',email:'user@example.test',recaptchaToken:'fixture-proof'},'','proof-reset-ip'),e=>e.code==='RECAPTCHA_FAILED');
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.password_challenges')).rows[0].n,0);
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.sessions')).rows[0].n,1);
+    assert.equal(f.mails.length,0);
+  }finally{await f.db.close();}
+});
+
+test('verified reCAPTCHA reaches unchanged lockout rules; RESET is protected while session-bound CHANGE needs no new provider proof',async()=>{
+  const f=await fixture();try{
+    await f.add();const purposes=[];
+    const env={WEB_APP_URL:'https://example.test',RECAPTCHA_SITE_KEY:'fixture-site-key-not-live-000000',RECAPTCHA_SECRET_KEY:'fixture-secret-not-live-000000'};
+    const auth=passwordAuth({...f.deps,checkAbuse:async(token,purpose)=>{purposes.push(purpose);return verifyRecaptcha(token,purpose,{env,fetcher:async()=>Response.json({success:true,action:purpose==='login'?'password_login':'password_reset',hostname:'example.test',score:.9,challenge_ts:new Date().toISOString()})});}});
+    const input={email:'user@example.test',password:'wrong',sessionTokenHash:digest(secret('session1_')),recaptchaToken:'fixture-proof'};
+    for(let i=0;i<5;i++)await assert.rejects(auth.signIn(input,'verified-proof-ip'),e=>e.code==='LOGIN_INVALID');
+    await assert.rejects(auth.signIn({...input,password},'verified-proof-ip'),e=>e.code==='LOGIN_INVALID');
+    assert.equal((await f.db.query('SELECT failed_attempts FROM crs.password_credentials')).rows[0].failed_attempts,5);
+    await auth.requestOtp({purpose:'RESET',email:'user@example.test',recaptchaToken:'fixture-reset-proof'},'','verified-reset-ip');
+    await auth.requestOtp({purpose:'CHANGE'},f.token,'authorized-change-ip');
+    assert.deepEqual(purposes,['login','login','login','login','login','login','reset']);assert.equal(f.mails.length,2);
+    const rows=JSON.stringify((await f.db.query('SELECT * FROM crs.password_challenges')).rows);
+    assert.equal(rows.includes('fixture-reset-proof'),false);assert.equal(rows.includes('recaptcha'),false);
+  }finally{await f.db.close();}
+});
 test('scrypt salts are unique, encoded costs are bounded, and policy allows Unicode passphrases',async()=>{
   const first=await hashPassword(password),second=await hashPassword(password);
   assert.notEqual(first,second);assert.match(first,/^scrypt\$131072\$8\$1\$/);

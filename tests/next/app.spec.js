@@ -3,6 +3,9 @@ const {mkdirSync}=require('node:fs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
 test.beforeEach(async({page})=>{
+  // No Google requests/real CAPTCHA solving in deterministic UI tests.
+  await page.route('**/api/auth/recaptcha',route=>route.fulfill({json:{siteKey:'fixture-public-site-key-000000',actions:{login:'password_login',reset:'password_reset'}}}));
+  await page.addInitScript(()=>{let serial=0;window.fixtureCaptchaActions=[];window.grecaptcha={ready:callback=>callback(),execute:async(_key,{action})=>{window.fixtureCaptchaActions.push(action);return 'fixture-fresh-proof-'+(++serial);}};});
   // Auto Guest loading in UI tests must never use the operator's live database.
   // Individual public fixtures registered later override this deterministic default.
   await page.route('**/api/rpc',async route=>{
@@ -108,6 +111,131 @@ async function openLogin(page) {
   await expect(page.locator('#login-email')).toBeVisible();
 }
 
+test('Login drops both redundant captions and shares the existing Google radius token across themes/languages/breakpoints',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+  await expect(page.locator('#access-state-eyebrow,.login-kicker')).toHaveCount(0);
+  expect(await (await page.request.get('/')).text()).not.toContain('.login-kicker');
+  for(const width of [320,390,768,1440])for(const theme of ['light','dark'])for(const language of ['th','en']){
+    await page.setViewportSize({width,height:900});await page.evaluate(({theme,language})=>{window.CRS.theme.apply(theme,true);window.CRS.language.set(language);},{theme,language});
+    const styles=await page.evaluate(()=>{
+      const password=getComputedStyle(document.querySelector('#password-login-submit')),google=getComputedStyle(document.querySelector('#google-signin-button'));
+      return {password:password.borderRadius,google:google.borderRadius,title:document.querySelector('#access-state-title').getBoundingClientRect().height};
+    });
+    expect(styles.password).toBe(styles.google);expect(styles.title).toBeGreaterThan(0);await expectNoOverflow(page);
+  }
+});
+
+test('password attempts get fresh action-bound reCAPTCHA proofs, clear inputs and never store a proof',async({page})=>{
+  await mock(page,{signedOut:true});const inputs=[];
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();if(input.method!=='passwordSignIn')return route.fallback();inputs.push(input.args[0]);
+    await route.fulfill({json:{ok:false,error:{code:'LOGIN_INVALID',message:'Fixture invalid login'}}});
+  });
+  await page.goto('/');await openLogin(page);
+  for(let i=0;i<2;i++){
+    await page.locator('#login-email').fill('authorized@example.test');await page.locator('#login-password').fill('Synthetic passphrase only!');
+    await page.locator('#password-login-submit').click();await expect(page.locator('#password-login-error')).toHaveText('Fixture invalid login');
+    await expect(page.locator('#login-password')).toHaveValue('');
+  }
+  expect(inputs.map(input=>input.recaptchaToken)).toEqual(['fixture-fresh-proof-1','fixture-fresh-proof-2']);
+  expect(await page.evaluate(()=>window.fixtureCaptchaActions)).toEqual(['password_login','password_login']);
+  expect(await page.evaluate(()=>JSON.stringify([Object.entries(sessionStorage),Object.entries(localStorage)]))).not.toContain('fixture-fresh-proof');
+  await expect(page.locator('#google-signin-button')).toBeEnabled();
+});
+
+test('blocked CAPTCHA fails closed without a password/reset RPC; Google OAuth transport does not require CAPTCHA',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});
+  await page.route('**/api/auth/recaptcha',route=>route.fulfill({status:503,json:{error:'RECAPTCHA_UNAVAILABLE'}}));
+  await page.route('**/api/rpc',async route=>{
+    if(route.request().postDataJSON().method==='beginOAuthSignIn')return route.fulfill({json:{ok:true,data:{fixtureOAuthStart:true}}});
+    await route.fallback();
+  });
+  await page.goto('/');await openLogin(page);await page.locator('#login-email').fill('authorized@example.test');await page.locator('#login-password').fill('Synthetic passphrase only!');
+  await page.locator('#password-login-submit').click();await expect(page.locator('#password-login-error')).toContainText('Google');
+  expect(calls.some(call=>call.method==='passwordSignIn')).toBe(false);await expect(page.locator('#login-password')).toHaveValue('');
+  await page.locator('[data-experience-action="reset-password"]').click();await page.locator('#reset-email').fill('authorized@example.test');
+  await page.locator('[data-experience-action="request-password-otp"]').click();await expect(page.locator('[data-password-status]')).toContainText('Google');
+  expect(calls.some(call=>call.method==='requestPasswordOtp')).toBe(false);await expect(page.locator('#google-signin-button')).toBeEnabled();
+  const result=await page.evaluate(()=>window.CRS_SERVER_RPC('beginOAuthSignIn',[{fixture:'no-session'}]));expect(result.data.fixtureOAuthStart).toBe(true);
+  expect(await page.evaluate(()=>window.fixtureCaptchaActions)).toEqual([]);
+});
+
+test('anonymous reset gets the distinct CAPTCHA action; session-bound security change does not execute it',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+  await page.locator('[data-experience-action="reset-password"]').click();await page.locator('#reset-email').fill('authorized@example.test');
+  await page.locator('[data-experience-action="request-password-otp"]').click();await expect(page.locator('#password-email-otp')).toBeVisible();
+  expect(calls.find(call=>call.method==='requestPasswordOtp').args[0].recaptchaToken).toBe('fixture-fresh-proof-1');
+  await page.evaluate(()=>window.CRS_SERVER_RPC('requestPasswordOtp',['session1_fixture',{purpose:'CHANGE'}]));
+  expect(await page.evaluate(()=>window.fixtureCaptchaActions)).toEqual(['password_reset']);
+  expect(calls.filter(call=>call.method==='requestPasswordOtp')[1].args[0]).not.toHaveProperty('recaptchaToken');
+});
+
+test('blocked CAPTCHA SDK and rejected execution stay lazy, fail closed and never reflect provider errors',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});let scriptLoads=0;
+  await page.addInitScript(()=>{delete window.grecaptcha;});
+  await page.route('https://www.google.com/recaptcha/api.js?render=*',route=>{scriptLoads++;return route.abort();});
+  await page.goto('/');await openLogin(page);expect(scriptLoads).toBe(0);
+  for(let attempt=0;attempt<2;attempt++){
+    if(attempt)await page.evaluate(()=>{window.grecaptcha={ready:callback=>callback(),execute:()=>Promise.reject(new Error('fixture-provider-error-must-not-be-reflected'))};});
+    await page.locator('#login-email').fill('authorized@example.test');await page.locator('#login-password').fill('Synthetic passphrase only!');
+    await page.locator('#password-login-submit').click();await expect(page.locator('#password-login-error')).toContainText('Google');
+    await expect(page.locator('#password-login-error')).not.toContainText('fixture-provider-error');
+    await expect(page.locator('#login-password')).toHaveValue('');await expect(page.locator('#google-signin-button')).toBeEnabled();
+    expect(calls.some(call=>call.method==='passwordSignIn')).toBe(false);
+  }
+  expect(scriptLoads).toBe(1);
+});
+
+test('Login glass is real WebGL2, pointer-responsive, idle/hidden bounded and restores after context loss',async({page})=>{
+  await page.route('https://fonts.googleapis.com/**',route=>route.abort());await page.route('**/*.woff2',route=>route.abort());
+  await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:900});await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.addInitScript(()=>{
+    window.fixtureLoginDraws=0;window.fixtureLoginPixel=[];window.fixtureLoginDeletes={};
+    for(const name of ['deleteProgram','deleteBuffer','deleteShader','deleteVertexArray']){
+      const original=WebGL2RenderingContext.prototype[name];WebGL2RenderingContext.prototype[name]=function(...args){
+        if(this.canvas.className==='login-glass-scene')window.fixtureLoginDeletes[name]=(window.fixtureLoginDeletes[name]||0)+1;
+        return original.apply(this,args);
+      };
+    }
+    const original=WebGL2RenderingContext.prototype.drawArrays;
+    WebGL2RenderingContext.prototype.drawArrays=function(...args){const result=original.apply(this,args);if(this.canvas.className==='login-glass-scene'){
+      window.fixtureLoginDraws++;const pixel=new Uint8Array(4);this.readPixels(Math.floor(this.canvas.width/2),Math.floor(this.canvas.height/2),1,1,this.RGBA,this.UNSIGNED_BYTE,pixel);window.fixtureLoginPixel=Array.from(pixel);
+    }return result;};
+  });
+  await page.goto('/',{waitUntil:'domcontentloaded'});await openLogin(page);
+  const host=page.locator('.login-art'),canvas=page.locator('.login-glass-scene');await expect(host).toHaveAttribute('data-renderer','webgl2');
+  await expect(canvas).toHaveAttribute('aria-hidden','true');await expect(canvas).toHaveCSS('pointer-events','none');
+  const size=await canvas.evaluate(node=>({width:node.width,height:node.height}));expect(size.width).toBeLessThanOrEqual(768);expect(size.height).toBeLessThanOrEqual(512);
+  await page.waitForTimeout(120);const idle=await page.evaluate(()=>window.fixtureLoginDraws);await page.waitForTimeout(150);expect(await page.evaluate(()=>window.fixtureLoginDraws)).toBe(idle);
+  const pixel=await page.evaluate(()=>window.fixtureLoginPixel);expect(pixel[3]).toBeGreaterThan(0);expect(Math.max(...pixel.slice(0,3))).toBeLessThanOrEqual(pixel[3]);
+  await page.locator('.login-layout').evaluate(node=>{const b=node.getBoundingClientRect();for(let i=0;i<100;i++)node.dispatchEvent(new PointerEvent('pointermove',{clientX:b.left+b.width*.85,clientY:b.top+b.height*.25,pointerType:'mouse'}));});
+  await expect.poll(()=>page.evaluate(()=>window.fixtureLoginDraws)).toBeGreaterThan(idle);
+  expect((await page.evaluate(()=>window.fixtureLoginDraws))-idle).toBeLessThanOrEqual(6);expect(await page.evaluate(()=>window.fixtureLoginPixel)).not.toEqual(pixel);
+  const beforeHidden=await page.evaluate(()=>{Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new Event('visibilitychange'));return window.fixtureLoginDraws;});
+  await page.locator('.login-layout').dispatchEvent('pointermove',{pointerType:'mouse',clientX:500,clientY:300});await page.waitForTimeout(150);expect(await page.evaluate(()=>window.fixtureLoginDraws)).toBe(beforeHidden);
+  await page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});await expect.poll(()=>page.evaluate(()=>window.fixtureLoginDraws)).toBeGreaterThan(beforeHidden);
+  await canvas.evaluate(node=>{window.fixtureLoginContext=node.getContext('webgl2').getExtension('WEBGL_lose_context');window.fixtureLoginContext.loseContext();});
+  await expect(host).toHaveAttribute('data-renderer','css');await page.waitForTimeout(1100);await page.evaluate(()=>window.fixtureLoginContext.restoreContext());
+  await expect(host).toHaveAttribute('data-renderer','webgl2');
+  await captureUi(page,'login-glass-webgl2-light');await page.evaluate(()=>window.CRS.theme.apply('dark',true));await captureUi(page,'login-glass-webgl2-dark');
+  const deletes=await page.evaluate(()=>({...window.fixtureLoginDeletes}));
+  await page.locator('.entry-navigation [data-experience-action="home"]').click();await expect(canvas).toHaveCount(0);
+  const afterDispose=await page.evaluate(()=>({...window.fixtureLoginDeletes}));
+  for(const name of ['deleteProgram','deleteBuffer','deleteShader','deleteVertexArray'])expect(afterDispose[name]).toBeGreaterThan(deletes[name]||0);
+  await openLogin(page);await expect(canvas).toHaveCount(1);await expect(host).toHaveAttribute('data-renderer','webgl2');
+  await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));await expect(canvas).toHaveCount(0);
+  await page.evaluate(()=>window.dispatchEvent(new Event('pageshow')));await expect(canvas).toHaveCount(1);
+});
+
+test('Login CSS fallback remains decorative and operable when WebGL2 fails or motion is reduced',async({page})=>{
+  await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:900});
+  await page.addInitScript(()=>{const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl2'?null:get.call(this,type,...args);};});
+  await page.goto('/');await openLogin(page);await expect(page.locator('.login-art')).toHaveAttribute('data-renderer','css');await expect(page.locator('.login-art-card')).toBeVisible();
+  await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.login-art')).toHaveAttribute('data-renderer','css');
+  await page.locator('#login-email').fill('fixture@example.test');await expect(page.locator('#login-email')).toHaveValue('fixture@example.test');await expect(page.locator('#google-signin-button')).toBeEnabled();
+  await captureUi(page,'login-glass-css-fallback');await expectNoOverflow(page);
+});
+
 test('liquid cursor center follows actual viewport pointer after scrolling and rem changes',async({page})=>{
   await page.route('**/*.woff2',route=>route.abort());
   await page.setViewportSize({width:1440,height:600});
@@ -174,7 +302,7 @@ test('Login hints translate with real language and pill hover is scoped, readabl
   const submit=page.locator('#password-login-submit'),google=page.locator('#google-signin-button');
   for(const theme of ['light','dark']) {
     await page.evaluate(theme=>window.CRS.theme.apply(theme,true),theme);
-    await expect(submit).toHaveCSS('border-radius','45px');
+    expect(await submit.evaluate(node=>getComputedStyle(node).borderRadius)).toBe(await page.locator('#google-signin-button').evaluate(node=>getComputedStyle(node).borderRadius));
     await submit.hover();await expect(submit).toHaveCSS('background-color','rgb(35, 196, 131)');
     await expect(submit).toHaveCSS('transform','matrix(1, 0, 0, 1, 0, -7)');
     const contrast=await submit.evaluate(node=>{
@@ -645,6 +773,15 @@ test('available WebGL2 renders the decorative scene without an idle animation lo
 
 test.describe('touch login',()=>{
   test.use({hasTouch:true,viewport:{width:390,height:844}});
+  test('Login scene does not allocate WebGL resources for a coarse pointer, including tablet-sized touch',async({page})=>{
+    await mock(page,{signedOut:true});await page.addInitScript(()=>{window.fixtureTouchContexts=0;const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){if(type==='webgl2'&&this.className==='login-glass-scene')window.fixtureTouchContexts++;return get.call(this,type,...args);};});
+    await page.goto('/');await openLogin(page);
+    for(const width of [320,390,1024]){
+      await page.setViewportSize({width,height:900});await expect(page.locator('.login-art')).toHaveAttribute('data-renderer','css');
+      expect(await page.evaluate(()=>window.fixtureTouchContexts)).toBe(0);await expectNoOverflow(page);
+    }
+    await page.locator('.entry-navigation [data-experience-action="home"]').tap();await expect(page.locator('.login-glass-scene')).toHaveCount(0);
+  });
   test('remember target and label toggle natively on mobile without overflow or extra focus stops',async({page})=>{
     await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
     const checkbox=page.locator('#remember-session'),label=page.locator('label[for="remember-session"]');

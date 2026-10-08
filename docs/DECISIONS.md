@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-031 — Action-bound abuse proof is not identity
+
+Status: user-authorized source implementation — 2026-10-08; activation pending.
+
+[Request-local reCAPTCHA proof](adr/0003-action-bound-abuse-proof.md) supplements ADR-028's local sign-in and anonymous reset without changing Google identity, current User/role/session, existing throttles/lockout or custody rules. Provider failure closes protected local actions, not Google OAuth. Keys remain private configuration; no credential or schema migration. Decorative Login rendering remains independent from auth/data/workflow.
+
 ## ADR-030 — Guest-first entry keeps the authorization boundary
 
 Status: user-authorized presentation refinement — 2026-10-08; source accepted, not deployed.

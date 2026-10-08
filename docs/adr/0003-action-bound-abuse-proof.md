@@ -1,0 +1,5 @@
+# Action-bound abuse proof supplements existing identity
+
+The user requested reCAPTCHA v3 for local sign-in and suitable automated-abuse surfaces. Require server-verified, fresh, one-use provider proofs for password login and anonymous password-reset issuance, after persistent quotas and before password verification or OTP creation/mail. This adds a third-party availability dependency: a missing configuration, provider outage or rejected proof closes only those actions, with Google OAuth still available. A configured score is a risk signal, never a User identity, role, rate-limit replacement or authorization grant.
+
+Keep proof tokens request-local and use Google's single-use verification instead of adding a database/cache token ledger. Bind the action and exact target hostname, threshold and freshness on the server; public metadata projects only site key/actions. Session-bound changes and bounded one-use OTP verification retain their existing proofs and limits. Separate decorative Login GPU rendering from this boundary; it receives no auth/data and owns only `mount -> dispose`. See [identity activation contracts](../IDENTITY_EXPERIENCE.md).

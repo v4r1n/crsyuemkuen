@@ -213,6 +213,16 @@
     form.addEventListener('submit',async event=>{event.preventDefault();if(!form.reportValidity())return;const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;submit.disabled=true;error.hidden=true;try{await CRS.auth.passwordSignIn(form.email.value,form.password.value);}catch(problem){error.textContent=problem.message;error.hidden=false;}finally{form.password.value='';submit.disabled=false;translate();}});
     const observer=new MutationObserver(()=>translate());observer.observe(document.querySelector('#access-state-title'),{childList:true});
     const views=new MutationObserver(()=>decorate(document.querySelector('#view-root')));views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
+    let loginDispose=null,loginHost=null;
+    function syncLoginArt(){
+      const host=document.querySelector('.login-art'),access=document.querySelector('#access-state');
+      if(!host||!access||access.hidden||host!==loginHost){if(loginDispose)loginDispose();loginDispose=null;loginHost=null;}
+      if(host&&access&&!access.hidden&&!loginDispose){loginHost=host;loginDispose=global.CRSLoginScene.mount(host);}
+    }
+    const loginViews=new MutationObserver(syncLoginArt);
+    loginViews.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});
+    global.addEventListener('pagehide',()=>{if(loginDispose)loginDispose();loginDispose=null;loginHost=null;loginViews.disconnect();});
+    global.addEventListener('pageshow',()=>{loginViews.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});syncLoginArt();});
     translate();clearCursor=cursorEffect(document.querySelector('.login-layout'));
     if(!CRS.auth.hasSession())showGuest();
   });

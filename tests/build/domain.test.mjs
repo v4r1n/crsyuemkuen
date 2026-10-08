@@ -56,7 +56,7 @@ test('callback function trace packages its runtime stylesheet instead of relying
 
 test('all production route traces exclude private exports/credentials and public assets contain no server secret configuration',()=>{
   const root=resolve('.');
-  for(const route of ['route.js','auth/callback/route.js','api/rpc/route.js','api/experience/route.js','api/image-placeholder/route.js']) {
+  for(const route of ['route.js','auth/callback/route.js','api/rpc/route.js','api/experience/route.js','api/auth/recaptcha/route.js','api/image-placeholder/route.js']) {
     const path=resolve('.next/server/app',route+'.nft.json'),trace=JSON.parse(readFileSync(path,'utf8'));
     for(const file of trace.files){
       const name=relative(root,resolve(path,'..',file)).replaceAll('\\','/');
@@ -66,6 +66,6 @@ test('all production route traces exclude private exports/credentials and public
   }
   for(const file of readdirSync('public/crs').filter(name=>/\.(js|html)$/.test(name))){
     const source=readFileSync(resolve('public/crs',file),'utf8');
-    assert.doesNotMatch(source,/PASSWORD_OTP_SECRET|SMTP_PASSWORD|SUPABASE_SECRET_KEY|DATABASE_URL|GOOGLE_OAUTH_CLIENT_SECRET|BEGIN (?:RSA |EC )?PRIVATE KEY/,'Server-only configuration must not appear in browser assets');
+    assert.doesNotMatch(source,/RECAPTCHA_SECRET_KEY|PASSWORD_OTP_SECRET|SMTP_PASSWORD|SUPABASE_SECRET_KEY|DATABASE_URL|GOOGLE_OAUTH_CLIENT_SECRET|BEGIN (?:RSA |EC )?PRIVATE KEY/,'Server-only configuration must not appear in browser assets');
   }
 });
