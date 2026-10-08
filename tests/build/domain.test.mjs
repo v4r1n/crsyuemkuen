@@ -46,6 +46,14 @@ test('production artifact exposes guarded domain services and the authenticated 
   assert.equal(bootstrap.data.app.webAppUrl,'https://example.test');
 });
 
+test('callback function trace packages its runtime stylesheet instead of relying on the workspace',()=>{
+  const path=resolve('.next/server/app/auth/callback/route.js.nft.json');
+  const trace=JSON.parse(readFileSync(path,'utf8'));
+  const stylesheet=resolve('web/auth-callback.css');
+  assert.ok(trace.files.some(file=>resolve(path,'..',file)===stylesheet),
+    'Callback stylesheet must ship in the isolated function: a workspace-only CSS file causes cloud startup HTTP 500');
+});
+
 test('all production route traces exclude private exports/credentials and public assets contain no server secret configuration',()=>{
   const root=resolve('.');
   for(const route of ['route.js','auth/callback/route.js','api/rpc/route.js','api/experience/route.js','api/image-placeholder/route.js']) {

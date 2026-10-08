@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Protected linked-feature Preview activation (2026-10-08)
+
+- Verified local SMTP TLS/authentication without sending mail; configured six sensitive Preview-only server variables and restored its canonical origin/callback to the existing protected alias. Fresh verified database/archive/journal/seven-image backup precedes additive private schema apply; repeat apply is safe and existing data remains unchanged.
+- Separately authorized freeze rebuilds the existing immutable Production source and preserves its canonical alias. New linked-feature code remains Preview-only; no Production SMTP/OTP install, write opening, account/publication provisioning or real email delivery is claimed.
+- Fixed a cloud callback startup failure by explicitly tracing its runtime CSS into the function. Added a regression that fails without that packaged file; real Preview callback/origin/session/Guest/privacy/freeze/OAuth-start smoke passes after rebuild. No authentication or borrowing rule changed.
+- Fresh install, all 219 top-level tests and production build pass; full application audit has zero advisories and diff/generated-secret checks pass. Real recipient delivery, linked-login/device/workflow/restore acceptance and explicit Production feature/write decisions remain pending.
+
 ### Linked passwords, email security and equipment experience (2026-10-07)
 
 - Same-existing-User local login alongside preserved Google proofs; unique salted secure hashes, persistent throttles/lockout and generation/session revocation. OTP-confirmed password changes/reset and Admin email-only temporary credentials with expiry/forced replacement and non-secret security History.

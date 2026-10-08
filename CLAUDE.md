@@ -62,4 +62,4 @@ Complete this checklist at the end of every phase:
 
 ## Current delivery status
 
-Read the authoritative top section of `docs/MEMORY.md` before continuing. Production has a frozen migration baseline; newer feature-branch source is not live until its separate schema, SMTP and acceptance gates pass. `docs/DEPLOYMENT.md` describes the legacy rollback system, not the Next.js rollout.
+Read the authoritative top section of `docs/MEMORY.md` before continuing. Recheck current cloud targets, canonical aliases and live write-freeze responses before infrastructure changes; historical deployment notes are not current configuration. `docs/IDENTITY_EXPERIENCE.md` owns linked-feature activation and acceptance gates. `docs/DEPLOYMENT.md` describes the legacy rollback system, not the Next.js rollout.
