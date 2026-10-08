@@ -1,16 +1,25 @@
 /* Presentation uses the established contrast-checked design tokens. */
 #access-state { display:block; }
-/* Embedded public browsing shares the fixed login surface; its existing
- * confirmation modal/backdrop must sit above that surface. */
-body:has(#access-state:not([hidden])) #confirm-modal { z-index:1090; }
-body:has(#access-state:not([hidden])) .modal-backdrop { z-index:1085; }
 .access-card { position:relative; isolation:isolate; }
+.login-layout { position:relative; isolation:isolate; }
 .login-controls { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
 .access-card .theme-toggle-login { position:static; flex-shrink:0; }
-.login-logo { width:88px; height:88px; object-fit:contain; display:block; margin:0 auto 1rem; }
+.brand-mark:has(> img) { background:transparent; box-shadow:none; }
+.entry-navigation { width:min(1080px,100%); margin:0 auto 1rem; }
 .login-password-form { width:100%; margin-block:1.25rem; }
 .password-field { position:relative; }
 .password-field input { padding-inline-end:3.2rem; }
+.login-password-form .form-control::placeholder { color:var(--crs-muted); opacity:.8; }
+/* Pill/lift treatment adapted from Uiverse.io by cssbuttons-io. Scope it to
+ * the local Login submit; keep keyboard focus and contrast on the green. */
+#password-login-submit { padding:1.3em 3em; font-size:12px; text-transform:uppercase; letter-spacing:2.5px; font-weight:500; color:#000; background:#fff; border:0; border-radius:45px; box-shadow:0 8px 15px rgba(0,0,0,.1); transition:transform .3s ease,background-color .3s ease,box-shadow .3s ease,color .3s ease; cursor:pointer; }
+#password-login-submit:focus-visible { outline:3px solid var(--crs-primary); outline-offset:3px; }
+#password-login-submit:disabled { cursor:not-allowed; }
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+ #password-login-submit:hover:not(:disabled) { background:#23c483; box-shadow:0 15px 20px rgba(46,229,157,.4); color:#071e15; transform:translateY(-7px); }
+ #password-login-submit:active:not(:disabled) { transform:translateY(-1px); }
+}
+@media (prefers-reduced-motion:reduce) { #password-login-submit { transition:none; transform:none; } }
 /* Edge's native click-toggle would violate hold-only reveal. */
 input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .login-reset-row { display:flex; justify-content:flex-end; flex-wrap:wrap; }
@@ -50,7 +59,9 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .guest-equipment { max-width:80rem; margin:0 auto; padding:1.5rem; }
 .guest-heading { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between; margin-block:1rem 2rem; }
 .guest-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(16rem,100%),1fr)); gap:1rem; }
-.guest-heading h2 { margin:0; }
+.guest-heading h1 { margin:0; }
+.guest-brand { display:flex; align-items:center; gap:.75rem; min-width:0; }
+.guest-brand .brand-mark { width:52px; height:52px; }
 .guest-controls { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:.5rem; margin-inline-start:auto; }
 .guest-showcase { position:relative; isolation:isolate; border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius); padding:clamp(1rem,3vw,2rem); background:radial-gradient(ellipse at 15% 0%,var(--crs-primary-soft),transparent 65%),radial-gradient(ellipse at 85% 20%,var(--crs-pink-soft),transparent 65%),var(--crs-glass-bg); overflow:hidden; }
 .guest-glass-scene { position:absolute; inset:0 0 auto; width:100%; height:min(100%,360px); pointer-events:none; z-index:-1; }
@@ -59,15 +70,14 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .guest-card .card-body { display:flex; flex-direction:column; align-items:flex-start; }
 .guest-card .btn { margin-top:auto; }
 .guest-card .guest-card-icon { display:grid; place-items:center; width:3rem; height:3rem; background:var(--crs-primary-soft); color:var(--crs-primary); border-radius:var(--crs-radius-sm); margin-bottom:1rem; font-size:1.5rem; }
-.guest-equipment[data-embedded="true"] { width:min(1120px,100%); margin-top:1.5rem; padding:0; }
 .guest-status { color:var(--crs-muted); }
 .notification-item { display:block; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:1rem; margin-bottom:.5rem; }
 .notification-item[data-unread="true"] { border-inline-start:4px solid var(--crs-primary); }
 .notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
-.liquid-glass-cursor { display:none; pointer-events:none; position:absolute; width:7rem; height:7rem; border:1px solid var(--crs-glass-border); border-radius:50%; background:radial-gradient(circle,var(--crs-pink-mist),transparent 70%); opacity:0; z-index:-1; }
+.liquid-glass-cursor { display:none; pointer-events:none; position:absolute; inset:0 auto auto 0; width:7rem; height:7rem; border:1px solid var(--crs-glass-border); border-radius:50%; background:radial-gradient(circle,var(--crs-pink-mist),transparent 70%); opacity:0; z-index:-1; }
 @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
  .liquid-glass-cursor { display:block; transition:opacity .2s; }
  .login-layout.has-cursor .liquid-glass-cursor { opacity:.45; }
 }
 @media (hover:none),(pointer:coarse),(prefers-reduced-motion:reduce) { .liquid-glass-cursor { display:none; } }
-@media (max-width:767px) { .login-logo { width:68px;height:68px; } .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }
+@media (max-width:767px) { .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }

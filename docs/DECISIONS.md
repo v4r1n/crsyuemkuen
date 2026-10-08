@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-030 — Guest-first entry keeps the authorization boundary
+
+Status: user-authorized presentation refinement — 2026-10-08; source accepted, not deployed.
+
+[Public entry is not borrowing authorization](adr/0002-guest-first-entry.md) refines ADR-029's embedded presentation into separate Guest/Login views. Public-only projection, default-private visibility, existing User/session proofs and server custody rules remain unchanged; Login/borrow confirmation carries only the established intent, never automatic submission or new authority.
+
 ## ADR-029 — Distinct canonical targets and decorative public renderer
 
 Status: user-authorized refinement — 2026-10-08; new Preview callback transition pending.

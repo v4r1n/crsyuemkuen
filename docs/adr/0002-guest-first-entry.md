@@ -1,0 +1,3 @@
+# Public entry is not borrowing authorization
+
+At the user's request, signed-out entry starts with the existing public-only catalog and opens the independent Login view on explicit sign-in or confirmed borrowing intent, instead of embedding the catalog inside the fixed authentication surface. This presentation boundary retains the existing ten-minute intent and original borrow form without auto-submission; cached public display, button visibility and decorative rendering grant no authority. The verified existing User/session and authoritative server checks continue deciding access, publication and every borrowing transition, without a schema or authentication-proof change.

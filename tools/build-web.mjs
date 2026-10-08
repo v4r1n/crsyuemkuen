@@ -73,8 +73,10 @@ index=index.replace('</body>','<script src="/crs/migration-admin.js"></script></
 const loginControls=await readFile(join(root,'web','login-controls.html'),'utf8');
 index=index.replace('<div class="startup-card access-card">','<div class="startup-card access-card text-center">');
 index=index.replace('<p class="login-welcome">ยินดีต้อนรับกลับมา</p>','');
-index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?<\/span>/,
-  '<img class="login-logo" src="/brand/icon-yuemkuen.png" alt="CRS Yuem-Kuen" width="88" height="88">');
+index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?<\/span>/,'');
+const brandIcon=/(<span class="brand-mark(?: [^"]*)?"[^>]*>)\s*<i class="bi bi-box-seam"[^>]*><\/i>\s*(<\/span>)/g;
+if(!brandIcon.test(index)) throw new Error('Brand mark composition seam changed');
+index=index.replace(brandIcon,'$1<img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async">$2');
 index=index.replace(/        <button\s+id="google-signin-button"/,match=>loginControls+match);
 if(!index.includes('id="password-login-form"')) throw new Error('Login composition seam changed');
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');

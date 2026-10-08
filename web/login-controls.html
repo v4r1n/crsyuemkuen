@@ -1,9 +1,9 @@
 <form id="password-login-form" class="login-password-form text-start">
   <label for="login-email" class="form-label" data-experience-text="email">อีเมล</label>
-  <input id="login-email" class="form-control mb-3" name="email" type="email" autocomplete="username" inputmode="email" maxlength="254" required>
+  <input id="login-email" class="form-control mb-3" name="email" type="email" autocomplete="username" inputmode="email" maxlength="254" placeholder="กรอกอีเมลของคุณ" data-experience-placeholder="email" required>
   <label for="login-password" class="form-label" data-experience-text="password">รหัสผ่าน</label>
   <div class="password-field mb-3">
-    <input id="login-password" class="form-control" name="password" type="password" autocomplete="current-password" maxlength="512" required>
+    <input id="login-password" class="form-control" name="password" type="password" autocomplete="current-password" maxlength="512" placeholder="กรอกรหัสผ่านของคุณ" data-experience-placeholder="password" required>
     <button type="button" class="password-reveal" data-reveal-for="login-password" aria-label="กดค้างเพื่อดูรหัสผ่าน" aria-pressed="false"><i class="bi bi-eye" aria-hidden="true"></i></button>
   </div>
   <p id="password-login-error" class="text-danger small" role="alert" aria-live="polite" hidden></p>

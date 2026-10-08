@@ -101,11 +101,140 @@ async function expectNoOverflow(page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
+async function openLogin(page) {
+  if (!await page.locator('#login-email').isVisible()) {
+    await page.locator('#guest-equipment [data-experience-action="login"]').click();
+  }
+  await expect(page.locator('#login-email')).toBeVisible();
+}
+
+test('liquid cursor center follows actual viewport pointer after scrolling and rem changes',async({page})=>{
+  await page.route('**/*.woff2',route=>route.abort());
+  await page.setViewportSize({width:1440,height:600});
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await openLogin(page);
+  // Isolate positioning from the finite entrance animation, not the actual
+  // cursor handler, scrolling surface, transformed container or rem geometry.
+  await page.locator('.login-layout').evaluate(node=>node.style.animation='none');
+  for(const fontSize of [16,20]) {
+    await page.evaluate(size=>document.documentElement.style.fontSize=size+'px',fontSize);
+    await page.locator('#access-state').evaluate((node,size)=>node.scrollTo({top:size===16?0:120,behavior:'instant'}),fontSize);
+    const bounds=await page.locator('.login-layout').boundingBox();
+    const pointer={x:bounds.x+140,y:Math.max(100,bounds.y+140)};
+    await page.mouse.move(pointer.x,pointer.y);
+    await expect.poll(()=>page.locator('.liquid-glass-cursor').evaluate((node,point)=>{
+      const rect=node.getBoundingClientRect();
+      return Math.hypot(rect.x+rect.width/2-point.x,rect.y+rect.height/2-point.y);
+    },pointer),{message:'Cursor visual center must match the real mouse position'}).toBeLessThan(2);
+    await page.locator('#access-state').evaluate(node=>node.scrollTop+=40);
+    await expect.poll(()=>page.locator('.liquid-glass-cursor').evaluate((node,point)=>{
+      const rect=node.getBoundingClientRect();
+      return Math.hypot(rect.x+rect.width/2-point.x,rect.y+rect.height/2-point.y);
+    },pointer),{message:'Scroll must realign the effect without another mouse move'}).toBeLessThan(2);
+  }
+  await page.locator('.login-layout').evaluate(node=>{node.style.transform='scale(.9)';node.style.transformOrigin='top left';});
+  const scaled=await page.locator('.login-layout').boundingBox(),point={x:scaled.x+140,y:100};
+  await page.mouse.move(point.x,point.y);
+  await expect.poll(()=>page.locator('.liquid-glass-cursor').evaluate((node,p)=>{const r=node.getBoundingClientRect();return Math.hypot(r.x+r.width/2-p.x,r.y+r.height/2-p.y);},point)).toBeLessThan(2);
+  await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  await expect(page.locator('.login-layout')).not.toHaveClass(/has-cursor/);
+});
+
+test('Guest is signed-out home; separate Login moves the logo to brand marks and removes duplicate card actions',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await expect(page.locator('.guest-showcase')).toBeVisible();
+  await expect(page.locator('#access-state')).toBeHidden();
+  await expect(page.locator('#app-shell')).toBeHidden();
+  await expect(page.locator('#guest-equipment .brand-mark img')).toBeVisible();
+  expect(calls.filter(call=>call.method==='listPublicEquipment')).toHaveLength(1);
+  expect(calls.some(call=>['getAppBootstrap','listEquipment','getEquipmentDetail','getEquipmentImage','createBorrowRequest'].includes(call.method))).toBe(false);
+  await openLogin(page);
+  await expect(page.locator('.guest-showcase')).toBeHidden();
+  await expect(page.locator('.login-logo')).toHaveCount(0);
+  await expect(page.locator('.login-brand .brand-mark img')).toBeVisible();
+  await expect(page.locator('.access-card [data-experience-action="guest"],.access-card [data-experience-action="login"],.access-card [data-experience-action="guide"]')).toHaveCount(0);
+  await page.locator('#login-password').fill('Fixture secret cleared on home!');
+  await page.locator('.entry-navigation [data-experience-action="home"]').click();
+  await expect(page.locator('.guest-showcase')).toBeVisible();
+  await expect(page.locator('#login-password')).toHaveValue('');
+  await expect(page.locator('#access-state')).toBeHidden();
+  expect(calls.filter(call=>call.method==='listPublicEquipment')).toHaveLength(1);
+  await expectNoOverflow(page);
+});
+
+test('Login hints translate with real language and pill hover is scoped, readable and reduced-motion safe',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/',{waitUntil:'domcontentloaded'});await openLogin(page);
+  await expect(page.locator('#login-email')).toHaveAttribute('placeholder','กรอกอีเมลของคุณ');
+  await expect(page.locator('#login-password')).toHaveAttribute('placeholder','กรอกรหัสผ่านของคุณ');
+  await page.locator('.login-controls [data-experience-action="language"]').click();
+  await expect(page.locator('#login-email')).toHaveAttribute('placeholder','Enter your email');
+  await expect(page.locator('#login-password')).toHaveAttribute('placeholder','Enter your password');
+  const submit=page.locator('#password-login-submit'),google=page.locator('#google-signin-button');
+  for(const theme of ['light','dark']) {
+    await page.evaluate(theme=>window.CRS.theme.apply(theme,true),theme);
+    await expect(submit).toHaveCSS('border-radius','45px');
+    await submit.hover();await expect(submit).toHaveCSS('background-color','rgb(35, 196, 131)');
+    await expect(submit).toHaveCSS('transform','matrix(1, 0, 0, 1, 0, -7)');
+    const contrast=await submit.evaluate(node=>{
+      const s=getComputedStyle(node),rgb=value=>value.match(/[\d.]+/g).slice(0,3).map(Number);
+      const lum=channels=>channels.map(value=>value/255).map(value=>value<=.04045?value/12.92:((value+.055)/1.055)**2.4).reduce((sum,value,index)=>sum+value*[.2126,.7152,.0722][index],0);
+      const [hi,lo]=[lum(rgb(s.color)),lum(rgb(s.backgroundColor))].sort((a,b)=>b-a);return(hi+.05)/(lo+.05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
+    await google.hover();await expect(google).not.toHaveCSS('background-color','rgb(35, 196, 131)');
+  }
+  await page.emulateMedia({reducedMotion:'reduce'});await submit.hover();
+  await expect(submit).toHaveCSS('transform','none');
+  expect(await submit.evaluate(node=>parseFloat(getComputedStyle(node).transitionDuration))).toBeLessThanOrEqual(.001);
+  await submit.evaluate(node=>node.disabled=true);await expect(submit).toBeDisabled();
+});
+
+test('a delayed public response cannot reopen Guest after the user selects Login',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});let release;
+  const delayed=new Promise(resolve=>release=resolve);
+  await page.route('**/api/rpc',async route=>{
+    if(route.request().postDataJSON().method!=='listPublicEquipment')return route.fallback();
+    await delayed;await route.fulfill({json:{ok:true,data:{items:[],page:1,total:0,totalPages:1}}});
+  });
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await expect(page.locator('[data-guest-content]')).toHaveAttribute('aria-busy','true');
+  await openLogin(page);
+  const completed=page.waitForResponse(response=>response.url().endsWith('/api/rpc')&&response.request().postDataJSON().method==='listPublicEquipment');
+  release();await completed;
+  await expect(page.locator('#access-state')).toBeVisible();await expect(page.locator('.guest-showcase')).toBeHidden();
+  await expect(page.locator('.guest-glass-scene')).toHaveCount(0);
+  expect(calls.some(call=>['listEquipment','getEquipmentDetail','createBorrowRequest'].includes(call.method))).toBe(false);
+});
+
+test('public home stays responsive in both themes/languages; signing out returns to Guest',async({page})=>{
+  await mock(page,{signedOut:true});
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await expect(page.locator('[data-guest-borrow]')).toBeVisible();
+  for(const width of [320,390,768,1440])for(const theme of ['light','dark'])for(const language of ['th','en']){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(({theme,language})=>{window.CRS.theme.apply(theme,true);window.CRS.language.set(language);},{theme,language});
+    await expect(page.locator('#guest-title')).toHaveText(language==='th'?'อุปกรณ์สาธารณะ':'Public equipment');
+    await expect(page.locator('.guest-controls [data-experience-action="language"]')).toHaveText(language==='th'?'TH':'EN');
+    await expect(page.locator('.guest-controls [data-experience-action="login"]')).toBeInViewport();
+    await expectNoOverflow(page);
+    if(width===390||width===1440)await captureUi(page,'guest-'+theme+'-'+language+'-'+width);
+  }
+  await openLogin(page);
+  await page.locator('#login-email').fill('admin@example.test');await page.locator('#login-password').fill('Fixture passphrase only!');
+  await page.locator('#password-login-submit').click();await expect(page.locator('#dashboard-content')).toBeVisible();
+  await page.evaluate(()=>window.CRS.auth.signOut());
+  await expect(page.locator('.guest-showcase')).toBeVisible();await expect(page.locator('#app-shell')).toBeHidden();
+  await expect(page.locator('#access-state')).toBeHidden();await expect(page.locator('#login-password')).toHaveValue('');
+});
+
 test('glass login is responsive, keyboard accessible and offers linked Password and Google sign-in',async({page})=>{
   // No cloud request or authentication bypass; the signed-out shell needs no identity.
   for (const viewport of [{width:1440,height:960},{width:768,height:720},{width:390,height:844},{width:320,height:600}]) {
     await page.setViewportSize(viewport);
     await page.goto('/');
+    await openLogin(page);
     await expect(page.locator('#access-state')).toBeVisible();
     await expect(page.locator('.login-layout')).toBeVisible();
     await expect(page.locator('#access-state-title')).toHaveText('เข้าสู่ระบบ');
@@ -128,7 +257,7 @@ test('glass login is responsive, keyboard accessible and offers linked Password 
     await expect(page.locator('.login-footer')).toBeInViewport();
     if(viewport.width===390) await captureUi(page,'login-light-390-bottom');
     await page.locator('#access-state').evaluate(element=>element.scrollTo({top:0,behavior:'instant'}));
-    await expect(page.locator('.login-logo')).toBeInViewport();
+    await expect(page.locator('.login-brand .brand-mark img')).toBeInViewport();
     await expect(page.locator('#theme-toggle-login')).toBeInViewport();
     const top=await page.locator('.login-layout').evaluate(element=>element.getBoundingClientRect().top);
     expect(top).toBeGreaterThanOrEqual(0);
@@ -137,6 +266,7 @@ test('glass login is responsive, keyboard accessible and offers linked Password 
   await page.setViewportSize({width:1440,height:960});
   await page.evaluate(()=>localStorage.setItem('crs-theme','dark'));
   await page.reload();
+  await openLogin(page);
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme','dark');
   await expectNoOverflow(page);
   await captureUi(page,'login-dark-desktop');
@@ -169,6 +299,7 @@ test('glass app covers dashboard, catalog, admin, settings and mobile navigation
 test('finite animations honor reduced motion and glass text/button tokens retain AA contrast',async({page})=>{
   await page.emulateMedia({reducedMotion:'no-preference',colorScheme:'light'});
   await page.goto('/');
+  await openLogin(page);
   await expect(page.locator('#access-state')).toBeVisible();
   await expect(page.locator('.login-layout')).toHaveCSS('animation-name','glass-reveal');
   await expect(page.locator('.login-layout')).toHaveCSS('animation-iteration-count','1');
@@ -227,7 +358,7 @@ test('real callback denial keeps the glass OTP page accessible without revealing
 
 test('password login uses the existing opaque remembered session and clears the submitted password',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});
-  await page.goto('/');await expect(page.locator('#password-login-form')).toBeVisible();
+  await page.goto('/');await openLogin(page);await expect(page.locator('#password-login-form')).toBeVisible();
   await page.locator('#login-email').fill('admin@example.test');await page.locator('#login-password').fill('Fixture passphrase only!');
   const reveal=page.locator('[data-reveal-for="login-password"]');await reveal.focus();await page.keyboard.down('Space');
   await expect(page.locator('#login-password')).toHaveAttribute('type','text');await page.keyboard.up('Space');await expect(page.locator('#login-password')).toHaveAttribute('type','password');
@@ -240,7 +371,7 @@ test('password login uses the existing opaque remembered session and clears the 
 
 test('Guest confirmation hands off only an asset intent and opens the unchanged borrow form after sign-in',async({page})=>{
   const {calls,record}=await mock(page,{signedOut:true});await page.goto('/');
-  await page.locator('[data-experience-action="guest"]').click();await expect(page.locator('#guest-equipment')).toBeVisible();
+  await expect(page.locator('#guest-equipment')).toBeVisible();
   await page.locator('[data-guest-borrow]').click();await expect(page.locator('#confirm-modal')).toBeVisible();
   await page.locator('#confirm-modal [data-confirm-accept]').click();await expect(page.locator('#password-login-form')).toBeVisible();
   await page.locator('#login-email').fill('admin@example.test');await page.locator('#login-password').fill('Fixture passphrase only!');await page.locator('#password-login-submit').click();
@@ -282,13 +413,14 @@ test('new actions translate TH/EN; quick theme has two states and System remains
 
 test('Login effects and icon/search geometry respect reduced motion, touch, theme and viewport',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce'});await page.setViewportSize({width:390,height:844});await page.goto('/');
+  await openLogin(page);
   await expect(page.locator('.liquid-glass-cursor')).toBeHidden();await expect(page.locator('.login-foil')).toHaveCount(0);
   const location=await page.locator('#theme-toggle-login').evaluate(node=>{const style=getComputedStyle(node.querySelector('i'));return{inside:!!node.closest('.access-card'),align:style.alignItems,justify:style.justifyContent};});expect(location.inside).toBe(true);expect(location.align).toBe('center');expect(location.justify).toBe('center');
   await page.locator('.access-card [data-experience-action="language"]').click();await expect(page.locator('#access-state-title')).toHaveText('Sign in');await expect(page.locator('label[for="login-email"]')).toHaveText('Email');
   await page.evaluate(()=>window.CRS.theme.apply('dark',true));
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme','dark');
   await page.locator('#access-state').evaluate(element=>element.scrollTo({top:0,behavior:'instant'}));
-  await expect(page.locator('.login-logo')).toBeInViewport();await expectNoOverflow(page);
+  await expect(page.locator('.login-brand .brand-mark img')).toBeInViewport();await expectNoOverflow(page);
   await captureUi(page,'login-dark-en-mobile-top');
   await page.locator('.login-footer').scrollIntoViewIfNeeded();
   await captureUi(page,'login-dark-en-mobile-bottom');
@@ -299,7 +431,7 @@ test('Login effects and icon/search geometry respect reduced motion, touch, them
 test('forgot password modal clears secrets after OTP-verified matching reset; footer links use approved Google policies',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});
   await page.route('**/api/experience',route=>route.fulfill({json:{privacyUrl:'https://policies.google.com/privacy',termsUrl:'https://policies.google.com/terms'}}));
-  await page.goto('/');await expect(page.locator('.login-footer a')).toHaveCount(2);
+  await page.goto('/');await openLogin(page);await expect(page.locator('.login-footer a')).toHaveCount(2);
   await expect(page.locator('.login-footer [data-experience-action="privacy"]')).toHaveAttribute('href','https://policies.google.com/privacy');
   await page.locator('[data-experience-action="reset-password"]').click();const modal=page.locator('dialog');await expect(modal).toHaveAttribute('aria-labelledby',/experience-dialog-title/);
   await modal.locator('#reset-email').fill('admin@example.test');await modal.locator('[data-experience-action="request-password-otp"]').click();
@@ -326,7 +458,7 @@ test('Login controls use Thai by default, synchronize saved language, center pai
   await mock(page,{signedOut:true});
   await page.addInitScript(()=>Object.defineProperty(navigator,'language',{value:'en-US',configurable:true}));
   for(const width of [320,390,768,1440])for(const theme of ['light','dark']){
-    await page.setViewportSize({width,height:900});await page.goto('/');await expect(page.locator('#login-email')).toBeVisible();
+    await page.setViewportSize({width,height:900});await page.goto('/');await openLogin(page);
     await page.evaluate(value=>window.CRS.theme.apply(value,true),theme);
     await expect(page.locator('html')).toHaveAttribute('lang','th');
     await expect(page.locator('.login-controls [data-experience-action="language"]')).toHaveText('TH');
@@ -347,7 +479,7 @@ test('Login controls use Thai by default, synchronize saved language, center pai
   }
   const language=page.locator('.login-controls [data-experience-action="language"]');
   await language.click();await expect(language).toHaveText('EN');await expect(page.locator('html')).toHaveAttribute('lang','en');
-  await page.reload();await expect(language).toHaveText('EN');
+  await page.reload();await openLogin(page);await expect(language).toHaveText('EN');
   await language.click();await expect(language).toHaveText('TH');
   for(const [key,target]of[['privacy','https://policies.google.com/privacy'],['terms','https://policies.google.com/terms']]){
     const link=page.locator('.login-footer [data-experience-action="'+key+'"]');await expect(link).toHaveAttribute('href',target);await expect(link).toHaveAttribute('rel','noopener noreferrer');
@@ -355,7 +487,7 @@ test('Login controls use Thai by default, synchronize saved language, center pai
 });
 
 test('hold-only password reveal masks on outside release, cancellation, blur and hidden tab; click never toggles',async({page})=>{
-  await mock(page,{signedOut:true});await page.goto('/');const input=page.locator('#login-password'),eye=page.locator('[data-reveal-for="login-password"]');
+  await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);const input=page.locator('#login-password'),eye=page.locator('[data-reveal-for="login-password"]');
   // Suppress the browser's native toggle on ALL passwords, including the
   // confirmation field which has no custom reveal button/wrapper.
   expect(await (await page.request.get('/crs/experience.css')).text()).toMatch(/input::-ms-reveal,\.password-field input::-ms-clear\s*\{\s*display:none;/);
@@ -383,7 +515,9 @@ test('Guest auto-loads the public projection only, fallback is accessible and la
   await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','css');
   expect(calls.filter(c=>c.method==='listPublicEquipment')).toHaveLength(1);
   expect(calls.some(c=>['listEquipment','getEquipmentDetail','getEquipmentImage'].includes(c.method))).toBe(false);
-  await page.locator('.login-controls [data-experience-action="language"]').click();await expect(page.locator('[data-guest-borrow]')).toHaveText('Borrow');
+  const language=page.locator('.guest-controls [data-experience-action="language"]');
+  await language.focus();await page.keyboard.press('Enter');await expect(page.locator('[data-guest-borrow]')).toHaveText('Borrow');
+  await expect(language).toBeFocused();
   expect(calls.filter(c=>c.method==='listPublicEquipment')).toHaveLength(1);
   const borrow=page.locator('[data-guest-borrow]');await borrow.focus();await page.keyboard.press('Enter');await expect(page.locator('#confirm-modal')).toBeVisible();
   await page.locator('#confirm-modal [data-confirm-accept]').click();await expect(page.locator('#login-email')).toBeFocused();
@@ -441,6 +575,7 @@ test.describe('touch login',()=>{
   test.use({hasTouch:true,viewport:{width:390,height:844}});
   test('native touch hold reveals only until release/cancel, and Guest cards remain operable',async({page})=>{
     await mock(page,{signedOut:true});await page.goto('/');
+    await openLogin(page);
     const input=page.locator('#login-password'),eye=page.locator('[data-reveal-for="login-password"]');
     await input.fill('Fixture touch hold passphrase!');await eye.scrollIntoViewIfNeeded();
     const box=await eye.boundingBox(),touch=await page.context().newCDPSession(page);
@@ -449,7 +584,9 @@ test.describe('touch login',()=>{
       await expect(input).toHaveAttribute('type','text');
       await touch.send('Input.dispatchTouchEvent',{type:end,touchPoints:[]});await expect(input).toHaveAttribute('type','password');
     }
-    await expect(page.locator('.liquid-glass-cursor')).toBeHidden();await expect(page.locator('[data-guest-borrow]')).toBeVisible();
+    await expect(page.locator('.liquid-glass-cursor')).toBeHidden();await expect(page.locator('[data-guest-borrow]')).toBeHidden();
+    await page.locator('.entry-navigation [data-experience-action="home"]').tap();
+    await expect(page.locator('[data-guest-borrow]')).toBeVisible();
     await expectNoOverflow(page);await touch.detach();
   });
 });

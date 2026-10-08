@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Guest-first home and Login polish (2026-10-08)
+
+- Signed-out home now shows the separate public-only Guest showcase. Guide/Login live in its header; duplicate Guide/Login/Guest buttons are removed from the Login card. Outside-card home navigation clears the password, while confirm → Login → existing borrow form and signed-in navigation stay unchanged.
+- Move the unchanged supplied logo into brand marks; remove standalone Login logo/CSS. Add synchronized Thai/English email/password placeholders and the user-supplied scoped Uiverse pill/lift Login-submit treatment with readable green hover, keyboard focus and touch/reduced-motion guards.
+- Reproduce cursor offset before fixing its anchor, viewport-to-local coordinates and percentage centering. Regression covers scroll without mouse movement, rem size, scaled layout and blur; additional browser coverage checks public-only entry, late responses, sign-out and theme/language geometry. Preserve keyboard focus when rebuilding the translated Guest header. Full clean-source acceptance passes 232 checks/build; final follow-up rebuild + 33 compiled/browser checks and 3 visual-capture checks pass. ADR-030 retains the authorization boundary. No cloud deployment, freeze/configuration/schema/auth-rule/business-data change.
+
 ### Canonical protected Preview activation (2026-10-08)
 
 - Operator confirmed the new Google callback Save. Preview alone now uses `https://crsyuemkuen-preview.vercel.app` and its matching callback; immutable reviewed source `d7a0f5e` is READY on built-in staging/Singapore and assigned to that alias. Retain the protected previous Preview as rollback. Production deployment/source/alias/env/protection and both write freezes remain unchanged.
