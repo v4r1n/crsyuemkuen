@@ -77,6 +77,20 @@ index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?
 const brandIcon=/(<span class="brand-mark(?: [^"]*)?"[^>]*>)\s*<i class="bi bi-box-seam"[^>]*><\/i>\s*(<\/span>)/g;
 if(!brandIcon.test(index)) throw new Error('Brand mark composition seam changed');
 index=index.replace(brandIcon,'$1<img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async">$2');
+// Keep the native checkbox and its translated label/session listener intact.
+// The decorative sibling must not be inside the label: translation replaces
+// that label's textContent. Compose only the Next shell, not the GAS baseline.
+const rememberInput='<input id="remember-session" class="form-check-input" type="checkbox">';
+if(index.split(rememberInput).length!==2) throw new Error('Remember session composition seam changed');
+index=index.replace(rememberInput,`<span class="remember-session-control">
+          ${rememberInput}
+          <span class="check" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 18 18" focusable="false">
+              <path d="M1 9V3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9Z"/>
+              <polyline points="1 9 7 14 17 3"/>
+            </svg>
+          </span>
+        </span>`);
 index=index.replace(/        <button\s+id="google-signin-button"/,match=>loginControls+match);
 if(!index.includes('id="password-login-form"')) throw new Error('Login composition seam changed');
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');

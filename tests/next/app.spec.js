@@ -486,6 +486,78 @@ test('Login controls use Thai by default, synchronize saved language, center pai
   }
 });
 
+test('animated remember checkbox preserves native label, keyboard, saved preference and translated name',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+  const checkbox=page.locator('#remember-session'),label=page.locator('label[for="remember-session"]'),drawing=page.locator('.remember-session-control .check');
+  await expect(page.getByRole('checkbox',{name:'จดจำการเข้าสู่ระบบในอุปกรณ์นี้',exact:true})).toHaveCount(1);
+  await expect(checkbox).not.toBeChecked();await expect(drawing).toHaveAttribute('aria-hidden','true');
+  await expect(drawing.locator('svg')).toHaveAttribute('focusable','false');
+  expect(await checkbox.evaluate(node=>node.labels.length)).toBe(1);
+  const target=await checkbox.boundingBox(),art=await drawing.boundingBox();
+  expect(target.width).toBe(44);expect(target.height).toBe(44);expect(art.width).toBe(18);expect(art.height).toBe(18);
+  expect(Math.abs(target.x+target.width/2-art.x-art.width/2)).toBeLessThan(1);
+  expect(Math.abs(target.y+target.height/2-art.y-art.height/2)).toBeLessThan(1);
+  await label.click();await expect(checkbox).toBeChecked();
+  expect(await page.evaluate(()=>localStorage.getItem('crs.auth.remember.v1'))).toBe('true');
+  await page.reload();await openLogin(page);await expect(checkbox).toBeChecked();
+  await checkbox.focus();await page.keyboard.press('Space');await expect(checkbox).not.toBeChecked();
+  await expect(drawing).toHaveCSS('outline-style','solid');await expect(drawing).toHaveCSS('outline-width','3px');
+  expect(await page.evaluate(()=>localStorage.getItem('crs.auth.remember.v1'))).toBe('false');
+  // The decorative SVG lives outside the label replaced by TH/EN textContent.
+  await page.locator('.login-controls [data-experience-action="language"]').click();
+  await expect(page.getByRole('checkbox',{name:'Remember sign-in on this device',exact:true})).toHaveCount(1);
+  await expect(drawing.locator('svg')).toHaveCount(1);await label.click();await expect(checkbox).toBeChecked();
+  await checkbox.evaluate(node=>node.disabled=true);await expect(checkbox).toBeDisabled();
+  // Bypass Playwright's disabled-label actionability gate to deliver a real
+  // pointer click; the browser itself must refuse native checkbox activation.
+  await label.click({force:true});await expect(checkbox).toBeChecked();await expect(drawing).toHaveCSS('opacity','0.5');
+  await checkbox.evaluate(node=>node.disabled=false);await checkbox.uncheck();
+  await page.reload();await openLogin(page);await expect(checkbox).not.toBeChecked();
+  expect(calls.every(call=>['getAppBootstrap','listPublicEquipment'].includes(call.method))).toBe(true);
+});
+
+test('remember drawing animates the supplied dash states with theme contrast, reduced motion and native high-contrast fallback',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+  const checkbox=page.locator('#remember-session'),drawing=page.locator('.remember-session-control .check'),svg=drawing.locator('svg');
+  for(const theme of ['light','dark']) {
+    await page.evaluate(value=>window.CRS.theme.apply(value,true),theme);
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    for(const checked of [false,true]) {
+      await checkbox.setChecked(checked);await page.mouse.move(0,0);
+      await expect(svg).toHaveCSS('stroke',checked?(theme==='dark'?'rgb(0, 255, 0)':'rgb(24, 122, 32)'):(theme==='dark'?'rgb(194, 204, 216)':'rgb(88, 102, 119)'));
+      await expect(svg.locator('path')).toHaveCSS('stroke-dashoffset',checked?'60px':'0px');
+      await expect(svg.locator('polyline')).toHaveCSS('stroke-dasharray','22px');
+      await expect(svg.locator('polyline')).toHaveCSS('stroke-dashoffset',checked?'42px':'66px');
+      const contrast=await svg.evaluate(node=>{
+        const style=getComputedStyle(document.documentElement),token=name=>style.getPropertyValue('--crs-'+name).trim();
+        const rgb=hex=>[1,3,5].map(index=>parseInt(hex.slice(index,index+2),16));
+        const luminance=channels=>channels.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const foreground=getComputedStyle(node).stroke.match(/[\d.]+/g).map(Number),glass=token('glass-bg').match(/[\d.]+/g).map(Number);
+        return Math.min(...['canvas','blue-mist','pink-mist'].map(name=>{
+          const background=rgb(token(name)).map((v,i)=>v*(1-glass[3])+glass[i]*glass[3]);
+          const [high,low]=[luminance(foreground),luminance(background)].sort((a,b)=>b-a);return(high+.05)/(low+.05);
+        }));
+      });
+      expect(contrast,theme+' '+checked).toBeGreaterThanOrEqual(3);
+      await captureUi(page,'remember-'+theme+'-'+(checked?'checked':'unchecked'));
+    }
+    await expect(svg.locator('path')).toHaveCSS('transition-duration','0.3s');
+    await expect(svg.locator('polyline')).toHaveCSS('transition-delay','0.15s');
+    await checkbox.hover();await expect.poll(()=>drawing.evaluate(node=>getComputedStyle(node,'::before').opacity)).toBe('1');
+    await page.mouse.move(0,0);await checkbox.blur();
+    await expect.poll(()=>drawing.evaluate(node=>getComputedStyle(node,'::before').opacity)).toBe('0');
+    await page.emulateMedia({reducedMotion:'reduce'});await checkbox.uncheck();
+    await expect(svg.locator('polyline')).toHaveCSS('transition-duration','0s');
+    await expect(svg.locator('polyline')).toHaveCSS('transition-delay','0s');
+    await expect(svg.locator('polyline')).toHaveCSS('stroke-dashoffset','66px');
+    await checkbox.check();await expect(svg.locator('polyline')).toHaveCSS('stroke-dashoffset','42px');
+  }
+  await page.emulateMedia({forcedColors:'active'});await expect(drawing).toBeHidden();
+  await expect(checkbox).toHaveCSS('opacity','1');await expect(checkbox).toHaveCSS('appearance','auto');
+  await checkbox.focus();await page.keyboard.press('Space');await expect(checkbox).not.toBeChecked();
+  await expect(checkbox).toHaveCSS('outline-width','3px');
+});
+
 test('hold-only password reveal masks on outside release, cancellation, blur and hidden tab; click never toggles',async({page})=>{
   await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);const input=page.locator('#login-password'),eye=page.locator('[data-reveal-for="login-password"]');
   // Suppress the browser's native toggle on ALL passwords, including the
@@ -573,6 +645,17 @@ test('available WebGL2 renders the decorative scene without an idle animation lo
 
 test.describe('touch login',()=>{
   test.use({hasTouch:true,viewport:{width:390,height:844}});
+  test('remember target and label toggle natively on mobile without overflow or extra focus stops',async({page})=>{
+    await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+    const checkbox=page.locator('#remember-session'),label=page.locator('label[for="remember-session"]');
+    for(const width of [320,390])for(const theme of ['light','dark']) {
+      await page.setViewportSize({width,height:844});await page.evaluate(value=>window.CRS.theme.apply(value,true),theme);
+      await checkbox.tap();await expect(checkbox).toBeChecked();await label.tap();await expect(checkbox).not.toBeChecked();
+      await expectNoOverflow(page);
+      expect(await checkbox.evaluate(node=>{const rect=node.getBoundingClientRect();return Math.min(rect.width,rect.height);})).toBe(44);
+    }
+    await checkbox.focus();await page.keyboard.press('Tab');await expect(page.locator('.login-footer [data-experience-action="privacy"]')).toBeFocused();
+  });
   test('native touch hold reveals only until release/cancel, and Guest cards remain operable',async({page})=>{
     await mock(page,{signedOut:true});await page.goto('/');
     await openLogin(page);

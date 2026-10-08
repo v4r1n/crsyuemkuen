@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Animated remember-session checkbox (2026-10-08)
+
+- Adapt the supplied Uiverse/faxriddin20 SVG check animation to the existing native `#remember-session`, without changing auth/session storage. Scope the drawing/halo to this control; retain its translated label, 44 px hit target, keyboard focus and disabled semantics. Use contrast-safe Light green and Dark lime, immediate reduced-motion state changes and a native forced-colors fallback.
+- Add browser regressions for label/Space/touch activation, preference reload, TH/EN accessible name, SVG dash states, theme contrast, reduced motion/high contrast and mobile alignment/focus order. Compose only the Next shell, preserving unrelated local source edits. Final acceptance belongs in MEMORY; no cloud deployment or configuration/schema/business changes.
+
 ### Guest-first home and Login polish (2026-10-08)
 
 - Signed-out home now shows the separate public-only Guest showcase. Guide/Login live in its header; duplicate Guide/Login/Guest buttons are removed from the Login card. Outside-card home navigation clears the password, while confirm → Login → existing borrow form and signed-in navigation stay unchanged.

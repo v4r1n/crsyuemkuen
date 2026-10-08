@@ -26,8 +26,37 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .login-reset-row button { text-align:end; }
 .google-brand-icon { display:inline-block; vertical-align:-.125em; flex-shrink:0; }
 .remember-session-option { display:flex; align-items:center; justify-content:center; gap:.55rem; margin-inline:auto; padding:0; }
-.remember-session-option .form-check-input { float:none; margin:0; flex:0 0 1em; }
 .remember-session-option .form-check-label { margin:0; padding:0; text-align:start; }
+/* Animated check adapted from Uiverse.io by faxriddin20. Preserve the native
+ * checkbox and label; only the drawing is decorative. The 18px artwork sits
+ * inside a 44px touch target. Use a contrast-safe green on light surfaces. */
+.remember-session-control { --remember-active:#187a20; --remember-halo:rgba(34,50,84,.06); position:relative; display:inline-grid; place-items:center; width:44px; height:44px; flex:0 0 44px; }
+[data-bs-theme="dark"] .remember-session-control { --remember-active:lime; --remember-halo:rgba(0,255,0,.08); }
+.remember-session-option .remember-session-control .form-check-input { position:absolute; inset:0; width:100%; height:100%; float:none; margin:0; opacity:0; z-index:2; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.remember-session-control .check { cursor:pointer; position:relative; margin:auto; width:18px; height:18px; pointer-events:none; -webkit-tap-highlight-color:transparent; transform:translate3d(0,0,0); border-radius:3px; }
+.remember-session-control .check::before { content:""; position:absolute; top:-15px; left:-15px; width:48px; height:48px; border-radius:50%; background:var(--remember-halo); opacity:0; transition:opacity .2s ease; }
+.remember-session-control .check svg { position:relative; z-index:1; display:block; fill:none; stroke-linecap:round; stroke-linejoin:round; stroke:var(--crs-muted); stroke-width:1.5; transform:translate3d(0,0,0); transition:stroke .2s ease; }
+.remember-session-control .check svg path { stroke-dasharray:60; stroke-dashoffset:0; transition:stroke-dashoffset .2s ease; }
+.remember-session-control .check svg polyline { stroke-dasharray:22; stroke-dashoffset:66; transition:stroke-dashoffset .2s ease; }
+@media (hover:hover) {
+ .remember-session-control #remember-session:hover:not(:disabled) + .check::before { opacity:1; }
+ .remember-session-control #remember-session:hover:not(:disabled) + .check svg { stroke:var(--remember-active); }
+}
+.remember-session-control #remember-session:checked + .check svg { stroke:var(--remember-active); }
+.remember-session-control #remember-session:checked + .check svg path { stroke-dashoffset:60; transition:stroke-dashoffset .3s linear; }
+.remember-session-control #remember-session:checked + .check svg polyline { stroke-dashoffset:42; transition:stroke-dashoffset .2s linear .15s; }
+.remember-session-control #remember-session:focus-visible + .check { outline:3px solid var(--crs-primary); outline-offset:4px; }
+.remember-session-control #remember-session:focus-visible + .check::before { opacity:1; }
+.remember-session-control #remember-session:disabled { cursor:not-allowed; }
+.remember-session-control #remember-session:disabled + .check { opacity:.5; }
+@media (prefers-reduced-motion:reduce) {
+ .remember-session-control .check::before,.remember-session-control .check svg,.remember-session-control .check svg path,.remember-session-control .check svg polyline { transition:none !important; transition-delay:0s !important; }
+}
+@media (forced-colors:active) {
+ .remember-session-option .remember-session-control .form-check-input { opacity:1; appearance:auto; forced-color-adjust:auto; background:none; border:revert; box-shadow:none; }
+ .remember-session-control .check { display:none; }
+ .remember-session-control #remember-session:focus-visible { outline:3px solid Highlight; outline-offset:2px; }
+}
 .login-security-note { align-items:center; text-align:center; }
 .login-security-note > i { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
 .password-reveal { position:absolute; inset:2px 2px 2px auto; width:2.8rem; border:0; background:transparent; color:var(--crs-muted); border-radius:var(--crs-radius-sm); display:grid; place-items:center; touch-action:none; }
