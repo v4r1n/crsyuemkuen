@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Login glass and reCAPTCHA protected Preview activation (2026-10-08)
+
+- After explicit operator rotation/domain confirmation, install the six CAPTCHA settings only in Preview, with a Sensitive server-only secret. Deploy accepted immutable `8500661` (0.1.12) on staging/Singapore; candidate checks precede canonical Preview alias assignment. Production, rollback, all unrelated settings/protection and both write freezes remain unchanged.
+- Reuse the accepted 251-check full suite/build, verify all 162 uploaded blobs, repeat five compiled-artifact and twenty password/OTP/proof checks, and pass candidate/canonical cloud asset/privacy/public-private/origin/freeze/OAuth-start checks. Missing/invalid Login and missing RESET proofs fail closed. Verified private DB/Storage backup and durable/migration fingerprints remain intact; no session, mail, schema, Storage or business mutation.
+- Fix only the private deployment transport's rejected array request by using the documented single-object form. Record activation separately from source preparation; real browser/provider Login/RESET/Google, inbox, score/device and Production/write-opening acceptance remain pending. Preserve unrelated local edits; documentation delivery stays on the feature branch.
+
 ### reCAPTCHA deployment preflight checkpoint (2026-10-08)
 
 - Verify private local Preview policy, immutable accepted source/compiled artifacts, live canonical callbacks/protection/write freezes and guarded cloud/durable state; create and verify a fresh private DB/Storage backup without changing cloud settings or deploying.
