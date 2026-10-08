@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### reCAPTCHA deployment preflight checkpoint (2026-10-08)
+
+- Verify private local Preview policy, immutable accepted source/compiled artifacts, live canonical callbacks/protection/write freezes and guarded cloud/durable state; create and verify a fresh private DB/Storage backup without changing cloud settings or deploying.
+- Provider secret-rotation/Preview-domain confirmation is pending. Source remains accepted, not activated; the six CAPTCHA cloud settings and READY candidate/alias smoke are the next guarded steps, not a completed deployment.
+
 ### Decorative Login glass and action-bound abuse proof (2026-10-08)
 
 - Add a pointer-transparent/aria-hidden 3D WebGL2 Login scene: subtle depth/light/parallax, event-driven capped rendering, hidden-tab suspension, CSS/touch/reduced-motion/context-loss fallback and explicit GPU/listener cleanup. No renderer data/auth/workflow access.
