@@ -2,6 +2,8 @@
 
 Source preparation: 2026-10-07. Authorized frozen Preview activation: 2026-10-08; additive schema is installed and the new source is deployed only to protected Preview. Production retains its previous source, now explicitly frozen by the user's new approval. Supplement to [the migration runbook](MIGRATION_NEXT_SUPABASE.md), not Production feature rollout or write-opening authority.
 
+Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.md) supersede this document's earlier optional-policy/foil UI choices and own the new canonical Preview transition. Earlier activation evidence is historical, not current target configuration.
+
 ## Contracts
 
 - Google state/nonce/PKCE, verified code exchange, handoff and opaque sessions remain intact. Local sign-in resolves the SAME existing ACTIVE User, current allowed domain/email/role; never auto-provisions or trusts a browser role. Six-hour session ceiling and existing remember behavior remain.
@@ -25,7 +27,7 @@ Focused implementation checks are not a comprehensive penetration test or certif
 4. Deploy new feature source only to an explicitly approved target after diff/test/build/privacy gates pass. Preserve canonical origin/callback and existing URIs. New-feature Production deployment and write opening require separate authority; an existing-source freeze rebuild is limited to the approved preflight in step 1.
 5. Verify fresh Google/password sign-in using authorized test accounts, SAME User, unknown/inactive/domain denial, generation revocation, lockout/expiry, delivered OTP/temp/security emails, spam/sender and forced-change. Tests use synthetic mail, not real SMTP acceptance.
 6. Approve Guest projection before publishing; verify anonymous internal/image denial and both-method handoff. Verify two-account notification workflow/replay and 320/390/768/1440 px, TH/EN, Light/Dark, reduced motion and REAL mobile keyboards.
-7. Optional approved HTTPS `PRIVACY_POLICY_URL` / `TERMS_OF_SERVICE_URL` enable real footer links. Without them show an honest unconfigured notice, not a fabricated policy. `/api/experience` returns only two validated links, never environment/config objects.
+7. Footer destinations are now the operator-selected Google Privacy/Terms pages; the earlier optional policy env variables are obsolete. `/api/experience` still exposes only two approved links, never environment/config objects.
 
 ## Preview activation evidence (2026-10-08)
 

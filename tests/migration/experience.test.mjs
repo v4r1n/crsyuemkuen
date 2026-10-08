@@ -92,7 +92,9 @@ test('checkout, return-request, inspected return and rejection events are author
   }finally{await f.db.close();}
 });
 
-test('public footer metadata is an explicit safe URL allowlist, never the environment',()=>{
-  assert.deepEqual(publicLinks({SMTP_PASSWORD:'synthetic-secret',PRIVACY_POLICY_URL:'javascript:alert(1)',TERMS_OF_SERVICE_URL:'https://user:pass@example.test'}),{privacyUrl:'',termsUrl:''});
-  assert.deepEqual(publicLinks({PRIVACY_POLICY_URL:'https://example.test/privacy',TERMS_OF_SERVICE_URL:'https://example.test/terms'}),{privacyUrl:'https://example.test/privacy',termsUrl:'https://example.test/terms'});
+test('public footer metadata returns only the operator-approved Google policy destinations, never environment values',()=>{
+  const approved={privacyUrl:'https://policies.google.com/privacy',termsUrl:'https://policies.google.com/terms'};
+  assert.deepEqual(publicLinks(),approved);
+  assert.deepEqual(publicLinks({SMTP_PASSWORD:'synthetic-secret',PRIVACY_POLICY_URL:'javascript:alert(1)',TERMS_OF_SERVICE_URL:'https://user:pass@example.test'}),approved);
+  assert.deepEqual(publicLinks({PRIVACY_POLICY_URL:'https://example.test/privacy',TERMS_OF_SERVICE_URL:'https://example.test/terms'}),approved);
 });

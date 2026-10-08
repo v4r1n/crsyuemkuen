@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-029 — Distinct canonical targets and decorative public renderer
+
+Status: user-authorized refinement — 2026-10-08; new Preview callback transition pending.
+
+[Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.md) refine ADR-028: `WEB_APP_URL` remains the only link base, with a fail-closed target-origin allowlist for Production/Preview. The provider accepted the new alias; Google callback Save precedes Preview canonical switching. A deep presentation module owns WebGL2/fallback/disposal behind `mount -> dispose`, while semantic public DTO controls and authoritative server borrowing remain independent. User-selected Google policies replace optional footer env destinations; hold-only masking, effective TH/EN and removal of only the indicated triangle/story footer refine prior UI choices. No private publication, auth-proof relaxation, business/schema rewrite, Production feature rollout or write opening is part of this refinement.
+
 ## ADR-028 — Linked local credentials and additive experience
 
 Status: user-authorized source preparation — 2026-10-07; cloud activation pending.

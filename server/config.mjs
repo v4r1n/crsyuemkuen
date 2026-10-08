@@ -1,9 +1,13 @@
 import { readFileSync } from 'node:fs';
 
 export const release = JSON.parse(readFileSync(new URL('../package.json', import.meta.url))).version;
+export const deploymentOrigins = Object.freeze({production:'https://crsyuemkuen.vercel.app',preview:'https://crsyuemkuen-preview.vercel.app'});
 export function config(env = process.env) {
   if(env.NODE_ENV==='production' && !env.WEB_APP_URL) throw new Error('Production WEB_APP_URL is required');
   const canonical = canonicalUrl(env.WEB_APP_URL);
+  if(deploymentOrigins[env.VERCEL_ENV] && canonical!==deploymentOrigins[env.VERCEL_ENV]) {
+    throw new Error('Canonical origin does not match the Vercel environment');
+  }
   const domains = (env.ALLOWED_DOMAINS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
   return {
     APP_NAME: 'CRS Yuem-Kuen', APP_SHORT_NAME: 'CRS Yuem-Kuen', APP_VERSION: release,

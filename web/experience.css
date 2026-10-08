@@ -1,10 +1,26 @@
 /* Presentation uses the established contrast-checked design tokens. */
+#access-state { display:block; }
+/* Embedded public browsing shares the fixed login surface; its existing
+ * confirmation modal/backdrop must sit above that surface. */
+body:has(#access-state:not([hidden])) #confirm-modal { z-index:1090; }
+body:has(#access-state:not([hidden])) .modal-backdrop { z-index:1085; }
 .access-card { position:relative; isolation:isolate; }
-.access-card .theme-toggle-login { position:absolute; inset:1rem 1rem auto auto; z-index:2; }
+.login-controls { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+.access-card .theme-toggle-login { position:static; flex-shrink:0; }
 .login-logo { width:88px; height:88px; object-fit:contain; display:block; margin:0 auto 1rem; }
 .login-password-form { width:100%; margin-block:1.25rem; }
 .password-field { position:relative; }
 .password-field input { padding-inline-end:3.2rem; }
+/* Edge's native click-toggle would violate hold-only reveal. */
+input::-ms-reveal,.password-field input::-ms-clear { display:none; }
+.login-reset-row { display:flex; justify-content:flex-end; flex-wrap:wrap; }
+.login-reset-row button { text-align:end; }
+.google-brand-icon { display:inline-block; vertical-align:-.125em; flex-shrink:0; }
+.remember-session-option { display:flex; align-items:center; justify-content:center; gap:.55rem; margin-inline:auto; padding:0; }
+.remember-session-option .form-check-input { float:none; margin:0; flex:0 0 1em; }
+.remember-session-option .form-check-label { margin:0; padding:0; text-align:start; }
+.login-security-note { align-items:center; text-align:center; }
+.login-security-note > i { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
 .password-reveal { position:absolute; inset:2px 2px 2px auto; width:2.8rem; border:0; background:transparent; color:var(--crs-muted); border-radius:var(--crs-radius-sm); display:grid; place-items:center; touch-action:none; }
 .password-reveal:focus-visible { outline:3px solid var(--crs-primary); outline-offset:2px; }
 .login-divider { display:flex; gap:.75rem; align-items:center; color:var(--crs-muted); font-size:.875rem; margin:1rem 0; }
@@ -12,6 +28,8 @@
 .login-footer,.experience-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:center; }
 .login-footer { margin-top:1.5rem; }
 .experience-actions .btn { font-size:.875rem; padding:.4rem .65rem; }
+.experience-actions { margin-inline-start:auto; justify-content:flex-end; }
+.experience-actions button { white-space:nowrap; }
 .settings-global-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem; }
 .theme-toggle i,.sidebar-toggle i,.brand-mark i,.settings-icon-button i { display:inline-flex; align-items:center; justify-content:center; line-height:1; }
 .theme-toggle i::before,.sidebar-toggle i::before,.brand-mark i::before,.settings-icon-button i::before { display:block; line-height:1; }
@@ -32,16 +50,24 @@
 .guest-equipment { max-width:80rem; margin:0 auto; padding:1.5rem; }
 .guest-heading { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between; margin-block:1rem 2rem; }
 .guest-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(16rem,100%),1fr)); gap:1rem; }
+.guest-heading h2 { margin:0; }
+.guest-controls { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:.5rem; margin-inline-start:auto; }
+.guest-showcase { position:relative; isolation:isolate; border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius); padding:clamp(1rem,3vw,2rem); background:radial-gradient(ellipse at 15% 0%,var(--crs-primary-soft),transparent 65%),radial-gradient(ellipse at 85% 20%,var(--crs-pink-soft),transparent 65%),var(--crs-glass-bg); overflow:hidden; }
+.guest-glass-scene { position:absolute; inset:0 0 auto; width:100%; height:min(100%,360px); pointer-events:none; z-index:-1; }
+.guest-showcase[data-renderer="css"] .guest-glass-scene { visibility:hidden; }
+.guest-card { background:var(--crs-surface); box-shadow:var(--crs-shadow-sm); border:1px solid var(--crs-glass-border); }
+.guest-card .card-body { display:flex; flex-direction:column; align-items:flex-start; }
+.guest-card .btn { margin-top:auto; }
+.guest-card .guest-card-icon { display:grid; place-items:center; width:3rem; height:3rem; background:var(--crs-primary-soft); color:var(--crs-primary); border-radius:var(--crs-radius-sm); margin-bottom:1rem; font-size:1.5rem; }
+.guest-equipment[data-embedded="true"] { width:min(1120px,100%); margin-top:1.5rem; padding:0; }
+.guest-status { color:var(--crs-muted); }
 .notification-item { display:block; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:1rem; margin-bottom:.5rem; }
 .notification-item[data-unread="true"] { border-inline-start:4px solid var(--crs-primary); }
 .notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
-.login-foil { position:absolute; inset:1.5rem 1rem auto auto; width:10rem; opacity:.16; pointer-events:none; }
 .liquid-glass-cursor { display:none; pointer-events:none; position:absolute; width:7rem; height:7rem; border:1px solid var(--crs-glass-border); border-radius:50%; background:radial-gradient(circle,var(--crs-pink-mist),transparent 70%); opacity:0; z-index:-1; }
 @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
- .login-foil { transition:opacity .2s; }
- .login-layout:hover .login-foil { opacity:.32; }
  .liquid-glass-cursor { display:block; transition:opacity .2s; }
  .login-layout.has-cursor .liquid-glass-cursor { opacity:.45; }
 }
-@media (hover:none),(pointer:coarse),(prefers-reduced-motion:reduce) { .login-foil,.liquid-glass-cursor { display:none; } }
-@media (max-width:767px) { .login-logo { width:68px;height:68px; } .access-card { padding-top:3rem; } .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} }
+@media (hover:none),(pointer:coarse),(prefers-reduced-motion:reduce) { .liquid-glass-cursor { display:none; } }
+@media (max-width:767px) { .login-logo { width:68px;height:68px; } .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }

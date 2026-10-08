@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Canonical targets and Login/Guest refinements (2026-10-08)
+
+- Verified Vercel acceptance of the separate `crsyuemkuen-preview` alias before renaming the existing project to `crsyuemkuen`. Production canonical/source/protection and both write freezes remain unchanged. Actual Preview env/callback still retain the previous hostname until the operator saves the new Google callback; no new-source deployment or writer opening.
+- Fail-closed Vercel target-origin validation with `WEB_APP_URL` as the only link base; no Production origin fallback for Preview. Exact user-selected Google Privacy/Terms footer links expose no env data.
+- Hold-only password reveal with immediate cancellation/blur/tab masking and native Edge toggle suppression; four-color Google icon, centered remember/security pairs, right-aligned reset, actions-before-theme and synchronized single TH/EN label. Removed only the indicated code-native triangle and story footer, preserving the supplied logo and other presentation.
+- Automatic public-only Guest catalog with semantic keyboard controls and unchanged login/borrow handoff. Isolated WebGL2 decoration has CSS/reduced-motion fallback, bounded event-driven rendering, real context restoration and deterministic cleanup; pixel regression guards transparent compositing. No internal fields/images/publications or business/schema changes.
+- Clean isolated staged-source full acceptance passes 227 checks and production build. After global native Edge reveal suppression, another fresh isolated install/build and all 28 compiled/browser checks pass against final source, including pixel/context restoration/touch; no WebGL skip locally. Zero-advisory dependency audit and final diff/generated-secret checks pass. Real Google callback/sign-in, device and earlier email/workflow/cutover gates remain pending; user-owned edits are excluded from this phase delivery.
+
 ### Protected linked-feature Preview activation (2026-10-08)
 
 - Verified local SMTP TLS/authentication without sending mail; configured six sensitive Preview-only server variables and restored its canonical origin/callback to the existing protected alias. Fresh verified database/archive/journal/seven-image backup precedes additive private schema apply; repeat apply is safe and existing data remains unchanged.

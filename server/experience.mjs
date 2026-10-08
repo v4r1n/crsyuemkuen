@@ -4,10 +4,9 @@ import { fail } from './errors.mjs';
 const actions = new Set(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN']);
 const digest=value=>createHash('sha256').update(value).digest('base64url');
 
-export function publicLinks(env=process.env) {
-  const safe=value=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password ? url.href : '';}catch{return '';}};
+export function publicLinks() {
   // Deliberate two-field allowlist; never serialize config/environment wholesale.
-  return {privacyUrl:safe(env.PRIVACY_POLICY_URL),termsUrl:safe(env.TERMS_OF_SERVICE_URL)};
+  return {privacyUrl:'https://policies.google.com/privacy',termsUrl:'https://policies.google.com/terms'};
 }
 export async function unreadNotifications(db,userId) {
   return (await db.query('SELECT count(*)::integer AS count FROM crs.notifications WHERE user_id=$1 AND read_at IS NULL',[userId])).rows[0].count;

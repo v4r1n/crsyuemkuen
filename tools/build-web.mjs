@@ -21,6 +21,8 @@ for(const match of includes){
     'var match = global.CRS_CANONICAL_BASE(configured);\n      if (match) global.location.assign(configured');
   if(name==='scripts-qr') text=text.replace(/var match = \^?\/\^https:[\s\S]*?return match \? new URL\([\s\S]*? : null;/, 'return global.CRS_CANONICAL_BASE(configured);');
   if(name==='scripts-core') {
+    // Thai is the Next default; retain a user's saved selection (including auto).
+    text=text.replace("? saved : 'auto';", "? saved : 'th';").replace("catch (error) { return 'auto'; }", "catch (error) { return 'th'; }");
     text=text.replace(/const base = \/\^https:[\s\S]*?\? configured : '';/,"const base = global.CRS_CANONICAL_BASE(configured) ? configured : '';");
     text=text.replace("new URLSearchParams(parts[1] || '')", "new URLSearchParams(raw ? (parts[1] || '') : global.location.search)");
     text=text.replace(/!\/\^\[A-Za-z0-9\+\/\]\+\=\{0,2\}\$\/\.test\(result\.base64_data \|\| ''\) \|\|\s*result\.base64_data\.length > 14 \* 1024 \* 1024/, "!result.signed_url");
@@ -75,7 +77,11 @@ index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?
   '<img class="login-logo" src="/brand/icon-yuemkuen.png" alt="CRS Yuem-Kuen" width="88" height="88">');
 index=index.replace(/        <button\s+id="google-signin-button"/,match=>loginControls+match);
 if(!index.includes('id="password-login-form"')) throw new Error('Login composition seam changed');
-index=index.replace('</body>','<script src="/crs/experience.js"></script></body>');
+const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
+if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
+index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
+index=index.replace('</body>','<script src="/crs/guest-scene.js"></script><script src="/crs/experience.js"></script></body>');
+await writeFile(join(output,'guest-scene.js'),await readFile(join(root,'web','guest-scene.js'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));
 await writeFile(join(output,'experience.js'),await readFile(join(root,'web','experience.js'),'utf8'));

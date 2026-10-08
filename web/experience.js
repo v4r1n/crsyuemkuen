@@ -7,7 +7,7 @@
   };
   const t=key=>(text[CRS.language.effective()]||text.th)[key]||key;
   const security=(method,input)=>CRS.auth.requestSecurity(method,input);
-  let guestPage=null,guestSerial=0,notifications=[],inboxBusy=false,dialogSerial=0;
+  let guestPage=null,guestSerial=0,guestDispose=null,guestEmbedded=false,guestInput={},guestResult=null,notifications=[],inboxBusy=false,dialogSerial=0;
   function badge(count){document.querySelectorAll('[data-notification-count]').forEach(node=>{node.textContent=count||'';});}
   async function refreshInboxCount(){
     if(inboxBusy||document.hidden||!CRS.auth.hasSession()||CRS.state.bootstrap?.session.mustChangePassword)return;
@@ -18,6 +18,7 @@
   function translate(root=document){
     root.querySelectorAll('[data-experience-text]').forEach(node=>{node.textContent=t(node.dataset.experienceText);});
     root.querySelectorAll('[data-reveal-for]').forEach(node=>node.setAttribute('aria-label',t('hold')));
+    root.querySelectorAll('[data-experience-action="language"]').forEach(node=>{const language=CRS.language.effective();node.textContent=language==='en'?'EN':'TH';node.setAttribute('aria-label',language==='en'?'Language: English. Switch to Thai':'ภาษา: ไทย เปลี่ยนเป็นอังกฤษ');});
     if(root===document){
       const title=document.querySelector('#access-state-title');
       if(title && title.textContent!==t('signIn') && ['ลงชื่อเข้าใช้ด้วย Google','กรุณาลงชื่อเข้าใช้ Google','เข้าสู่ระบบ','Sign in'].includes(title.textContent)) title.textContent=t('signIn');
@@ -29,7 +30,7 @@
     }
   }
   const button=(key,action,classes='btn btn-outline-secondary')=>'<button type="button" class="'+classes+'" data-experience-action="'+action+'" data-experience-text="'+key+'">'+escape(t(key))+'</button>';
-  function actions(){return '<div class="experience-actions">'+button('guide','guide')+'<button type="button" class="btn btn-outline-secondary" data-experience-action="language" aria-label="TH / EN">TH / EN</button>'+(!CRS.auth.hasSession()?button('signIn','login'):'')+'</div>';}
+  function actions(){return '<div class="experience-actions">'+button('guide','guide')+'<button type="button" class="btn btn-outline-secondary" data-experience-action="language">'+(CRS.language.effective()==='en'?'EN':'TH')+'</button>'+(!CRS.auth.hasSession()?button('signIn','login'):'')+'</div>';}
   function dialog(title,content){
     const node=document.createElement('dialog');node.className='experience-dialog';
     node.innerHTML='<header><h2>'+escape(title)+'</h2><button type="button" class="close-dialog" aria-label="'+escape(t('close'))+'"><i class="bi bi-x" aria-hidden="true"></i></button></header>'+content;
@@ -39,9 +40,10 @@
     node.showModal();translate(node);return node;
   }
   function showLogin(){
-    if(guestPage) guestPage.hidden=true;
+    stopGuest();
     CRS.auth.showGoogleSignIn();translate();document.querySelector('#login-email').focus();
   }
+  function stopGuest(){guestSerial++;if(guestDispose)guestDispose();guestDispose=null;if(guestPage)guestPage.hidden=true;}
   function normalizeOtp(value){return String(value||'').normalize('NFKC').replace(/[๐-๙]/g,d=>String(d.charCodeAt(0)-0xe50)).replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x6f0)).replace(/\D/g,'');}
   function passwordPolicy(value,email){const v=value.normalize('NFC'),lower=v.toLowerCase();return [...v].length>=15 && [...v].length<=128 && !/[\u0000-\u001f\u007f]/.test(v) && new Set(v).size>=4 && !['passwordpassword','123456789012345','qwertyuiopasdfgh','letmeinletmein12','administrator123'].includes(lower) && !(email&&lower.includes(email.trim().toLowerCase()));}
   function passwordForm(mode){
@@ -85,7 +87,7 @@
   function mountSettings(key,host){
     if(!host) return;
     const controls=document.createElement('div');controls.className='settings-global-actions mb-3';
-    controls.innerHTML=actions()+(!CRS.state.bootstrap?.session.mustChangePassword?notificationButton():'')+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button>';
+    controls.innerHTML=(!CRS.state.bootstrap?.session.mustChangePassword?notificationButton():'')+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button>';
     host.querySelector('h2').after(controls);CRS.theme.apply(CRS.theme.current(),false);
     refreshInboxCount();
     if(key==='security'){host.querySelector('.settings-placeholder')?.remove();host.insertAdjacentHTML('beforeend','<div class="settings-card"><h3 class="h5" data-experience-text="change">'+t('change')+'</h3>'+passwordForm('CHANGE')+'</div>');bindPasswordForm(host.querySelector('[data-password-flow]'));}
@@ -104,24 +106,33 @@
       badge(result.unread);
     }catch(error){host.insertAdjacentHTML('beforeend','<p role="status">'+escape(error.message)+'</p>');}
   }
-  async function browseGuest(input={}){
+  async function browseGuest(input={},embedded=false,cached=null){
+    if(CRS.auth.hasSession())return;
     const serial=++guestSerial;
-    if(!guestPage){guestPage=document.createElement('section');guestPage.className='guest-equipment';guestPage.id='guest-equipment';document.querySelector('#access-state').after(guestPage);}
-    document.querySelector('#access-state').hidden=true;document.querySelector('#app-splash').hidden=true;guestPage.hidden=false;
-    guestPage.innerHTML='<header class="guest-heading"><h1 class="h3">'+escape(t('equipment'))+'</h1>'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></header><form data-guest-search class="mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" maxlength="100" value="'+escape(input.search||'')+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><div data-guest-content role="status">'+escape(t('loading'))+'</div>';
+    guestEmbedded=embedded;guestInput={...input};guestResult=null;if(guestDispose)guestDispose();guestDispose=null;
+    if(!guestPage){guestPage=document.createElement('section');guestPage.className='guest-equipment';guestPage.id='guest-equipment';}
+    const access=document.querySelector('#access-state');
+    if(embedded)access.append(guestPage);else access.after(guestPage);
+    guestPage.dataset.embedded=String(embedded);guestPage.setAttribute('aria-labelledby','guest-title');
+    if(!embedded){access.hidden=true;document.querySelector('#app-splash').hidden=true;}
+    guestPage.hidden=false;
+    guestPage.innerHTML='<div class="guest-showcase"><header class="guest-heading"><h2 id="guest-title" class="h3">'+escape(t('equipment'))+'</h2>'+(embedded?'':'<div class="guest-controls">'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></div>')+'</header><form data-guest-search class="mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" maxlength="100" value="'+escape(input.search||'')+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><p class="guest-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-guest-content aria-busy="true"></div></div>';
     CRS.theme.apply(CRS.theme.current(),false);
-    guestPage.querySelector('form').onsubmit=event=>{event.preventDefault();browseGuest({search:guestPage.querySelector('input').value});};
+    translate(guestPage);
+    guestPage.querySelector('form').onsubmit=event=>{event.preventDefault();browseGuest({search:guestPage.querySelector('input').value},embedded);};
     try{
-      const response=await global.CRS_SERVER_RPC('listPublicEquipment',[input]);if(!response.ok)throw new CRS.ClientApiError(response.error);
-      if(serial!==guestSerial||guestPage.hidden)return;
+      const response=cached?{ok:true,data:cached}:await global.CRS_SERVER_RPC('listPublicEquipment',[input]);if(!response.ok)throw new CRS.ClientApiError(response.error);
+      if(serial!==guestSerial||guestPage.hidden||CRS.auth.hasSession())return;
       const result=response.data,content=guestPage.querySelector('[data-guest-content]');
-      content.innerHTML=result.items.length?'<div class="guest-grid">'+result.items.map(item=>'<article class="card h-100"><div class="card-body"><h2 class="h5">'+escape(item.name)+'</h2><p class="text-secondary">'+escape([item.category_name,item.brand,item.model].filter(Boolean).join(' · '))+'</p>'+(item.can_borrow?'<button type="button" class="btn btn-primary" data-guest-borrow="'+escape(item.asset_id)+'">'+escape(t('borrow'))+'</button>':'')+'</div></article>').join('')+'</div>':'<p>'+escape(t('none'))+'</p>';
+      guestResult=result;content.setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=result.items.length?'':t('none');
+      content.innerHTML=result.items.length?'<div class="guest-grid">'+result.items.map(item=>'<article class="card guest-card h-100"><div class="card-body"><span class="guest-card-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><h3 class="h5">'+escape(item.name)+'</h3><p class="text-secondary">'+escape([item.category_name,item.brand,item.model].filter(Boolean).join(' · '))+'</p>'+(item.can_borrow?'<button type="button" class="btn btn-primary" data-guest-borrow="'+escape(item.asset_id)+'">'+escape(t('borrow'))+'</button>':'')+'</div></article>').join('')+'</div>':'';
+      guestDispose=global.CRSGuestScene.mount(guestPage.querySelector('.guest-showcase'));
       for(const node of content.querySelectorAll('[data-guest-borrow]'))node.onclick=async()=>{
         const confirmed=await CRS.confirm({title:t('signIn'),message:t('confirmBorrow'),confirmText:t('continue')});if(!confirmed)return;
         try{sessionStorage.setItem(handoffKey,JSON.stringify({assetId:node.dataset.guestBorrow,expiresAt:Date.now()+600000}));}catch{CRS.toast('ไม่สามารถจดจำอุปกรณ์ในเบราว์เซอร์นี้','danger');return;}showLogin();
       };
-      if(result.totalPages>1){const nav=document.createElement('nav');nav.className='mt-4 d-flex gap-2';for(const [label,page]of[['before',result.page-1],['next',result.page+1]]){const node=document.createElement('button');node.type='button';node.className='btn btn-outline-secondary';node.textContent=t(label);node.disabled=page<1||page>result.totalPages;node.onclick=()=>browseGuest({...input,page});nav.append(node);}content.append(nav);}
-    }catch(error){if(serial===guestSerial)guestPage.querySelector('[data-guest-content]').textContent=error.message;}
+      if(result.totalPages>1){const nav=document.createElement('nav');nav.setAttribute('aria-label',t('equipment'));nav.className='mt-4 d-flex gap-2';for(const [label,page]of[['before',result.page-1],['next',result.page+1]]){const node=document.createElement('button');node.type='button';node.className='btn btn-outline-secondary';node.textContent=t(label);node.disabled=page<1||page>result.totalPages;node.onclick=()=>browseGuest({...input,page},embedded);nav.append(node);}content.append(nav);}
+    }catch(error){if(serial===guestSerial&&!guestPage.hidden){guestPage.querySelector('[data-guest-content]').setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=error.message;}}
   }
   function loginTarget(){
     if(CRS.state.bootstrap?.session.mustChangePassword)return {name:'settings',params:{section:'security'}};
@@ -157,58 +168,58 @@
     }).catch(()=>{control.title='ไม่สามารถตรวจการเผยแพร่ได้ กรุณาโหลดหน้าใหม่';control.disabled=true;});
   }
   function reveal(button,visible){const input=document.getElementById(button.dataset.revealFor);if(input){input.type=visible?'text':'password';button.setAttribute('aria-pressed',String(visible));}}
-  function foil(layout){
+  function cursorEffect(layout){
     const media=global.matchMedia('(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)');
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 200 174');svg.setAttribute('aria-hidden','true');svg.classList.add('login-foil');
-    svg.innerHTML='<defs><linearGradient id="login-foil-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--crs-blue)"/><stop offset=".5" stop-color="var(--crs-pink)"/><stop offset="1" stop-color="var(--crs-blue-mist)"/></linearGradient></defs>';
-    function triangle(a,b,c,depth){if(!depth){const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d','M'+a.join(',')+'L'+b.join(',')+'L'+c.join(',')+'Z');path.setAttribute('fill','url(#login-foil-gradient)');svg.append(path);return;}const mid=(p,q)=>p.map((n,i)=>(n+q[i])/2),ab=mid(a,b),ac=mid(a,c),bc=mid(b,c);triangle(a,ab,ac,depth-1);triangle(ab,b,bc,depth-1);triangle(ac,bc,c,depth-1);}
-    triangle([100,0],[0,174],[200,174],4);layout.append(svg);
     const cursor=document.createElement('div');cursor.className='liquid-glass-cursor';cursor.setAttribute('aria-hidden','true');layout.append(cursor);let frame=0;
     layout.addEventListener('pointermove',event=>{if(!media.matches||event.pointerType==='touch')return;const bounds=layout.getBoundingClientRect();const x=event.clientX-bounds.left-56,y=event.clientY-bounds.top-56;cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{cursor.style.transform='translate('+x+'px,'+y+'px)';layout.classList.add('has-cursor');});});
     layout.addEventListener('pointerleave',()=>{cancelAnimationFrame(frame);layout.classList.remove('has-cursor');});
     media.addEventListener('change',()=>{cancelAnimationFrame(frame);layout.classList.remove('has-cursor');});
   }
   document.addEventListener('DOMContentLoaded',()=>{
-    const card=document.querySelector('.access-card');card.prepend(document.querySelector('#theme-toggle-login'));
-    card.insertAdjacentHTML('beforeend','<div class="login-footer">'+button('privacy','privacy','btn btn-link btn-sm')+button('terms','terms','btn btn-link btn-sm')+'</div>'+actions()+button('guest','guest','btn btn-outline-secondary mt-3 w-100'));
+    const card=document.querySelector('.access-card'),controls=document.createElement('div');controls.className='login-controls';
+    controls.innerHTML=actions();controls.append(document.querySelector('#theme-toggle-login'));card.prepend(controls);
+    card.insertAdjacentHTML('beforeend','<div class="login-footer">'+button('privacy','privacy','btn btn-link btn-sm')+button('terms','terms','btn btn-link btn-sm')+'</div>'+button('guest','guest','btn btn-outline-secondary mt-3 w-100'));
     const note=card.querySelector('.login-security-note span');note.dataset.experienceText='securityNote';
-    const top=document.querySelector('.topbar-actions');top.insertAdjacentHTML('afterbegin',actions()+notificationButton());
+    const top=document.querySelector('.topbar-actions');top.querySelector('.theme-toggle').insertAdjacentHTML('beforebegin',notificationButton()+actions());
     fetch('/api/experience',{cache:'no-store'}).then(response=>response.ok?response.json():{}).then(links=>{
       for(const [key,value]of[['privacy',links.privacyUrl],['terms',links.termsUrl]]){
         let url;try{url=new URL(value);}catch{continue;}if(url.protocol!=='https:'||url.username||url.password)continue;
         const old=card.querySelector('[data-experience-action="'+key+'"]'),link=document.createElement('a');link.className=old.className;link.dataset.experienceAction=key;link.dataset.experienceText=key;link.textContent=t(key);link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';link.referrerPolicy='no-referrer';old.replaceWith(link);
       }
-    }).catch(()=>{/* Do not invent privacy/terms policies if operator metadata is absent. */});
+    }).catch(()=>{/* Keep a visible failure notice when metadata is unavailable. */});
     const form=document.querySelector('#password-login-form'),error=document.querySelector('#password-login-error');
     form.addEventListener('submit',async event=>{event.preventDefault();if(!form.reportValidity())return;const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;submit.disabled=true;error.hidden=true;try{await CRS.auth.passwordSignIn(form.email.value,form.password.value);}catch(problem){error.textContent=problem.message;error.hidden=false;}finally{form.password.value='';submit.disabled=false;translate();}});
     const observer=new MutationObserver(()=>translate());observer.observe(document.querySelector('#access-state-title'),{childList:true});
     const views=new MutationObserver(()=>decorate(document.querySelector('#view-root')));views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
-    translate();foil(document.querySelector('.login-layout'));
+    translate();cursorEffect(document.querySelector('.login-layout'));
+    if(!CRS.auth.hasSession())browseGuest({},true);
   });
-  document.addEventListener('pointerdown',event=>{const node=event.target.closest('[data-reveal-for]');if(node){event.preventDefault();reveal(node,true);node.setPointerCapture(event.pointerId);}});
-  ['pointerup','pointercancel','lostpointercapture'].forEach(type=>document.addEventListener(type,event=>{const node=event.target.closest('[data-reveal-for]');if(node)reveal(node,false);}));
-  document.addEventListener('keydown',event=>{const node=event.target.closest('[data-reveal-for]');if(node&&[' ','Enter'].includes(event.key)){event.preventDefault();if(!event.repeat)reveal(node,true);}});
-  document.addEventListener('keyup',event=>{const node=event.target.closest('[data-reveal-for]');if(node)reveal(node,false);});
-  document.addEventListener('focusout',event=>{const node=event.target.closest('[data-reveal-for]');if(node)reveal(node,false);});
-  global.addEventListener('blur',()=>document.querySelectorAll('[data-reveal-for]').forEach(node=>reveal(node,false)));
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)document.querySelectorAll('[data-reveal-for]').forEach(node=>reveal(node,false));});
+  const maskAll=()=>document.querySelectorAll('[data-reveal-for]').forEach(node=>reveal(node,false));
+  document.addEventListener('pointerdown',event=>{const node=event.target.closest('[data-reveal-for]');if(node&&event.isPrimary&&event.button===0){event.preventDefault();maskAll();reveal(node,true);try{node.setPointerCapture(event.pointerId);}catch{maskAll();}}});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(type=>document.addEventListener(type,maskAll));
+  document.addEventListener('contextmenu',event=>{if(event.target.closest('[data-reveal-for]')){event.preventDefault();maskAll();}});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')maskAll();const node=event.target.closest('[data-reveal-for]');if(node&&[' ','Enter'].includes(event.key)){event.preventDefault();if(!event.repeat)reveal(node,true);}});
+  document.addEventListener('keyup',maskAll);
+  document.addEventListener('focusout',maskAll);
+  global.addEventListener('blur',maskAll);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)maskAll();});
   document.addEventListener('click',async event=>{
     const action=event.target.closest('[data-experience-action]');if(!action)return;
     const key=action.dataset.experienceAction;
     if(key==='language')CRS.language.set(CRS.language.effective()==='th'?'en':'th');
     if(key==='login')showLogin();
-    if(key==='guest')browseGuest();
+    if(key==='guest')browseGuest(guestInput,false,guestResult);
     if(key==='profile-security')CRS.navigate('settings',{section:'security'});
     if(key==='reset-password'){const node=dialog(t('reset'),passwordForm('RESET'));bindPasswordForm(node.querySelector('form'));}
     if((key==='privacy'||key==='terms')&&!action.href)dialog(t(key),'<p>'+escape(t('unavailable'))+'</p>');
     if(key==='guide')dialog(t('guide'),'<p>'+escape(CRS.language.effective()==='en'?'Browse equipment, sign in with an authorized account, then submit a borrow request. Only an administrator can approve and check out equipment. Request a return; the administrator inspects it before completing the return.':'ค้นหาอุปกรณ์ ลงชื่อเข้าใช้ด้วยบัญชีที่ได้รับสิทธิ์ และส่งคำขอยืม ผู้ดูแลระบบจะอนุมัติและจ่ายอุปกรณ์ เมื่อต้องการคืนให้แจ้งคืน แล้วรอผู้ดูแลตรวจรับ')+'</p>');
     if(key==='notifications'){const node=dialog(t('notifications'),'<div data-inbox></div>');renderNotifications(node.querySelector('[data-inbox]'));}
   });
-  global.addEventListener('crs:bootstrapped',event=>{if(guestPage)guestPage.hidden=true;badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
-  global.addEventListener('crs:authentication-required',()=>{badge(0);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);});
+  global.addEventListener('crs:bootstrapped',event=>{stopGuest();maskAll();badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
+  global.addEventListener('crs:authentication-required',()=>{badge(0);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);if(!CRS.auth.hasSession())browseGuest({},true);});
   global.addEventListener('crs:rpc-completed',event=>{if(['createBorrowRequest','adminApproveBorrow','adminRejectBorrow','adminCheckoutBorrow','requestReturn','adminCompleteReturn'].includes(event.detail.method))refreshInboxCount();});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshInboxCount();});
   global.setInterval(refreshInboxCount,60000); // No polling when signed out, restricted or in a hidden tab.
-  global.addEventListener('crs:language-changed',()=>{translate();if(guestPage&&!guestPage.hidden)browseGuest();});
+  global.addEventListener('crs:language-changed',()=>{translate();if(guestPage&&!guestPage.hidden)browseGuest(guestInput,guestEmbedded,guestResult);});
   CRS.features=Object.freeze({mountSettings,loginTarget});
 })(window);

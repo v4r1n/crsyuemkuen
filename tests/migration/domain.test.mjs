@@ -91,6 +91,17 @@ test('canonical origin never accepts numbered Google browser routes or arbitrary
   assert.equal(domain.context.buildAssetUrl_('AST-000003'),'https://example.test?view=equipment-detail&id=AST-000003');
 });
 
+test('Vercel environments fail closed on reused or stale canonical origins',()=>{
+  const production='https://crsyuemkuen.vercel.app',preview='https://crsyuemkuen-preview.vercel.app';
+  for(const [target,origin] of [['production',production],['preview',preview]]) {
+    assert.equal(config({NODE_ENV:'production',VERCEL_ENV:target,WEB_APP_URL:origin}).WEB_APP_URL,origin);
+    for(const wrong of [target==='preview'?production:preview,'https://crs-yuem-kuen-preview.vercel.app','https://random.vercel.app']) {
+      assert.throws(()=>config({NODE_ENV:'production',VERCEL_ENV:target,WEB_APP_URL:wrong}),/Vercel environment/);
+    }
+  }
+  assert.equal(config({WEB_APP_URL:'http://localhost:3000',VERCEL_ENV:'development'}).WEB_APP_URL,'http://localhost:3000');
+});
+
 test('private Storage accepts server secret keys and legacy service-role JWTs, never publishable/anon keys',()=>{
   const modern='sb_secret_'+'A'.repeat(32);
   const jwt=role=>'testHeader.'+Buffer.from(JSON.stringify({role})).toString('base64url')+'.testSignature';
