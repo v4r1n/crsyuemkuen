@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Canonical protected Preview activation (2026-10-08)
+
+- Operator confirmed the new Google callback Save. Preview alone now uses `https://crsyuemkuen-preview.vercel.app` and its matching callback; immutable reviewed source `d7a0f5e` is READY on built-in staging/Singapore and assigned to that alias. Retain the protected previous Preview as rollback. Production deployment/source/alias/env/protection and both write freezes remain unchanged.
+- Fresh install/production build and all 28 compiled/browser checks pass against the reviewed source. A private font-stall red probe explained an initial optional-capture matrix timeout; no app/auth/test-timeout changes. New cloud public/private/origin/callback/freeze/assets/OAuth-start smoke passes, and durable database hashes remain unchanged. No email/session, publication, credentials/schema or business record created; only transient OAuth/throttle metadata.
+- Current-origin runbook and agent pointer now distinguish active Preview, rollback and manual real-sign-in/email/device/workflow gates. Source uploads and this documentation delivery exclude user-owned local text/unrelated edits. No Production feature promotion, write reopening, main merge or tag.
+
 ### Canonical targets and Login/Guest refinements (2026-10-08)
 
-- Verified Vercel acceptance of the separate `crsyuemkuen-preview` alias before renaming the existing project to `crsyuemkuen`. Production canonical/source/protection and both write freezes remain unchanged. Actual Preview env/callback still retain the previous hostname until the operator saves the new Google callback; no new-source deployment or writer opening.
+- Verified Vercel acceptance of the separate `crsyuemkuen-preview` alias before renaming the existing project to `crsyuemkuen`. Production canonical/source/protection and both write freezes remained unchanged. At preparation time Preview env/callback retained the previous hostname pending the new Google callback; the activation entry above supersedes that checkpoint. No writer opening.
 - Fail-closed Vercel target-origin validation with `WEB_APP_URL` as the only link base; no Production origin fallback for Preview. Exact user-selected Google Privacy/Terms footer links expose no env data.
 - Hold-only password reveal with immediate cancellation/blur/tab masking and native Edge toggle suppression; four-color Google icon, centered remember/security pairs, right-aligned reset, actions-before-theme and synchronized single TH/EN label. Removed only the indicated code-native triangle and story footer, preserving the supplied logo and other presentation.
 - Automatic public-only Guest catalog with semantic keyboard controls and unchanged login/borrow handoff. Isolated WebGL2 decoration has CSS/reduced-motion fallback, bounded event-driven rendering, real context restoration and deterministic cleanup; pixel regression guards transparent compositing. No internal fields/images/publications or business/schema changes.

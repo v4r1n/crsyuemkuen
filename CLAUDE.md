@@ -64,4 +64,4 @@ Complete this checklist at the end of every phase:
 
 Read the authoritative top section of `docs/MEMORY.md` before continuing. Recheck current cloud targets, canonical aliases and live write-freeze responses before infrastructure changes; historical deployment notes are not current configuration. `docs/IDENTITY_EXPERIENCE.md` owns linked-feature activation and acceptance gates. `docs/DEPLOYMENT.md` describes the legacy rollback system, not the Next.js rollout.
 
-Read `docs/LOGIN_GUEST_DOMAINS.md` when changing canonical Vercel aliases, Login controls or the Guest renderer; it distinguishes the reserved new Preview alias from the still-active origin and records the Google callback transition gate.
+Read `docs/LOGIN_GUEST_DOMAINS.md` when changing canonical Vercel aliases, Login controls or the Guest renderer; it owns active/rollback Preview origins and the remaining real sign-in acceptance gate.
