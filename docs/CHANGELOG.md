@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Catalog visibility diagnosis and live search gallery (2026-10-09)
+
+- Identify empty Guest results as three private assets, not a failed Drift Wall. After explicit user approval and current Admin/backup/lock/version guards, publish only their narrow catalog via the existing domain workflow; verify three History entries, idempotent replay and the live Preview projection. Preserve private images/internal fields, all other durable data and both web write freezes; no account promotion, browser-session fabrication or manual Sheet/database edits.
+- Add live normalized keyword filtering over each complete authorized snapshot. Guest searches approved public fields; authenticated Dashboard also searches already-authorized descriptions/specification. Nonempty queries show a static gallery; clearing restores the full Wall. Keep input focus, current query during language/pagination, public-only error/empty states, Submit refresh and existing status overlay/borrow handoff.
+- Fresh isolated installation has zero advisories; complete component coverage passes 291 checks and production build. The initial full run has one unchanged hold-delete timeout; three isolated repeats and the full 64-browser repeat pass without relaxing guards/timeouts. Four new regressions pass again with eight visually reviewed Light/Dark desktop/mobile Guest/Dashboard captures. Phase-only diff/privacy gates protect unrelated edits/operator data.
+- Source delivery and the already-approved catalog activation remain distinct; live code still uses `5f703e9`. No new deployment, Production release, alias/config/schema/auth/borrowing-rule/Storage-permission change or writer reopening. Existing provider/real-device/screen-reader, non-reproduced hold-timeout and external-font caveats remain.
+
 ### Drift Wall and hold-to-delete protected Preview activation (2026-10-09)
 
 - Deploy immutable accepted `5f703e9` (0.1.12) on staging/Singapore. Nine candidate smoke groups precede assigning only `https://crsyuemkuen-preview.vercel.app`; ten canonical groups and final guards pass. Production, protected rollback, all settings/environment/callbacks and both live write freezes are unchanged. This source includes the earlier accepted search/account/sidebar corners.

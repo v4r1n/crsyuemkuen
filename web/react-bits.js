@@ -10,14 +10,17 @@
   const statuses={AVAILABLE:['พร้อมยืม','Available'],PENDING:['รออนุมัติ','Pending approval'],RESERVED:['จองแล้ว','Reserved'],BORROWED:['ถูกยืม','Borrowed'],RETURNING:['รอตรวจรับคืน','Awaiting inspection'],MAINTENANCE:['ซ่อมบำรุง','Maintenance'],DAMAGED:['ชำรุด','Damaged'],LOST:['สูญหาย','Lost'],RETIRED:['ปลดระวาง','Retired'],DELETED:['ลบแล้ว','Deleted']};
   const statusLabel=status=>(statuses[status]||['ไม่พร้อมยืม','Unavailable'])[en()?1:0];
   let wallSerial=0;
-  function mountWall(host,items,{publicView=false,onSelect}={}){
+  function mountWall(host,items,{publicView=false,onSelect,layout='wall'}={}){
     const id='drift-wall-'+(++wallSerial),images=[],animations=[],cleanups=[];
-    let disposed=false,visible=true,manualStatic=false,pointerActive=false;
+    const gallery=layout==='gallery';
+    let disposed=false,visible=true,manualStatic=gallery,pointerActive=false;
     const motion=matchMedia('(min-width:768px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)');
     const wall=document.createElement('div');wall.className='equipment-wall';
+    wall.dataset.layout=gallery?'gallery':'wall';
     wall.innerHTML='<div class="drift-controls"><p class="small mb-0">'+escape(copy('คลิกอุปกรณ์เพื่อยืม หรือดูสถานะ','Select equipment to borrow or view its status'))+'</p><button type="button" class="btn btn-outline-secondary" data-wall-mode aria-controls="'+id+'"></button></div><div id="'+id+'" class="drift-wall" data-static="true"><div class="drift-wall__plane"></div></div>';
     host.append(wall);
     const stage=wall.querySelector('.drift-wall'),plane=wall.querySelector('.drift-wall__plane'),mode=wall.querySelector('[data-wall-mode]');
+    mode.hidden=gallery;
     const columns=Array.from({length:5},()=>[]);
     items.forEach((item,index)=>columns[index%5].push(item));
     function tile(item,duplicate=false){
@@ -36,6 +39,7 @@
       return node;
     }
     columns.forEach((column,index)=>{
+      if(gallery){column.forEach(item=>plane.append(tile(item)));return;}
       const visualOnly=!column.length;
       if(visualOnly)column=[items[index%items.length]];
       const col=document.createElement('div');col.className='drift-wall__col';

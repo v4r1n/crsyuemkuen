@@ -45,6 +45,55 @@ async function mock(page,{signedOut=false,restricted=false}={}){
   return {calls,record};
 }
 
+test('Guest live search filters the complete public snapshot into a gallery without submit, private calls or lost focus',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();calls.push(input);await route.fulfill({json:{ok:true,data:{items:[
+    {asset_id:'AST-000001',name:'Portable notebook',brand:'ASUS',model:'Zenbook',category_name:'Computer',status:'AVAILABLE',can_borrow:true,imageAvailable:false},
+    {asset_id:'AST-000002',name:'Canon camera',brand:'Canon',model:'R50',category_name:'Camera',status:'RESERVED',can_borrow:false,imageAvailable:false},
+    {asset_id:'AST-000003',name:'Lenovo notebook',brand:'Lenovo',model:'Thinkpad',category_name:'Computer',status:'AVAILABLE',can_borrow:true,imageAvailable:false}
+  ],page:1,total:3,totalPages:1}}});});
+  await page.goto('/');await expect(page.locator('.drift-wall__tile:not([data-wall-copy])')).toHaveCount(3);
+  const input=page.locator('#guest-search');await input.fill(' ＡＳＵＳ ');
+  await expect(page.locator('[data-layout="gallery"] .drift-wall__tile')).toHaveCount(1);await expect(page.locator('.drift-name')).toHaveText('Portable notebook');await expect(input).toBeFocused();
+  await expect(page.locator('.guest-status')).toContainText('1');expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.target?.closest('.equipment-wall')).length)).toBe(0);
+  await input.fill('camera');await expect(page.locator('.drift-name')).toHaveText('Canon camera');await page.locator('.drift-wall__tile').click();await expect(page.locator('.experience-dialog')).toContainText('จองแล้ว');await page.keyboard.press('Escape');
+  await input.fill('no-match');await expect(page.locator('.guest-status')).toContainText('ไม่พบอุปกรณ์');await expect(page.locator('.equipment-wall')).toHaveCount(0);
+  await page.evaluate(()=>CRS.language.set('en'));await expect(page.locator('#guest-search')).toHaveValue('no-match');await expect(page.locator('.guest-status')).toContainText('No equipment matches');
+  await page.locator('#guest-search').fill('');await expect(page.locator('.drift-wall__tile:not([data-wall-copy])')).toHaveCount(3);await expect(page.locator('.equipment-wall')).toHaveAttribute('data-layout','wall');
+  expect(calls.filter(call=>call.method==='listPublicEquipment')).toHaveLength(1);expect(calls.some(call=>['listEquipment','getEquipmentDetail','getEquipmentImage','createBorrowRequest'].includes(call.method))).toBe(false);
+  await page.locator('#guest-search').fill('asus');
+  for(const theme of ['light','dark']){await page.evaluate(theme=>CRS.theme.apply(theme,true),theme);await page.setViewportSize({width:1440,height:900});await expectNoOverflow(page);await captureUi(page,'catalog-live-gallery-desktop-'+theme);await page.setViewportSize({width:390,height:844});await expectNoOverflow(page);await captureUi(page,'catalog-live-gallery-mobile-'+theme);}
+});
+
+test('an empty Guest projection explains publication instead of claiming the database is empty, and submit refreshes only public data',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});let loads=0;
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();calls.push(input);loads++;await route.fulfill({json:{ok:true,data:{items:loads===1?[]:[{asset_id:'AST-000001',name:'Asus published fixture',brand:'ASUS',status:'AVAILABLE',can_borrow:true,imageAvailable:false}],page:1,total:loads===1?0:1,totalPages:1}}});});
+  await page.goto('/');await expect(page.locator('.guest-status')).toContainText('ยังไม่มีอุปกรณ์สาธารณะ');await expect(page.locator('.guest-status')).toContainText('เข้าสู่ระบบ');
+  await page.locator('#guest-search').fill('asus');await expect(page.locator('.guest-status')).toContainText('ยังไม่มีอุปกรณ์สาธารณะ');
+  await page.locator('.guest-showcase form button[type="submit"]').click();await expect(page.locator('[data-layout="gallery"] .drift-name')).toHaveText('Asus published fixture');
+  expect(loads).toBe(2);expect(calls.some(call=>['listEquipment','getEquipmentDetail','getEquipmentImage'].includes(call.method))).toBe(false);
+});
+
+test('Dashboard live search includes authorized description/specification and clearing restores all guarded assets',async({page})=>{
+  const {calls,record}=await mock(page);
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listEquipment')return route.fallback();calls.push(input);await route.fulfill({json:{ok:true,data:{items:[{...record,description:'Ultrabook for creative projects',imageAvailable:false},{...record,asset_id:'AST-000002',name:'Second asset',description:'Standard notebook',specification:'ASUS OLED display',imageAvailable:false}],page:1,total:2,totalPages:1}}});});
+  await page.goto('/');await expect(page.locator('.dashboard-equipment-wall .drift-wall__tile:not([data-wall-copy])')).toHaveCount(2);
+  const input=page.locator('#dashboard-equipment-search');await input.fill('ultrabook');await expect(page.locator('[data-layout="gallery"] .drift-name')).toHaveText(record.name);await expect(input).toBeFocused();
+  await input.fill('asus');await expect(page.locator('[data-layout="gallery"] .drift-name')).toHaveText('Second asset');
+  await page.evaluate(()=>CRS.language.set('en'));await expect(page.locator('#dashboard-equipment-search')).toHaveValue('asus');await expect(page.locator('[data-layout="gallery"] .drift-wall__tile')).toHaveCount(1);
+  await page.locator('#dashboard-equipment-search').fill('');await expect(page.locator('.dashboard-equipment-wall .drift-wall__tile:not([data-wall-copy])')).toHaveCount(2);
+  expect(calls.filter(call=>call.method==='listEquipment')).toHaveLength(1);expect(calls.some(call=>call.method==='createBorrowRequest')).toBe(false);
+  await page.locator('#dashboard-equipment-search').fill('asus');
+  for(const theme of ['light','dark']){await page.evaluate(theme=>CRS.theme.apply(theme,true),theme);await page.setViewportSize({width:1440,height:900});await page.locator('#dashboard-equipment-search').scrollIntoViewIfNeeded();await expectNoOverflow(page);await captureUi(page,'catalog-dashboard-gallery-desktop-'+theme);await page.setViewportSize({width:390,height:844});await page.locator('#dashboard-equipment-search').scrollIntoViewIfNeeded();await expectNoOverflow(page);await captureUi(page,'catalog-dashboard-gallery-mobile-'+theme);}
+});
+
+test('typing before auto-pagination completes uses the latest keyword and never displays unrelated or stale search results',async({page})=>{
+  await mock(page,{signedOut:true});let release;const gate=new Promise(resolve=>release=resolve);
+  const items=Array.from({length:26},(_,i)=>({asset_id:'AST-'+String(i+1).padStart(6,'0'),name:i===25?'ASUS notebook':'Camera '+i,status:'AVAILABLE',can_borrow:true,imageAvailable:false}));
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();const number=input.args[0].page;if(number===1)await gate;await route.fulfill({json:{ok:true,data:{items:items.slice((number-1)*24,number*24),page:number,total:26,totalPages:2}}});});
+  await page.goto('/');await page.locator('#guest-search').fill('asus');release();await expect(page.locator('[data-layout="gallery"] .drift-wall__tile')).toHaveCount(1);await expect(page.locator('.drift-name')).toHaveText('ASUS notebook');await expect(page.locator('#guest-search')).toBeFocused();
+});
+
 test('Drift Wall auto-loads every published page only, exposes status overlays and keeps the Guest borrow handoff',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});const publicCalls=[];
   const items=Array.from({length:29},(_,i)=>({asset_id:'AST-'+String(i+1).padStart(6,'0'),name:'Public item '+(i+1),category_name:'Public',brand:'Fixture',model:'Wall',status:i%2?'MAINTENANCE':'AVAILABLE',can_borrow:i%2===0,imageAvailable:false}));

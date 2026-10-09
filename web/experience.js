@@ -9,7 +9,7 @@
   const t=key=>(text[CRS.language.effective()]||text.th)[key]||key;
   const security=(method,input)=>CRS.auth.requestSecurity(method,input);
   let guestPage=null,guestSerial=0,guestDispose=null,guestInput={},guestResult=null,notifications=[],inboxBusy=false,dialogSerial=0,entryView='guest',cardEffect=null;
-  let dashboardPage=null,dashboardDispose=null,dashboardResult=null,dashboardSerial=0;
+  let dashboardPage=null,dashboardDispose=null,dashboardResult=null,dashboardSerial=0,dashboardSearch='';
   const statusText=status=>global.CRSReactBits?.statusLabel(status)||CRS.statusLabel(status);
   function badge(count){document.querySelectorAll('[data-notification-count]').forEach(node=>{node.textContent=count||'';});}
   async function refreshInboxCount(){
@@ -138,12 +138,49 @@
     if(CRS.auth.hasSession()){CRS.navigate('borrow',{id:item.asset_id});return;}
     try{sessionStorage.setItem(handoffKey,JSON.stringify({assetId:item.asset_id,expiresAt:Date.now()+600000}));}catch{CRS.toast('ไม่สามารถจดจำอุปกรณ์ในเบราว์เซอร์นี้','danger');return;}showLogin();
   }
-  function renderWall(content,result,publicView){
+  const normalizeSearch=value=>String(value||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+  function matchingEquipment(result,query,publicView){
+    // Search only fields already authorized for this view. Guest never fetches
+    // private descriptions, images or the authenticated catalog as a fallback.
+    const fields=publicView?['name','brand','model','category_name']:['asset_id','sku','name','brand','model','category_name','serial_number','description','specification'];
+    return query?result.items.filter(item=>fields.some(field=>normalizeSearch(item[field]).includes(query))):result.items;
+  }
+  function catalogStatus(result,items,query,publicView){
+    const en=CRS.language.effective()==='en';
+    if(!result.total)return publicView?(en?'No public equipment yet. Sign in to view equipment your account is authorized to access.':'ยังไม่มีอุปกรณ์สาธารณะ เข้าสู่ระบบเพื่อดูอุปกรณ์ตามสิทธิ์ของบัญชีคุณ'):t('none');
+    if(!items.length)return en?'No equipment matches your search.':'ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา';
+    return en?(query?items.length+' matching items':items.length+' items'):(query?'พบอุปกรณ์ '+items.length+' รายการ':'อุปกรณ์ '+items.length+' รายการ');
+  }
+  function renderWall(content,result,publicView,layout='wall'){
     const select=(item,node)=>selectEquipment(item,node,publicView);
-    if(global.CRSReactBits)return global.CRSReactBits.mountWall(content,result.items,{publicView,onSelect:select});
+    if(global.CRSReactBits)return global.CRSReactBits.mountWall(content,result.items,{publicView,onSelect:select,layout});
     // Semantic fallback when the optional presentation script is unavailable.
     content.innerHTML='<div class="guest-grid">'+result.items.map(item=>'<article class="card guest-card h-100"><div class="card-body"><span class="guest-card-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><h3 class="h5">'+escape(item.name)+'</h3><p>'+escape(statusText(item.status||(item.can_borrow?'AVAILABLE':'UNKNOWN')))+'</p><button type="button" class="btn btn-primary" '+(publicView&&item.can_borrow?'data-guest-borrow="'+escape(item.asset_id)+'" ':'')+'data-wall-asset="'+escape(item.asset_id)+'">'+escape(item.can_borrow?t('borrow'):(CRS.language.effective()==='en'?'View status':'ดูสถานะ'))+'</button></div></article>').join('')+'</div>';
     content.querySelectorAll('[data-wall-asset]').forEach(node=>node.onclick=()=>select(result.items.find(item=>item.asset_id===node.dataset.wallAsset),node));return ()=>content.replaceChildren();
+  }
+  function catalogSearch(form,content,status,{publicView,cached,valid,loadPage,onSearch,onResult}){
+    const input=form.querySelector('input');let result=cached,disposeWall=null,request=0,disposed=false;
+    const current=()=>!disposed&&valid();
+    function draw(){
+      if(!current()||!result)return;
+      disposeWall?.();disposeWall=null;content.replaceChildren();content.setAttribute('aria-busy','false');
+      const query=normalizeSearch(input.value),items=matchingEquipment(result,query,publicView);
+      status.textContent=catalogStatus(result,items,query,publicView);
+      if(items.length)disposeWall=renderWall(content,{items},publicView,query?'gallery':'wall');
+    }
+    const change=event=>{if(event.isComposing)return;onSearch(input.value);draw();};
+    async function load(){
+      if(!current())return;
+      const serial=++request;result=null;onResult(null);disposeWall?.();disposeWall=null;content.replaceChildren();
+      content.setAttribute('aria-busy','true');status.textContent=t('loading');
+      const fresh=()=>current()&&serial===request;
+      try{const snapshot=await allEquipment(loadPage,fresh);if(!fresh())return;result=snapshot;onResult(result);draw();}
+      catch(error){if(fresh()){content.setAttribute('aria-busy','false');status.textContent=error.message;}}
+    }
+    const submit=event=>{event.preventDefault();onSearch(input.value);load();};
+    input.addEventListener('input',change);input.addEventListener('search',change);input.addEventListener('compositionend',change);form.addEventListener('submit',submit);
+    if(cached){onResult(cached);draw();}else load();
+    return ()=>{disposed=true;request++;disposeWall?.();input.removeEventListener('input',change);input.removeEventListener('search',change);input.removeEventListener('compositionend',change);form.removeEventListener('submit',submit);};
   }
   async function browseGuest(input={},cached=null){
     if(CRS.auth.hasSession())return;
@@ -154,34 +191,32 @@
     access.after(guestPage);guestPage.setAttribute('aria-labelledby','guest-title');
     access.hidden=true;document.querySelector('#app-splash').hidden=true;document.querySelector('#app-shell').hidden=true;
     guestPage.hidden=false;
-    guestPage.innerHTML='<div class="guest-showcase"><header class="guest-heading"><div class="guest-brand"><span class="brand-mark" aria-hidden="true"><img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async"></span><div><p class="eyebrow mb-1">CRS Yuem-Kuen</p><h1 id="guest-title" class="h3">'+escape(t('equipment'))+'</h1></div></div><div class="guest-controls">'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></div></header><form data-guest-search class="mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" maxlength="100" value="'+escape(input.search||'')+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><p class="guest-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-guest-content aria-busy="true"></div></div>';
+    guestPage.innerHTML='<div class="guest-showcase"><header class="guest-heading"><div class="guest-brand"><span class="brand-mark" aria-hidden="true"><img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async"></span><div><p class="eyebrow mb-1">CRS Yuem-Kuen</p><h1 id="guest-title" class="h3">'+escape(t('equipment'))+'</h1></div></div><div class="guest-controls">'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></div></header><form data-guest-search class="catalog-search mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" autocomplete="off" maxlength="100" aria-describedby="guest-catalog-status" value="'+escape(input.search||'')+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><p id="guest-catalog-status" class="guest-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-guest-content aria-busy="true"></div></div>';
     CRS.theme.apply(CRS.theme.current(),false);
-    guestDispose=global.CRSMagicUI?.mountGuest(guestPage)||null;
+    const disposeEffect=global.CRSMagicUI?.mountGuest(guestPage);
     translate(guestPage);
-    guestPage.querySelector('form').onsubmit=event=>{event.preventDefault();browseGuest({search:guestPage.querySelector('input').value});};
-    try{
-      const result=cached||await allEquipment(async page=>{const response=await global.CRS_SERVER_RPC('listPublicEquipment',[{...input,page}]);if(!response.ok)throw new CRS.ClientApiError(response.error);return response.data;},()=>serial===guestSerial&&!guestPage.hidden&&!CRS.auth.hasSession());
-      if(serial!==guestSerial||guestPage.hidden||CRS.auth.hasSession())return;
-      const content=guestPage.querySelector('[data-guest-content]');
-      guestResult=result;content.setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=result.items.length?'':t('none');
-      if(result.items.length){const dispose=renderWall(content,result,true),previous=guestDispose;guestDispose=()=>{dispose();previous?.();};}
-    }catch(error){if(serial===guestSerial&&!guestPage.hidden){guestPage.querySelector('[data-guest-content]').setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=error.message;}}
+    const disposeCatalog=catalogSearch(guestPage.querySelector('form'),guestPage.querySelector('[data-guest-content]'),guestPage.querySelector('.guest-status'),{
+      publicView:true,cached,valid:()=>serial===guestSerial&&!guestPage.hidden&&!CRS.auth.hasSession(),
+      loadPage:async page=>{const response=await global.CRS_SERVER_RPC('listPublicEquipment',[{...(input.assetId?{assetId:input.assetId}:{}),page}]);if(!response.ok)throw new CRS.ClientApiError(response.error);return response.data;},
+      onSearch:value=>guestInput.search=value,onResult:value=>guestResult=value
+    });
+    guestDispose=()=>{disposeCatalog();disposeEffect?.();};
   }
-  function stopDashboard(){dashboardSerial++;dashboardDispose?.();dashboardDispose=null;dashboardPage=null;dashboardResult=null;}
-  async function mountDashboard(cached=null){
+  function stopDashboard(){dashboardSerial++;dashboardDispose?.();dashboardDispose=null;dashboardPage=null;dashboardResult=null;dashboardSearch='';}
+  async function mountDashboard(cached=null,refresh=false){
     const page=document.querySelector('#page-dashboard');
     if(!page||!CRS.auth.hasSession()||CRS.state.bootstrap?.session.mustChangePassword){if(dashboardPage)stopDashboard();return;}
-    if(page===dashboardPage&&!cached)return;
+    if(page===dashboardPage&&!cached&&!refresh)return;
     if(page!==dashboardPage)stopDashboard();dashboardPage=page;
     const serial=++dashboardSerial;dashboardDispose?.();dashboardDispose=null;
     let host=page.querySelector('.dashboard-equipment-wall');
     if(!host){host=document.createElement('section');host.className='dashboard-equipment-wall';page.append(host);}
-    host.innerHTML='<h2 class="h4">'+escape(CRS.language.effective()==='en'?'All equipment':'อุปกรณ์ทั้งหมด')+'</h2><p role="status">'+escape(t('loading'))+'</p><div data-dashboard-wall aria-busy="true"></div>';
-    try{
-      const result=cached||await allEquipment(pageNumber=>CRS.api.listEquipment({page:pageNumber,pageSize:100}),()=>serial===dashboardSerial&&page.isConnected&&CRS.auth.hasSession());
-      if(serial!==dashboardSerial||!page.isConnected||!CRS.auth.hasSession())return;
-      dashboardResult=result;host.querySelector('[role="status"]').textContent=result.items.length?'':t('none');const content=host.querySelector('[data-dashboard-wall]');content.setAttribute('aria-busy','false');if(result.items.length)dashboardDispose=renderWall(content,result,false);
-    }catch(error){if(serial===dashboardSerial&&host.isConnected){host.querySelector('[role="status"]').textContent=error.message;host.querySelector('[data-dashboard-wall]').setAttribute('aria-busy','false');}}
+    host.innerHTML='<h2 class="h4">'+escape(CRS.language.effective()==='en'?'All equipment':'อุปกรณ์ทั้งหมด')+'</h2><form class="catalog-search mb-3"><label class="form-label" for="dashboard-equipment-search">'+escape(t('search'))+'</label><input id="dashboard-equipment-search" class="form-control" type="search" autocomplete="off" maxlength="100" aria-describedby="dashboard-catalog-status" value="'+escape(dashboardSearch)+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><p id="dashboard-catalog-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-dashboard-wall aria-busy="true"></div>';
+    dashboardDispose=catalogSearch(host.querySelector('form'),host.querySelector('[data-dashboard-wall]'),host.querySelector('[role="status"]'),{
+      publicView:false,cached,valid:()=>serial===dashboardSerial&&page.isConnected&&CRS.auth.hasSession(),
+      loadPage:pageNumber=>CRS.api.listEquipment({page:pageNumber,pageSize:100}),
+      onSearch:value=>dashboardSearch=value,onResult:value=>dashboardResult=value
+    });
   }
   function loginTarget(){
     if(CRS.state.bootstrap?.session.mustChangePassword)return {name:'settings',params:{section:'security'}};
@@ -280,6 +315,6 @@
       if(languageFocused)guestPage.querySelector('[data-experience-action="language"]').focus({preventScroll:true});
     }
   });
-  document.addEventListener('click',event=>{if(event.target.closest('[data-action="refresh-dashboard"]')&&dashboardPage){dashboardPage=null;mountDashboard();}});
+  document.addEventListener('click',event=>{if(event.target.closest('[data-action="refresh-dashboard"]')&&dashboardPage)mountDashboard(null,true);});
   CRS.features=Object.freeze({mountSettings,loginTarget});
 })(window);

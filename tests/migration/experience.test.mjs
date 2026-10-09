@@ -71,6 +71,27 @@ test('public catalog pages/status remain narrow; private, deleted, retired, lost
   }finally{await f.db.close();}
 });
 
+test('three explicit publications commit atomically with authoritative History, replay safely and leave private records intact',async()=>{
+  const f=await setup();try{
+    const base=(await f.db.query('SELECT data FROM crs.equipment WHERE id=$1',[f.asset.asset_id])).rows[0].data;
+    for(let i=2;i<=3;i++)await f.db.query('INSERT INTO crs.equipment(data) VALUES($1)',[JSON.stringify({...base,asset_id:'AST-'+String(i).padStart(6,'0'),sku:'THREE-'+i,serial_number:'THREE-SERIAL-'+i,name:'Public notebook '+i,brand:i===2?'ASUS':'Fixture',description:'Private keyword never searchable',image_file_id:'private-reference-'+i,image_url:'https://private.invalid/'+i})]);
+    const before=(await f.db.query('SELECT * FROM crs.equipment ORDER BY id')).rows;
+    const payloads=before.map((row,index)=>({assetId:row.id,isPublic:true,expectedVersion:row.data.row_version,commandId:'three-publish-fixture-'+index}));
+    const publish=inputs=>f.transact(async db=>{const domain=await loadDomain(db);const actor=domain.context.refreshAdminActor_(f.admin);for(const input of inputs)await setVisibility(db,domain,actor,input);await saveDomain(db,domain);});
+    await assert.rejects(publish(payloads.map((input,index)=>index===2?{...input,expectedVersion:999}:input)),e=>e.code==='STATE_CONFLICT');
+    assert.equal((await publicEquipment(f.db)).total,0);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.equipment_visibility')).rows[0].n,0);
+    await publish(payloads);await publish(payloads);
+    const result=await publicEquipment(f.db);assert.equal(result.total,3);
+    assert.equal((await publicEquipment(f.db,{search:'asus'})).total,1);
+    assert.equal((await publicEquipment(f.db,{search:'private keyword'})).total,0);
+    for(const item of result.items){assert.equal(item.imageAvailable,false);assert.deepEqual(Object.keys(item).sort(),['asset_id','name','brand','model','category_name','status','can_borrow','imageAvailable','detail_url'].sort());}
+    assert.deepEqual((await f.db.query('SELECT * FROM crs.equipment ORDER BY id')).rows,before);
+    const events=(await f.db.query("SELECT data FROM crs.history WHERE data->>'action'='PUBLISH_ASSET'")).rows;
+    assert.equal(events.length,3);assert.ok(events.every(row=>row.data.actor_user_id===f.admin.user_id));
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.notifications')).rows[0].n,0);
+  }finally{await f.db.close();}
+});
+
 test('new committed Borrow History projects per-recipient notifications exactly once; inbox/read ownership remains private',async()=>{
   const f=await setup();try{
     const invoke=async(method,input,actor)=>f.transact(async db=>{const domain=await loadDomain(db,{session:{...f.session,userId:actor.user_id,email:actor.email}});const response=domain.invoke(method,['fixture-session',input]);assert.equal(response.ok,true,JSON.stringify(response.error));await saveDomain(db,domain);return response.data;});
