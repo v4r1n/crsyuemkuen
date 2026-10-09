@@ -2,6 +2,18 @@
 #access-state { display:block; }
 .access-card { position:relative; isolation:isolate; }
 .login-layout { position:relative; isolation:isolate; }
+/* The original CSS illustration stays decorative. Individual translations
+ * preserve its Z rotations and finite entrance animations; only art tilts. */
+.login-art { pointer-events:none; }
+@media (min-width:768px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+ .login-art { transition:transform .18s var(--crs-ease); }
+ .login-art > .login-orbit,.login-art > .login-art-card,.login-art > .login-art-chip { transition:translate .18s var(--crs-ease); }
+ .login-art.is-parallax-active { transform:perspective(900px) rotateX(calc(var(--login-parallax-y,0) * -5deg)) rotateY(calc(var(--login-parallax-x,0) * 6deg)); transform-style:preserve-3d; }
+ .login-art.is-parallax-active > .login-orbit { translate:calc(var(--login-parallax-x,0) * 3px) calc(var(--login-parallax-y,0) * 3px); }
+ .login-art.is-parallax-active > .login-art-card { translate:calc(var(--login-parallax-x,0) * 8px) calc(var(--login-parallax-y,0) * 6px) 12px; }
+ .login-art.is-parallax-active > .login-art-chip-qr { translate:calc(var(--login-parallax-x,0) * 12px) calc(var(--login-parallax-y,0) * 8px) 24px; }
+ .login-art.is-parallax-active > .login-art-chip-return { translate:calc(var(--login-parallax-x,0) * 16px) calc(var(--login-parallax-y,0) * 10px) 32px; }
+}
 .login-controls { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
 .access-card .theme-toggle-login { position:static; flex-shrink:0; }
 .brand-mark:has(> img) { background:transparent; box-shadow:none; }

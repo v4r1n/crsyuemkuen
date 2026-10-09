@@ -125,6 +125,8 @@ test('Login restores the earlier story/card illustration while retaining current
   for(const width of [320,390,768,1440])for(const theme of ['light','dark'])for(const language of ['th','en']){
     await page.setViewportSize({width,height:900});await page.evaluate(({theme,language})=>{window.CRS.theme.apply(theme,true);window.CRS.language.set(language);},{theme,language});
     await expect(page.locator('.login-story .login-kicker')).toBeVisible();
+    await expect(page.locator('.login-kicker')).toHaveText(language==='th'?'อุปกรณ์พร้อมใช้ มีไหมนั่นอีกเรื่อง':'Equipment ready. Available? That’s another story.');
+    await expect(page.locator('[data-experience-text="securityNote"]')).toHaveText(language==='th'?'ช่วยป้องกันสแปมด้วย reCAPTCHA ของ Google':'Google reCAPTCHA helps protect against spam');
     for(const selector of ['.login-art-card','.login-art-chip-qr','.login-art-chip-return']){
       if(width>=768)await expect(page.locator(selector)).toBeVisible();else await expect(page.locator(selector)).toBeHidden();
     }
@@ -139,6 +141,72 @@ test('Login restores the earlier story/card illustration while retaining current
   await captureUi(page,'login-story-restored-desktop-dark');
   await page.evaluate(()=>window.CRS.theme.apply('light',true));await captureUi(page,'login-story-restored-desktop-light');
   await page.setViewportSize({width:390,height:844});await captureUi(page,'login-story-restored-mobile');
+});
+
+test('original Login illustration responds to mouse with bounded 3D tilt and independent depth without moving text or controls',async({page})=>{
+  await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:1000});await page.goto('/');await openLogin(page);
+  await page.evaluate(async()=>{await Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})));});
+  const story=page.locator('.login-story'),art=page.locator('.login-art');
+  const stationary=await page.locator('.login-headline,#password-login-form').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
+  const bounds=await story.boundingBox();
+  for(const direction of [-1,1]){
+    await page.mouse.move(bounds.x+bounds.width*(direction<0?.25:.75),bounds.y+bounds.height*(direction<0?.25:.75));
+    await expect(art).toHaveClass(/is-parallax-active/);
+    await expect.poll(()=>art.evaluate((node,sign)=>Number(node.style.getPropertyValue('--login-parallax-x'))*sign,direction)).toBeCloseTo(.5,2);
+    await expect.poll(()=>art.evaluate((node,sign)=>Number(node.style.getPropertyValue('--login-parallax-y'))*sign,direction)).toBeCloseTo(.5,2);
+    await expect.poll(()=>art.evaluate(node=>new DOMMatrixReadOnly(getComputedStyle(node).transform).is2D)).toBe(false);
+    await expect.poll(()=>page.locator('.login-art-card').evaluate((node,sign)=>parseFloat(getComputedStyle(node).translate)*sign,direction)).toBeCloseTo(4,1);
+    await expect.poll(()=>page.locator('.login-art-chip-qr').evaluate((node,sign)=>parseFloat(getComputedStyle(node).translate)*sign,direction)).toBeCloseTo(6,1);
+    await expect.poll(()=>page.locator('.login-art-chip-return').evaluate((node,sign)=>parseFloat(getComputedStyle(node).translate)*sign,direction)).toBeCloseTo(8,1);
+    expect(await page.locator('.login-headline,#password-login-form').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}))).toEqual(stationary);
+    await expect(art).toHaveAttribute('aria-hidden','true');await expect(art).toHaveCSS('pointer-events','none');await expectNoOverflow(page);
+  }
+  await captureUi(page,'login-story-mouse-tilt-desktop');
+  await page.locator('.login-layout').evaluate(node=>{node.style.transform='scale(.9)';node.style.transformOrigin='top left';});
+  const scaled=await story.boundingBox();await page.mouse.move(scaled.x+scaled.width*.75,scaled.y+scaled.height*.75);
+  await expect.poll(()=>art.evaluate(node=>Number(node.style.getPropertyValue('--login-parallax-x')))).toBeCloseTo(.5,2);
+  await expect.poll(()=>art.evaluate(node=>Number(node.style.getPropertyValue('--login-parallax-y')))).toBeCloseTo(.5,2);
+  await page.mouse.move(0,0);await expect(art).not.toHaveClass(/is-parallax-active/);
+  await expect(art).toHaveCSS('transform','none');
+  await expect(page.locator('.login-art-card')).toHaveCSS('translate','none');
+  const rotation=await page.locator('.login-art-card').evaluate(node=>{const m=new DOMMatrixReadOnly(getComputedStyle(node).transform);return Math.atan2(m.b,m.a)*180/Math.PI;});
+  expect(rotation).toBeCloseTo(-6,1);
+});
+
+test('blocked parallax script keeps static artwork, translated copy, Guest entry and Login controls usable',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true}),errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.route('**/crs/login-parallax.js',route=>route.abort());
+  await page.goto('/');await expect(page.locator('.guest-showcase')).toBeVisible();await openLogin(page);
+  await expect(page.locator('.login-kicker')).toHaveText('อุปกรณ์พร้อมใช้ มีไหมนั่นอีกเรื่อง');
+  await expect(page.locator('[data-experience-text="securityNote"]')).toHaveText('ช่วยป้องกันสแปมด้วย reCAPTCHA ของ Google');
+  await expect(page.locator('#password-login-submit')).toBeEnabled();await expect(page.locator('#google-signin-button')).toBeEnabled();
+  await page.locator('.login-story').dispatchEvent('pointermove',{pointerType:'mouse',clientX:400,clientY:450});
+  await expect(page.locator('.login-art')).not.toHaveClass(/is-parallax-active/);
+  expect(calls.some(call=>['getAppBootstrap','listEquipment','createBorrowRequest'].includes(call.method))).toBe(false);expect(errors).toEqual([]);
+});
+
+test('Login parallax resets on viewport/visibility changes, reduced motion, Guest handoff and unmount',async({page})=>{
+  await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:1000});await page.goto('/');await openLogin(page);
+  const story=page.locator('.login-story'),art=page.locator('.login-art');
+  // Media/IntersectionObserver delivery is asynchronous after a viewport change;
+  // keep moving like a real pointer until the eligible view is listening again.
+  const move=async()=>{await expect.poll(async()=>{const bounds=await story.boundingBox();await story.dispatchEvent('pointermove',{pointerType:'mouse',clientX:bounds.x+bounds.width*.75,clientY:bounds.y+bounds.height*.75});return art.evaluate(node=>node.classList.contains('is-parallax-active'));}).toBe(true);};
+  await move();await page.locator('#access-state').evaluate(node=>node.hidden=true);await expect(art).not.toHaveClass(/is-parallax-active/);
+  await page.locator('#access-state').evaluate(node=>node.hidden=false);await move();
+  await move();await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await expect(art).not.toHaveClass(/is-parallax-active/);
+  await move();await page.locator('#access-state').evaluate(node=>node.dispatchEvent(new Event('scroll')));await expect(art).not.toHaveClass(/is-parallax-active/);
+  await move();await page.emulateMedia({reducedMotion:'reduce'});await expect(art).not.toHaveClass(/is-parallax-active/);
+  await story.dispatchEvent('pointermove',{pointerType:'mouse',clientX:400,clientY:450});await expect(art).toHaveCSS('transform','none');
+  await page.emulateMedia({reducedMotion:'no-preference'});await move();await page.setViewportSize({width:390,height:844});await expect(art).not.toHaveClass(/is-parallax-active/);await expect(art).toBeHidden();
+  await page.setViewportSize({width:1440,height:1000});await move();
+  await page.locator('.entry-navigation [data-experience-action="home"]').click();await expect(page.locator('.guest-showcase')).toBeVisible();await expect(art).not.toHaveClass(/is-parallax-active/);
+  await openLogin(page);await move();
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});await expect(art).not.toHaveClass(/is-parallax-active/);
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});await move();
+  const removed=await story.evaluateHandle(node=>{node.remove();return node;});
+  await expect.poll(()=>removed.evaluate(node=>node.querySelector('.login-art').style.getPropertyValue('--login-parallax-x'))).toBe('');
+  await removed.evaluate(node=>node.dispatchEvent(new PointerEvent('pointermove',{pointerType:'mouse',clientX:400,clientY:450})));
+  expect(await removed.evaluate(node=>node.querySelector('.login-art').classList.contains('is-parallax-active'))).toBe(false);await removed.dispose();
 });
 
 test('password attempts get fresh action-bound reCAPTCHA proofs, clear inputs and never store a proof',async({page})=>{
@@ -334,7 +402,7 @@ test('glass login is responsive, keyboard accessible and offers linked Password 
     await expect(page.locator('#access-state-title')).toHaveText('เข้าสู่ระบบ');
     await expect(page.locator('#google-signin-button')).toBeEnabled();
     await expect(page.locator('#oauth-handoff-panel')).toBeHidden();
-    await expect(page.locator('.login-security-note')).toContainText('บัญชีเดียวกัน');
+    await expect(page.locator('.login-security-note')).toContainText('ช่วยป้องกันสแปมด้วย reCAPTCHA ของ Google');
     const layout = await page.locator('.login-layout').evaluate(element => ({
       columns:getComputedStyle(element).gridTemplateColumns.split(' ').length,
       blur:getComputedStyle(element).backdropFilter
@@ -745,6 +813,9 @@ test.describe('touch login',()=>{
     for(const width of [320,390,1024]){
       await page.setViewportSize({width,height:900});await expect(page.locator('.login-story .login-kicker')).toBeVisible();
       await expect(page.locator('.login-art canvas')).toHaveCount(0);expect(await page.evaluate(()=>typeof window.CRSLoginScene)).toBe('undefined');
+      await page.locator('.login-story').dispatchEvent('pointermove',{pointerType:'touch',clientX:200,clientY:300});
+      await expect(page.locator('.login-art')).not.toHaveClass(/is-parallax-active/);
+      await expect(page.locator('.login-art')).toHaveCSS('transform','none');
       if(width>=768)await expect(page.locator('.login-art-card')).toBeVisible();else await expect(page.locator('.login-art-card')).toBeHidden();
       await expectNoOverflow(page);
     }

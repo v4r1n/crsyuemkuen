@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Login mouse parallax and copy (2026-10-09, source only)
+
+- Explain Google reCAPTCHA spam protection in the translated security note and change the Thai story kicker to `อุปกรณ์พร้อมใช้ มีไหมนั่นอีกเรื่อง`, with English translation. Preserve the remaining user-owned copy and existing illustration.
+- Add subtle CSS Mouse Parallax + 3D Tilt only to decorative art, preserving its rotations and finite entry animations. Event-driven bounded motion has static, touch/mobile and reduced-motion fallback; visibility/page/unmount cleanup avoids idle work or duplicate listeners.
+- Add lifecycle/coordinate/composition and actual-browser theme/language/viewport regressions, including blocked-script fallback and direct hidden-state cleanup. All 258 isolated-source checks and production build pass after updating one stale copy assertion and repeating the complete Next suite; six desktop/mobile captures and diff/actual-value privacy gates pass. No auth/business/schema/cloud/deployment change.
+
 ### Earlier Login story protected Preview activation (2026-10-09)
 
 - Deploy reviewed immutable `ba6009b` (0.1.12) on staging/Singapore; check the READY candidate before assigning only `https://crsyuemkuen-preview.vercel.app`, then repeat canonical smoke. Production, rollback, all environment/protection settings and both write freezes remain unchanged.

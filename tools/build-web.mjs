@@ -73,7 +73,11 @@ index=index.replace('</body>','<script src="/crs/migration-admin.js"></script></
 const loginControls=await readFile(join(root,'web','login-controls.html'),'utf8');
 index=index.replace('<div class="startup-card access-card">','<div class="startup-card access-card text-center">');
 index=index.replace('<p class="login-welcome">ยินดีต้อนรับกลับมา</p>','');
-// Keep the Login-card caption removal; restore the story's original copy/styles.
+// Keep the restored illustration and adapt only the requested Next story copy.
+const kicker=/<p class="login-kicker">[^<]*<\/p>/g;
+if([...index.matchAll(kicker)].length!==1)throw new Error('Login kicker composition seam changed');
+index=index.replace(kicker,'<p class="login-kicker" data-experience-text="loginKicker">อุปกรณ์พร้อมใช้ มีไหมนั่นอีกเรื่อง</p>');
+// Keep the Login-card caption removal.
 for(const selector of ['id="access-state-eyebrow"']){
   const pattern=new RegExp('<p[^>]*'+selector+'[^>]*>[\\s\\S]*?<\\/p>','g');
   if([...index.matchAll(pattern)].length!==1)throw new Error('Login copy removal seam changed');
@@ -102,11 +106,12 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/guest-scene.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/guest-scene.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/experience.js"></script></body>');
 // Remove only this retired generated asset on incremental builds as well.
 await rm(join(output,'login-scene.js'),{force:true});
 await writeFile(join(output,'recaptcha.js'),await readFile(join(root,'web','recaptcha.js'),'utf8'));
 await writeFile(join(output,'guest-scene.js'),await readFile(join(root,'web','guest-scene.js'),'utf8'));
+await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web','login-parallax.js'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));
 await writeFile(join(output,'experience.js'),await readFile(join(root,'web','experience.js'),'utf8'));
