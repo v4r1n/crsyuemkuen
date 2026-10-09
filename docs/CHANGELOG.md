@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Frozen Production feature activation (2026-10-09)
+
+- After operator confirmation of Production CAPTCHA/callback registration, install only twelve missing Production SMTP/OTP/reCAPTCHA settings with server-only Sensitive secrets and exact target policy. Preserve core/Preview configuration. Build immutable accepted `98471cc` (0.1.12) as a domain-unassigned Production/Singapore candidate; nine candidate groups precede promotion to `https://crsyuemkuen.vercel.app`, then eleven canonical groups and final guards pass.
+- Verify anonymous Production shell, exact assets/callback/Origin, all three metadata-free catalog thumbnails, private original/session/proof/query/cache denial, protected current/rollback Preview and both live write freezes. Fresh private DB/seven-binary backup, durable/schema guards and seven-original/three-reference integrity checks pass. No new migration, import, repair, provisioning, publication, Storage/business mutation, visitor session, Google exchange or mail; prior Production remains rollback evidence.
+- Reuse accepted 302-check source/build coverage and preflight repeats; repeat five compiled and seventeen contract checks. Record only activation documentation after phase privacy/diff/evidence gates and push the feature branch. Both writers stay frozen; real provider/inbox/device/workflow/load/restore acceptance and any write-opening decision remain separate. Preserve unrelated edits, with no main merge or tag.
+
 ### Production deployment preflight (2026-10-09, activation pending)
 
 - Prepare the explicitly requested immutable `98471cc` Production rollout without changing cloud settings, deployments, aliases or data. Verify canonical callback, protected separate Preview, both live freezes, installed schema checksum/private RLS and a new database/seven-original-binary backup against current durable guards. Local SMTP TLS/authentication succeeds without sending mail.
