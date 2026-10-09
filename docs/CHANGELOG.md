@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Earlier Login story protected Preview activation (2026-10-09)
+
+- Deploy reviewed immutable `ba6009b` (0.1.12) on staging/Singapore; check the READY candidate before assigning only `https://crsyuemkuen-preview.vercel.app`, then repeat canonical smoke. Production, rollback, all environment/protection settings and both write freezes remain unchanged.
+- Reuse the accepted 250-check suite/build and captures, verify all 162 uploaded blobs and repeat five compiled-artifact checks. Exact shell/restored artwork/assets/logo, obsolete-scene 404, public/private/privacy/origin/reCAPTCHA denial/freeze/OAuth-start cloud gates pass. A fresh verified private DB/seven-image backup and unchanged durable fingerprints preserve rollback evidence.
+- Record deployment separately from source acceptance. No schema, Storage/business mutation, credential/publication provisioning, SMTP delivery or visitor session; unrelated local edits remain unshipped. Real provider/account/device and Production/write-opening gates remain separate.
+
 ### Restore earlier Login story (2026-10-09)
 
 - Restore only the pre-WebGL Login-story illustration, kicker and spacing; remove its retired renderer/integration/styles and clean the obsolete generated asset on repeated builds. Preserve current brand, Guest/cursor, sign-in controls and reCAPTCHA/OAuth/password behavior, plus unrelated user-owned copy edits.
