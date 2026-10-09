@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Magic UI protected Preview activation (2026-10-09)
+
+- Deploy immutable accepted `12c47c8` (0.1.12) on staging/Singapore. Candidate smoke precedes assigning only `https://crsyuemkuen-preview.vercel.app`; canonical smoke and final guards pass. Production, protected rollback, all environment/runtime/protection settings and both live write freezes are unchanged.
+- Reuse the isolated 269-check source/build and reviewed responsive captures; all 166 uploaded blobs match it. Repeat five compiled and twelve component gates. Nine candidate and ten canonical smoke groups verify exact Magic UI/stage/Ripple/assets, retired scenes, privacy/public-private/abuse/origin/protection/freeze and canonical OAuth start. Fresh private DB/seven-binary backup checksums and durable-table/migration guards pass.
+- Record activation separately from source acceptance. No schema/Storage/business mutation, credential/publication provisioning, mail or application session; preserve unrelated edits/backups. Positive provider/device acceptance and Production/write-opening decisions remain separate.
+
 ### Magic UI presentation refinement (2026-10-09, source accepted before activation)
 
 - Add smooth stationary-stage Login tilt entry/exit and rear Ripple, Guest SVG Animated Grid, controlled radial theme reveal, Login Magic Card replacing the old cursor, and bounded Guest/main Progressive Blur. Adapt the requested Magic UI components to the existing DOM architecture with MIT attribution, static/unsupported/reduced-motion/touch fallbacks and visibility/unmount cleanup.
