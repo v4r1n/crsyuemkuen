@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Production deployment preflight (2026-10-09, activation pending)
+
+- Prepare the explicitly requested immutable `98471cc` Production rollout without changing cloud settings, deployments, aliases or data. Verify canonical callback, protected separate Preview, both live freezes, installed schema checksum/private RLS and a new database/seven-original-binary backup against current durable guards. Local SMTP TLS/authentication succeeds without sending mail.
+- Repeat 17 contracts, 78 migration, production build, 5 compiled and 68 Next/browser checks; retain prior complete source acceptance. Production currently lacks twelve SMTP/OTP/reCAPTCHA settings. Await confirmation of the rotated key's exact Production domain and Google OAuth callback before installing only missing settings and building a domain-unassigned Production candidate. Keep current Production serving, unrelated edits preserved, and both writers frozen; no Production activation or writer reopening is claimed.
+
 ### Public catalog thumbnail protected Preview activation (2026-10-09)
 
 - Deploy immutable accepted `98471cc` (0.1.12) on staging/Singapore. Nine candidate groups precede assigning only `https://crsyuemkuen-preview.vercel.app`; ten canonical groups and final guards pass. Verify the three real metadata-free thumbnails, current private originals/references, exact assets/allowlisted DTO/canonical links, cache/query/raw-ID denial, auth/proof/origin/protection/freeze and canonical OAuth start. The earlier candidate stays unpromoted.
