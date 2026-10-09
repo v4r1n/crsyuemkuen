@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Drift Wall and hold-to-delete protected Preview activation (2026-10-09)
+
+- Deploy immutable accepted `5f703e9` (0.1.12) on staging/Singapore. Nine candidate smoke groups precede assigning only `https://crsyuemkuen-preview.vercel.app`; ten canonical groups and final guards pass. Production, protected rollback, all settings/environment/callbacks and both live write freezes are unchanged. This source includes the earlier accepted search/account/sidebar corners.
+- Reuse 286-check source/build acceptance and final repeats/eight visually reviewed captures; all 170 uploaded blobs match the isolated copy. Exact component/license/assets, public-status/private-image, proof/session/origin/callback, protection/freeze and canonical OAuth-start evidence pass. Fresh private database/seven-binary backup and durable-table/migration guards verify. No schema/Storage/business mutation, credential/publication provisioning, mail or application session; retain unrelated edits/backups and positive-provider/device acceptance gates.
+
 ### Drift Wall and hold-to-delete (2026-10-09, source accepted before activation)
 
 - Add auto-paginated public catalog and authenticated Dashboard DriftWall with canonical statuses, existing borrow handoff and unavailable-status overlay. Preserve public visibility/private images; add only status to public DTO.
