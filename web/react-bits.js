@@ -10,6 +10,26 @@
   const statuses={AVAILABLE:['พร้อมยืม','Available'],PENDING:['รออนุมัติ','Pending approval'],RESERVED:['จองแล้ว','Reserved'],BORROWED:['ถูกยืม','Borrowed'],RETURNING:['รอตรวจรับคืน','Awaiting inspection'],MAINTENANCE:['ซ่อมบำรุง','Maintenance'],DAMAGED:['ชำรุด','Damaged'],LOST:['สูญหาย','Lost'],RETIRED:['ปลดระวาง','Retired'],DELETED:['ลบแล้ว','Deleted']};
   const statusLabel=status=>(statuses[status]||['ไม่พร้อมยืม','Unavailable'])[en()?1:0];
   let wallSerial=0;
+  // Match the backend's two-work capacity across Wall/gallery remounts. Native
+  // image bursts must not turn the third healthy thumbnail into a placeholder.
+  const publicQueue=[];let publicActive=0;
+  function drainPublicImages(){while(publicActive<2&&publicQueue.length)publicQueue.shift()();}
+  function queuePublicImage(image,url,isDisposed){
+    let canceled=false,finished=false,started=false,timer=0;
+    const finish=()=>{
+      if(!started||finished)return;finished=true;clearTimeout(timer);
+      image.removeEventListener('load',finish);image.removeEventListener('error',finish);
+      publicActive--;drainPublicImages();
+    };
+    const start=()=>{
+      if(canceled||isDisposed())return;started=true;publicActive++;
+      image.addEventListener('load',finish);image.addEventListener('error',finish);
+      timer=setTimeout(()=>{image.removeAttribute('src');image.onerror?.();finish();},30000);
+      image.src=url;
+    };
+    publicQueue.push(start);drainPublicImages();
+    return ()=>{canceled=true;const index=publicQueue.indexOf(start);if(index>=0)publicQueue.splice(index,1);finish();};
+  }
   function mountWall(host,items,{publicView=false,onSelect,layout='wall',controlHost=null}={}){
     const id='drift-wall-'+(++wallSerial),images=[],animations=[],cleanups=[];
     const gallery=layout==='gallery';
@@ -84,13 +104,13 @@
     const visibility=()=>{if(document.hidden)pointerActive=false;sync();};document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',sync);
     const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;sync();}):null;observer?.observe(wall);
     const requested=new Set();
-    const recover=value=>{if(value.publicUrl)value.image.src=value.publicUrl;else CRS.recoverEquipmentImage(value.image,value.fallback,value.item);};
+    const recover=value=>{if(value.publicUrl)value.cancel=queuePublicImage(value.image,value.publicUrl,()=>disposed);else CRS.recoverEquipmentImage(value.image,value.fallback,value.item);};
     const imageObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){const value=images.find(value=>value.item.asset_id===entry.target.dataset.wallAsset);if(value&&!requested.has(value.item.asset_id)){requested.add(value.item.asset_id);recover(value);}imageObserver.unobserve(entry.target);}}):null;
     for(const value of images){if(imageObserver){for(const node of wall.querySelectorAll('[data-wall-asset]'))if(node.dataset.wallAsset===value.item.asset_id)imageObserver.observe(node);}else recover(value);}
     cleanups.push(()=>observer?.disconnect(),()=>imageObserver?.disconnect(),()=>document.removeEventListener('visibilitychange',visibility),()=>motion.removeEventListener('change',sync),()=>stage.removeEventListener('focusin',focus));
     cleanups.push(()=>stage.removeEventListener('pointerdown',press,true),()=>global.removeEventListener('pointerup',release),()=>global.removeEventListener('pointercancel',release),()=>global.removeEventListener('blur',release));
     sync();
-    return ()=>{if(disposed)return;disposed=true;animations.forEach(animation=>animation.cancel());images.forEach(value=>{if(value.publicUrl){value.image.onload=null;value.image.onerror=null;value.image.removeAttribute('src');}else CRS.cancelEquipmentImage(value.image);});cleanups.forEach(clean=>clean());mode.onclick=null;mode.remove();wall.remove();};
+    return ()=>{if(disposed)return;disposed=true;animations.forEach(animation=>animation.cancel());images.forEach(value=>{if(value.publicUrl){value.image.onload=null;value.image.onerror=null;value.image.removeAttribute('src');value.cancel?.();}else CRS.cancelEquipmentImage(value.image);});cleanups.forEach(clean=>clean());mode.onclick=null;mode.remove();wall.remove();};
   }
 
   // One delegated hold controller covers catalog, table, detail and final dialog.

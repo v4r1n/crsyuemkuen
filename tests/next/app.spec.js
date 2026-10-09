@@ -84,6 +84,26 @@ test('the real thumbnail HTTP boundary denies file identifiers, query overrides 
   expect((await request.get('/_next/image?url=%2Fapi%2Fpublic-equipment%2FAST-000001%2Fthumbnail&w=256&q=75')).status()).toBe(400);
 });
 
+test('Guest thumbnail loads stay bounded while all current images render and queued work is disposed',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});let active=0,peak=0,requests=0;
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=','base64');
+  await page.route('**/api/public-equipment/*/thumbnail',async route=>{
+    active++;peak=Math.max(peak,active);requests++;const saturated=active>2;
+    await new Promise(resolve=>setTimeout(resolve,250));active--;
+    await route.fulfill(saturated?{status:503,body:''}:{status:200,contentType:'image/png',body:png}).catch(()=>{});
+  });
+  await page.route('**/api/rpc',async route=>{if(route.request().postDataJSON().method!=='listPublicEquipment')return route.fallback();await route.fulfill({json:{ok:true,data:{items:[1,2,3].map(i=>({asset_id:'AST-00000'+i,name:'Bounded '+i,status:'AVAILABLE',can_borrow:true,imageAvailable:false,thumbnail_url:'/api/public-equipment/AST-00000'+i+'/thumbnail'})),page:1,total:3,totalPages:1}}});});
+  await page.goto('/');await page.locator('[data-wall-mode]').click();
+  for(const id of [1,2,3])await expect(page.locator('[data-wall-asset="AST-00000'+id+'"]:not([data-wall-copy]) img')).toBeVisible();
+  expect(peak).toBeLessThanOrEqual(2);expect(requests).toBe(3);
+  await expect(page.locator('[data-wall-copy] canvas').first()).toHaveCount(1);
+  await page.locator('#guest-search').fill('Bounded');await page.locator('#guest-search').fill('no matching asset');
+  await expect(page.locator('[data-wall-asset]')).toHaveCount(0);
+  await page.waitForTimeout(600);const settled=requests;await page.waitForTimeout(300);expect(requests).toBe(settled);
+  await page.locator('#guest-search').fill('');for(const id of [1,2,3])await expect(page.locator('[data-wall-asset="AST-00000'+id+'"]:not([data-wall-copy]) img')).toBeVisible();
+  expect(calls.some(call=>call.method==='getEquipmentImage')).toBe(false);
+});
+
 test('Guest live search filters the complete public snapshot into a gallery without submit, private calls or lost focus',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});
   await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();calls.push(input);await route.fulfill({json:{ok:true,data:{items:[

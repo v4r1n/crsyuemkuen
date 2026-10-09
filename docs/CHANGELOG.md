@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Bounded public thumbnail loading (2026-10-09, before Preview activation)
+
+- Reproduce the third healthy image falling back when three native image requests exceed server capacity. Match it with a shared two-load Guest queue, release slots on load/error/bounded failure, and cancel queued work/timers/listeners on remount. Keep backend quotas/capacity, private images and authoritative access checks unchanged.
+- Final isolated-source component coverage passes 302 checks and production build; the complete 68-browser/build and contracts/migration repeats pass after the queue fix. Three focused controls/image/concurrency regressions pass; prior four reviewed responsive captures remain representative. The first protected READY candidate is unpromoted and its nine cloud smoke groups verify all three real thumbnail derivatives. A new immutable candidate/backup/guard is required for the queue source; no alias/Production/write-freeze change yet.
+
 ### Approved public thumbnails and Guest controls (2026-10-09, source accepted before activation)
 
 - Diagnose Guest placeholders against verified originals/current references and the prior private-only image contract. Following explicit user approval, add only an asset-bound backend thumbnail projection: current public/category/lifecycle/READY evidence, verified original bytes, bounded metadata-free WebP, post-I/O reauthorization, persistent quotas/concurrency bounds and no-store/optimizer denial. Keep originals, Storage and authenticated delivery private; no durable data/schema/business rewrite or automatic publication.
