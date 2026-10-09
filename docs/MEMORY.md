@@ -1,8 +1,15 @@
 # CRS Yuem-Kuen Project Memory
 
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
-## Current activation — Login art and reCAPTCHA on protected Preview
+## Current source phase — restore earlier Login story (accepted, not deployed)
+
+- User requests reverting only `.login-story` to its presentation before the latest Login-art patch (`79ad2c5`). Restore the original CSS card/laptop/QR/return illustration, kicker and headline spacing. Preserve the supplied bitmap, current Guest/cursor/handoff and sign-in controls, shared button radius, Login-card caption removal and all reCAPTCHA/password/OTP/OAuth/server behavior. User-owned `src/index.html` copy and U+F01B remain unstaged.
+- Remove the retired Login WebGL module and its loader, lifecycle integration and renderer-only styles; incremental builds retire only its generated asset. Regression coverage compares generated story markup with the preserved baseline and verifies repeat-build cleanup without deleting unrelated output.
+- Accepted from an isolated Git-index export without operator env or unrelated edits: fresh `npm ci` reports zero vulnerabilities; full `npm test` passes 250 checks (17 contracts, 83 backend, 51 legacy frontend, 57 migration, 5 compiled-build and 37 Next browser), including production build. Responsive checks cover 320/390/768/1440px, Light/Dark and TH/EN, plus tablet touch and reduced motion. A focused capture rerun passes; desktop Light/Dark and mobile screenshots are visually checked. Diff and staged/compiled/public privacy checks pass with zero configured-secret matches. Only existing nested-review workspace-root and NO_COLOR warnings appear.
+- Source-only scope: no deployment, alias/env/freeze change, database/schema/Storage/SMTP mutation or live sign-in. The last cloud activation remains the checkpoint below, not this local rollback. Deliver only the nine phase files on the existing feature branch; no main merge or tag. Next: await a separate deployment request, then follow the existing protected-Preview gates. Real provider/device acceptance and permission to reopen writes remain outstanding; this visual rollback does not satisfy those gates.
+
+## Last recorded cloud activation — Login art and reCAPTCHA on protected Preview
 
 - Operator explicitly confirms replacement of the chat-exposed reCAPTCHA secret and Preview-domain registration. Installed only the six reviewed Preview `RECAPTCHA_*` settings; the server secret is Sensitive, never a public variable. Exact Preview hostname/actions/score policy validates privately. Production and all unrelated Preview environment entries retain their guarded values/metadata.
 - Immutable reviewed source `8500661` (0.1.12) is READY on explicit built-in staging with Singapore functions, assigned only to `https://crsyuemkuen-preview.vercel.app` after candidate smoke. Production source/deployment/canonical alias, rollback Preview, project runtime, Standard Protection and both live `WRITE_FREEZE=true` settings remain unchanged. No automatic Git deployment link exists.

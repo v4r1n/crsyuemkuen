@@ -41,7 +41,11 @@ Signed-out home automatically loads only `listPublicEquipment`, showing existing
 
 Guest uses the existing confirm modal outside the fixed Login surface, so the old embedded-modal z-index overrides are removed. Keyboard focus returns to Login on confirmation. Public data fixtures in browser tests are intercepted by default so automatic Guest loading never uses the operator's live database.
 
-## Later Login art and local abuse refinement (protected Preview)
+## Login-story rollback (current source, 2026-10-09)
+
+The user requested restoring only `.login-story` to the presentation before `8500661`. Current source restores the original CSS card/laptop/QR/return illustration, kicker and headline spacing from `79ad2c5`, preserving the supplied brand bitmap and user-owned copy edits. The retired Login WebGL module, loader, lifecycle observer and renderer-only styles are removed; repeat builds delete only its obsolete generated asset. Mobile keeps the earlier compact story with the decorative illustration hidden. Guest WebGL/cursor, Guest-first entry/handoff, shared button radius, Login-card caption removal and all password/OTP/reCAPTCHA/OAuth behavior stay intact. No cloud activation is part of this source rollback; the active configuration above is the last recorded deployment. Acceptance and next steps belong in [Memory](MEMORY.md).
+
+## Earlier Login art and local abuse refinement (deployed Preview source)
 
 `web/login-scene.js` owns an independent `mount(host) -> dispose()` decorative scene in `.login-art`. A static beveled-prism mesh uses depth/parallax and pointer-lit glass shading, not a continuously animated clock. Its canvas/host are pointer-transparent and aria-hidden. Render only for visible desktop fine-pointer/no-reduced-motion Login, event-driven and capped at 30 fps, DPR 1.25 and 768 × 512 physical pixels; tab hiding cancels pending work. CSS art remains the fallback for unavailable shaders/WebGL2, context loss, touch/mobile and reduced motion. Real context restoration recreates resources; leaving Login, page lifecycle or unmount releases shaders/program/buffer/VAO/context, observers and listeners. It fetches no data and controls no identity/borrow workflow.
 

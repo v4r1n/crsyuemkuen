@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Restore earlier Login story (2026-10-09)
+
+- Restore only the pre-WebGL Login-story illustration, kicker and spacing; remove its retired renderer/integration/styles and clean the obsolete generated asset on repeated builds. Preserve current brand, Guest/cursor, sign-in controls and reCAPTCHA/OAuth/password behavior, plus unrelated user-owned copy edits.
+- Replace retired-renderer assertions with original-story responsive/theme/language/touch/reduced-motion checks and add a repeat-build cleanup/markup regression. Source-only refinement; no deployment or cloud/data/security-policy change.
+- Isolated-source acceptance: 250 checks and production build pass, with a separate screenshot rerun and desktop/mobile visual review; staged and generated-artifact privacy checks pass. No unrelated copy edits enter the phase commit.
+
 ### Login glass and reCAPTCHA protected Preview activation (2026-10-08)
 
 - After explicit operator rotation/domain confirmation, install the six CAPTCHA settings only in Preview, with a Sensitive server-only secret. Deploy accepted immutable `8500661` (0.1.12) on staging/Singapore; candidate checks precede canonical Preview alias assignment. Production, rollback, all unrelated settings/protection and both write freezes remain unchanged.
