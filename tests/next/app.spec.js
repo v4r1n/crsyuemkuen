@@ -608,6 +608,80 @@ test('Login effects and icon/search geometry respect reduced motion, touch, them
   for(const theme of ['light','dark']){await page.evaluate(theme=>window.CRS.theme.apply(theme,true),theme);const radii=await page.locator('#equipment-search').evaluate(node=>{const s=getComputedStyle(node);return [s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius];});expect(new Set(radii).size).toBe(1);}
 });
 
+for(const theme of ['light','dark']) {
+  test(`borrow search keeps four equal corners and its filtering workflow in ${theme}`,async({page})=>{
+    const {calls,record}=await mock(page);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    for(const width of [1440,1024,390,320]) {
+      await page.setViewportSize({width,height:900});await page.goto('/?view=my-borrow');
+      await expect(page.locator('#my-borrow-search')).toBeVisible();
+      await page.evaluate(theme=>window.CRS.theme.apply(theme,true),theme);
+      const geometry=await page.locator('#my-borrow-search').evaluate(node=>{
+        const s=getComputedStyle(node),icon=node.parentElement.querySelector('.input-group-text').getBoundingClientRect(),box=node.getBoundingClientRect();
+        return{radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],padding:parseFloat(s.paddingLeft),iconRight:icon.right-box.left,margin:s.marginLeft};
+      });
+      expect(new Set(geometry.radii).size).toBe(1);expect(parseFloat(geometry.radii[0])).toBeGreaterThan(0);
+      expect(geometry.margin).toBe('0px');expect(geometry.padding).toBeGreaterThan(geometry.iconRight);
+      await page.locator('#my-borrow-search').fill(record.asset_id);
+      await page.locator('#form-my-borrow-filter [type="submit"]').click();
+      await expect.poll(()=>calls.filter(call=>call.method==='listMyBorrowing'&&call.args[0]?.search===record.asset_id).length).toBeGreaterThan(0);
+      await expect(page.locator('#my-borrow-search')).toHaveValue(record.asset_id);await expectNoOverflow(page);
+      if(width===1440||width===390)await captureUi(page,`rounded-borrow-${theme}-${width}`);
+    }
+  });
+
+  test(`account and sidebar nested corners remain concentric, keyboard-accessible and responsive in ${theme}`,async({page})=>{
+    await mock(page);await page.emulateMedia({reducedMotion:'reduce'});
+    for(const width of [1440,1024,390,320]) {
+      await page.setViewportSize({width,height:900});await page.goto('/?view=dashboard');
+      await expect(page.locator('#dashboard-content')).toBeVisible();
+      await page.evaluate(theme=>window.CRS.theme.apply(theme,true),theme);
+      const desktop=width>=992;
+      if(!desktop) {
+        // Mobile intentionally keeps the Account route, not a new popover entry.
+        const account=page.locator('#mobile-nav [data-route="account"]');await account.focus();await account.press('Enter');
+        await expect(page.locator('#account-heading')).toBeVisible();await expect(page.locator('#account-menu-panel')).toBeHidden();
+        for(const [selector,radius]of[['#account-menu-panel','16px'],['#account-menu-header','12px']]) {
+          const corners=await page.locator(selector).evaluate(node=>{const s=getComputedStyle(node);return[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius];});
+          expect(corners).toEqual([radius,radius,radius,radius]);
+        }
+        await expectNoOverflow(page);if(width===390)await captureUi(page,`rounded-account-${theme}-mobile`);continue;
+      }
+      const toggle=page.locator('#desktop-sidebar-toggle');
+      // Sidebar preference persists across route reloads and viewport changes.
+      if(desktop&&await toggle.getAttribute('aria-pressed')==='true') {await toggle.focus();await toggle.press('Enter');await expect(page.locator('#app-shell')).not.toHaveClass(/is-sidebar-collapsed/);}
+      for(const collapsed of desktop?[false,true]:[false]) {
+        if(collapsed) {await toggle.focus();await toggle.press('Enter');await expect(page.locator('#app-shell')).toHaveClass(/is-sidebar-collapsed/);}
+        const trigger=page.locator(desktop?'#desktop-sidebar .account-summary':'#mobile-nav [data-route="account"]');
+        await trigger.focus();await trigger.press('Enter');
+        await expect(page.locator('#account-menu-panel')).toBeVisible();
+        await expect(page.locator('#account-menu-header')).toBeFocused();
+        const geometry=await page.evaluate(()=>{
+          const corners=node=>{const s=getComputedStyle(node);return[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].map(parseFloat);};
+          const panel=document.getElementById('account-menu-panel'),profile=document.getElementById('account-menu-header'),s=getComputedStyle(panel);
+          const sidebar=document.getElementById('desktop-sidebar'),footer=sidebar.querySelector('.sidebar-footer');
+          const focus=getComputedStyle(profile);
+          return{outer:corners(panel),inner:corners(profile),inset:parseFloat(s.paddingLeft)+parseFloat(s.borderLeftWidth),sidebar:corners(sidebar),header:corners(sidebar.querySelector('.sidebar-header')),footer:corners(footer),summary:corners(footer.querySelector('.account-summary')),footerInset:parseFloat(getComputedStyle(footer).paddingLeft),sidebarBorder:parseFloat(getComputedStyle(sidebar).borderLeftWidth),focusOutline:focus.outlineWidth,focusExtent:parseFloat(focus.outlineWidth)+parseFloat(focus.outlineOffset),panelPadding:parseFloat(s.paddingLeft)};
+        });
+        expect(geometry.outer).toEqual([16,16,16,16]);expect(geometry.inner).toEqual([12,12,12,12]);expect(geometry.inset).toBe(4);
+        expect(geometry.outer[0]-geometry.inner[0]).toBe(geometry.inset);expect(parseFloat(geometry.focusOutline)).toBeGreaterThan(0);
+        expect(geometry.focusExtent).toBeLessThanOrEqual(geometry.panelPadding);
+        if(desktop) {
+          expect(new Set(geometry.header).size).toBe(1);expect(geometry.footer).toEqual(geometry.header);
+          expect(geometry.header[0]).toBe(geometry.sidebar[0]-geometry.sidebarBorder);
+          expect(new Set(geometry.summary).size).toBe(1);expect(geometry.summary[0]+geometry.footerInset).toBeCloseTo(geometry.footer[0],2);
+          await expect(trigger).toHaveClass(/is-active/);await expect(trigger).toBeInViewport();
+        }
+        await expectNoOverflow(page);await expect(page.locator('#account-menu-panel')).toBeInViewport();
+        if(width===1440||width===390)await captureUi(page,`rounded-account-${theme}-${width}-${collapsed?'collapsed':'expanded'}`);
+        await page.locator('#account-menu-header').press('ArrowRight');await expect(page.locator('#account-identity-menu')).toBeVisible();
+        await page.locator('#account-identity-menu [role="menuitem"]').first().press('Escape');await expect(page.locator('#account-menu-header')).toBeFocused();
+        await page.locator('#account-menu-header').press('Escape');await expect(page.locator('#account-menu-panel')).toBeHidden();await expect(trigger).toBeFocused();
+      }
+    }
+  });
+}
+
 test('forgot password modal clears secrets after OTP-verified matching reset; footer links use approved Google policies',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});
   await page.route('**/api/experience',route=>route.fulfill({json:{privacyUrl:'https://policies.google.com/privacy',termsUrl:'https://policies.google.com/terms'}}));

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Consistent search/account/sidebar corners (2026-10-09, source only)
+
+- Give My Borrow search four equal corners using the existing search token. Set account panel/profile radii to 16/12px with a border-inclusive 4px inset, retain unclipped keyboard focus, and derive sidebar header/footer/active-summary curves from shared radius/padding tokens in both expanded and collapsed states.
+- Fresh isolated installation has zero dependency advisories; all 273 checks and production build pass. Four new responsive Light/Dark browser checks preserve filtering, persisted sidebar preference, submenu keyboard/focus behavior and the mobile Account route; a repeated four-check capture run and ten visually reviewed synthetic screenshots pass.
+- Source-only delivery preserves unrelated legacy copy, auth/business/schema, cloud targets/settings, write freezes and the recorded live Preview activation. Deployment requires a separate request; no main merge or tag.
+
 ### Magic UI protected Preview activation (2026-10-09)
 
 - Deploy immutable accepted `12c47c8` (0.1.12) on staging/Singapore. Candidate smoke precedes assigning only `https://crsyuemkuen-preview.vercel.app`; canonical smoke and final guards pass. Production, protected rollback, all environment/runtime/protection settings and both live write freezes are unchanged.

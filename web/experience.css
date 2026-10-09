@@ -91,7 +91,17 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .card > .card-header:first-child { border-radius:var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
 .search-field-with-icon { position:relative; }
 .search-field-with-icon > .input-group-text { position:absolute; inset:0 auto 0 0; z-index:5; background:transparent; border:0; pointer-events:none; }
-.search-field-with-icon > #equipment-search.form-control { margin:0; border-radius:var(--crs-radius-sm) !important; padding-left:2.8rem; width:100%; }
+.search-field-with-icon > :is(#equipment-search,#my-borrow-search).form-control { margin:0; border-radius:var(--crs-radius-sm) !important; padding-left:2.8rem; width:100%; }
+/* Nested curves share an inset, including the panel's 1px border. Keep
+ * scrolling and focus outlines intact; do not clip the containing sidebar. */
+.account-popover,.account-submenu { --account-panel-radius:1rem; --account-panel-inset:.25rem; --account-item-radius:calc(var(--account-panel-radius) - var(--account-panel-inset)); border-radius:var(--account-panel-radius); padding:calc(var(--account-panel-inset) - 1px); }
+.account-popover :is(.account-menu-profile,.account-current-profile,.account-menu-item,.account-menu-back),.account-submenu :is(.account-menu-profile,.account-current-profile,.account-menu-item,.account-menu-back) { border-radius:var(--account-item-radius); }
+.account-popover :focus-visible,.account-submenu :focus-visible { outline-offset:0; }
+.app-sidebar { --sidebar-inner-radius:calc(var(--crs-radius-lg) - 1px); --sidebar-footer-inset:.8rem; }
+.app-sidebar > :is(.sidebar-header,.sidebar-footer) { border-radius:var(--sidebar-inner-radius); }
+.app-sidebar > .sidebar-footer { padding:var(--sidebar-footer-inset); }
+.sidebar-footer > .account-summary { border-radius:max(0px,calc(var(--sidebar-inner-radius) - var(--sidebar-footer-inset))); }
+.app-shell.is-sidebar-collapsed .sidebar-footer { --sidebar-footer-inset:.4rem; padding:var(--sidebar-footer-inset); }
 .experience-dialog { width:min(34rem,calc(100vw - 2rem)); max-height:calc(100dvh - 2rem); overflow:auto; padding:1.75rem; color:var(--crs-ink); border:1px solid var(--crs-border); background:var(--crs-surface); border-radius:var(--crs-radius); box-shadow:var(--crs-shadow); }
 .experience-dialog::backdrop { background:var(--crs-overlay); }
 .experience-dialog header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }

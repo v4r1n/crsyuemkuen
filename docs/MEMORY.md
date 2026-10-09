@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-09
 
+## Accepted source phase — consistent search/account/sidebar corners
+
+- User requests four equal My Borrow search corners, concentric account-panel/profile curves, and consistent sidebar header/footer/active-account curves. Next-only `web/experience.css` reuses the existing search-radius token, sets account outer/inner radii to 16/12px with a border-inclusive 4px inset, and derives sidebar section/summary radii from the established shell radius and actual expanded/collapsed padding. Focus rings remain visible within the narrower menu inset; containers retain their scrolling behavior.
+- Fresh isolated tracked-source installation excludes operator env and the user-owned legacy text/U+F01B edits; dependency audit reports zero vulnerabilities. All 273 checks pass (17 contracts, 83 backend, 51 preserved frontend, 68 migration, 5 compiled-build, 49 Next/browser), including the production build. Four new browser checks cover Light/Dark at 320/390/1024/1440px, filtering through the actual Next argument projection, equal/concentric geometry, persisted sidebar preference, keyboard submenu/Escape/focus return and the unchanged mobile Account route. Repeat all four with ten synthetic screenshots, visually reviewed and retained privately. Existing nested-workspace-root/NO_COLOR warnings remain.
+- Deliver only CSS, Next browser tests, Memory and Changelog after diff/scope and actual-value privacy gates. The documentation skill keeps this source acceptance distinct from activation. No architecture/security/business/auth/schema, cloud/environment/alias/write-freeze mutation or deployment is part of this phase; preserve unrelated changes and existing backups. No main merge or tag.
+- Next: await a separate deployment request. Current protected Preview remains the Magic UI source `12c47c8` recorded below; this source-only UI phase does not change that live checkpoint or satisfy real-provider/device/Production/writer-reopening acceptance gates.
+
 ## Current activation — Magic UI presentation on protected Preview
 
 - User requests implementation and deployment. Immutable accepted `12c47c8` (0.1.12) is READY on explicit built-in staging with Singapore functions; only `https://crsyuemkuen-preview.vercel.app` is reassigned after candidate smoke. [Current presentation contracts](LOGIN_GUEST_DOMAINS.md#magic-ui-decorative-adapters-2026-10-09) remain authoritative. Production/rollback deployments and aliases, every environment entry, project runtime, Standard Protection and both live write freezes retain their fresh guards. No automatic Git deployment link exists.
