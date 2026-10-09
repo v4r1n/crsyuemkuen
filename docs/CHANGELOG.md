@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Magic UI presentation refinement (2026-10-09, source accepted before activation)
+
+- Add smooth stationary-stage Login tilt entry/exit and rear Ripple, Guest SVG Animated Grid, controlled radial theme reveal, Login Magic Card replacing the old cursor, and bounded Guest/main Progressive Blur. Adapt the requested Magic UI components to the existing DOM architecture with MIT attribution, static/unsupported/reduced-motion/touch fallbacks and visibility/unmount cleanup.
+- Preserve native controls, theme state, public-only API, login/borrow handoff and all server/auth/data/workflow behavior. Fresh isolated installation has zero dependency advisories; all 269 checks and production build pass, followed by final twelve component, five compiled and nine focused browser checks. Representative responsive Light/Dark/TH/EN captures, diff/scope and actual-value privacy gates pass. Guard unsupported border masks, bound spotlight contrast, distinguish route-root focus from controls, and measure geometry in one frame without relaxing tolerance.
+- Source acceptance is separate from cloud activation. The requested protected Preview deployment is next; no Production/rollback/environment/write-freeze, database/Storage/SMTP mutation or main merge/tag occurred during preparation. Preserve unrelated local edits and real provider/device acceptance gates.
+
 ### Login mouse parallax protected Preview activation (2026-10-09)
 
 - Deploy immutable accepted `e9c66fb` (0.1.12) on staging/Singapore; candidate checks precede assigning only `https://crsyuemkuen-preview.vercel.app`, followed by canonical smoke. Production, protected rollback, all environment/runtime/protection settings and both write freezes remain unchanged.

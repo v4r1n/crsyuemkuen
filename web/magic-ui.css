@@ -1,0 +1,25 @@
+/* Magic UI DOM adaptations, MIT (full notice in magic-ui.js). */
+.magic-ripple { position:absolute; inset:-12px; pointer-events:none; overflow:hidden; mask-image:radial-gradient(ellipse,black 35%,transparent 76%); }
+.magic-ripple-ring { position:absolute; left:50%; top:50%; width:var(--ripple-size); height:var(--ripple-size); border-radius:50%; border:1px solid var(--crs-primary); background:var(--crs-primary-soft); opacity:var(--ripple-opacity); box-shadow:0 4px 24px var(--crs-pink-mist); transform:translate(-50%,-50%) scale(1); animation:magic-ripple 3s ease var(--ripple-delay) infinite; animation-play-state:paused; }
+.magic-ripple[data-motion="active"] .magic-ripple-ring { animation-play-state:running; }
+@keyframes magic-ripple { 0%,100% { transform:translate(-50%,-50%) scale(1); } 50% { transform:translate(-50%,-50%) scale(.9); } }
+.magic-grid-pattern { position:absolute; inset:0; width:100%; height:min(100%,600px); z-index:-1; pointer-events:none; color:var(--crs-primary); stroke:var(--crs-border); stroke-opacity:.5; mask-image:radial-gradient(ellipse at 50% 15%,black 5%,transparent 75%); }
+.magic-grid-square { opacity:.06; }
+.magic-card { --magic-x:-200px; --magic-y:-200px; }
+.magic-card::before,.magic-card::after { content:""; pointer-events:none; position:absolute; inset:1px; border-radius:inherit; opacity:0; transition:opacity .3s ease; }
+.magic-card::before { display:none; inset:0; border:1px solid transparent; background:radial-gradient(200px circle at var(--magic-x) var(--magic-y),var(--crs-pink),var(--crs-primary) 45%,var(--crs-border) 100%) border-box; mask:linear-gradient(black,black) padding-box,linear-gradient(black,black); mask-composite:exclude; }
+/* An unsupported mask must not turn the decorative border into an opaque card. */
+@supports (mask-composite:exclude) { .magic-card::before { display:block; } }
+.magic-card::after { background:radial-gradient(200px circle at var(--magic-x) var(--magic-y),var(--crs-pink-soft),transparent 100%); z-index:-1; }
+.magic-card[data-magic-card-active="true"]::before { opacity:1; }
+.magic-card[data-magic-card-active="true"]::after { opacity:.25; }
+html[data-magicui-theme-vt="active"]::view-transition-old(root),html[data-magicui-theme-vt="active"]::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
+html[data-magicui-theme-vt="active"]::view-transition-group(root) { animation-duration:400ms; }
+html[data-magicui-theme-vt="active"]::view-transition-new(root) { z-index:1; clip-path:var(--magic-theme-from); }
+.magic-progressive-blur { position:fixed; height:28px; z-index:8; pointer-events:none; background:linear-gradient(to bottom,transparent,var(--crs-canvas)); mask-image:linear-gradient(to bottom,transparent,black); }
+.magic-progressive-blur > span { position:absolute; inset:0; backdrop-filter:blur(var(--blur-level)); -webkit-backdrop-filter:blur(var(--blur-level)); mask-image:var(--blur-mask); -webkit-mask-image:var(--blur-mask); }
+@media (hover:none),(pointer:coarse),(prefers-reduced-motion:reduce) {
+ .magic-card::before,.magic-card::after { display:none; }
+ .magic-ripple-ring { animation:none; }
+}
+@media (forced-colors:active) { .magic-ripple,.magic-grid-pattern,.magic-progressive-blur,.magic-card::before,.magic-card::after { display:none; } }

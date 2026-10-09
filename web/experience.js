@@ -8,7 +8,7 @@
   const inputHints={th:{email:'กรอกอีเมลของคุณ',password:'กรอกรหัสผ่านของคุณ'},en:{email:'Enter your email',password:'Enter your password'}};
   const t=key=>(text[CRS.language.effective()]||text.th)[key]||key;
   const security=(method,input)=>CRS.auth.requestSecurity(method,input);
-  let guestPage=null,guestSerial=0,guestDispose=null,guestInput={},guestResult=null,notifications=[],inboxBusy=false,dialogSerial=0,entryView='guest',clearCursor=()=>{};
+  let guestPage=null,guestSerial=0,guestDispose=null,guestInput={},guestResult=null,notifications=[],inboxBusy=false,dialogSerial=0,entryView='guest',cardEffect=null;
   function badge(count){document.querySelectorAll('[data-notification-count]').forEach(node=>{node.textContent=count||'';});}
   async function refreshInboxCount(){
     if(inboxBusy||document.hidden||!CRS.auth.hasSession()||CRS.state.bootstrap?.session.mustChangePassword)return;
@@ -43,12 +43,12 @@
     node.showModal();translate(node);return node;
   }
   function showLogin(){
-    entryView='login';stopGuest();clearCursor();
+    entryView='login';stopGuest();cardEffect?.reset();
     CRS.auth.showGoogleSignIn();translate();document.querySelector('#login-email').focus();
   }
   function showGuest(){
     if(CRS.auth.hasSession())return;
-    entryView='guest';maskAll();clearCursor();document.querySelector('#login-password').value='';document.querySelector('#password-login-error').hidden=true;
+    entryView='guest';maskAll();cardEffect?.reset();document.querySelector('#login-password').value='';document.querySelector('#password-login-error').hidden=true;
     browseGuest(guestInput,guestResult);
   }
   function stopGuest(){guestSerial++;if(guestDispose)guestDispose();guestDispose=null;if(guestPage)guestPage.hidden=true;}
@@ -125,6 +125,7 @@
     guestPage.hidden=false;
     guestPage.innerHTML='<div class="guest-showcase"><header class="guest-heading"><div class="guest-brand"><span class="brand-mark" aria-hidden="true"><img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async"></span><div><p class="eyebrow mb-1">CRS Yuem-Kuen</p><h1 id="guest-title" class="h3">'+escape(t('equipment'))+'</h1></div></div><div class="guest-controls">'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></div></header><form data-guest-search class="mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" maxlength="100" value="'+escape(input.search||'')+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><p class="guest-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-guest-content aria-busy="true"></div></div>';
     CRS.theme.apply(CRS.theme.current(),false);
+    guestDispose=global.CRSMagicUI?.mountGuest(guestPage)||null;
     translate(guestPage);
     guestPage.querySelector('form').onsubmit=event=>{event.preventDefault();browseGuest({search:guestPage.querySelector('input').value});};
     try{
@@ -133,7 +134,6 @@
       const result=response.data,content=guestPage.querySelector('[data-guest-content]');
       guestResult=result;content.setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=result.items.length?'':t('none');
       content.innerHTML=result.items.length?'<div class="guest-grid">'+result.items.map(item=>'<article class="card guest-card h-100"><div class="card-body"><span class="guest-card-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><h3 class="h5">'+escape(item.name)+'</h3><p class="text-secondary">'+escape([item.category_name,item.brand,item.model].filter(Boolean).join(' · '))+'</p>'+(item.can_borrow?'<button type="button" class="btn btn-primary" data-guest-borrow="'+escape(item.asset_id)+'">'+escape(t('borrow'))+'</button>':'')+'</div></article>').join('')+'</div>':'';
-      guestDispose=global.CRSGuestScene.mount(guestPage.querySelector('.guest-showcase'));
       for(const node of content.querySelectorAll('[data-guest-borrow]'))node.onclick=async()=>{
         const confirmed=await CRS.confirm({title:t('signIn'),message:t('confirmBorrow'),confirmText:t('continue')});if(!confirmed)return;
         try{sessionStorage.setItem(handoffKey,JSON.stringify({assetId:node.dataset.guestBorrow,expiresAt:Date.now()+600000}));}catch{CRS.toast('ไม่สามารถจดจำอุปกรณ์ในเบราว์เซอร์นี้','danger');return;}showLogin();
@@ -175,27 +175,6 @@
     }).catch(()=>{control.title='ไม่สามารถตรวจการเผยแพร่ได้ กรุณาโหลดหน้าใหม่';control.disabled=true;});
   }
   function reveal(button,visible){const input=document.getElementById(button.dataset.revealFor);if(input){input.type=visible?'text':'password';button.setAttribute('aria-pressed',String(visible));}}
-  function cursorEffect(layout){
-    const media=global.matchMedia('(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)');
-    const cursor=document.createElement('div');cursor.className='liquid-glass-cursor';cursor.setAttribute('aria-hidden','true');layout.append(cursor);let frame=0,point=null;
-    function hide(){cancelAnimationFrame(frame);frame=0;point=null;layout.classList.remove('has-cursor');}
-    function paint(){
-      frame=0;
-      if(!point||!media.matches||document.hidden||!layout.getClientRects().length){hide();return;}
-      const bounds=layout.getBoundingClientRect();
-      if(point.x<bounds.left||point.x>bounds.right||point.y<bounds.top||point.y>bounds.bottom){hide();return;}
-      const x=(point.x-bounds.left)/(bounds.width/layout.offsetWidth)-layout.clientLeft+layout.scrollLeft;
-      const y=(point.y-bounds.top)/(bounds.height/layout.offsetHeight)-layout.clientTop+layout.scrollTop;
-      cursor.style.transform='translate('+x+'px,'+y+'px) translate(-50%,-50%)';layout.classList.add('has-cursor');
-    }
-    function schedule(){if(point&&!frame)frame=requestAnimationFrame(paint);}
-    layout.addEventListener('pointermove',event=>{if(!media.matches||event.pointerType==='touch'){hide();return;}point={x:event.clientX,y:event.clientY};schedule();});
-    layout.addEventListener('pointerleave',hide);
-    document.addEventListener('scroll',schedule,true);global.addEventListener('resize',schedule);
-    global.addEventListener('blur',hide);media.addEventListener('change',hide);
-    document.addEventListener('visibilitychange',()=>{if(document.hidden)hide();});
-    return hide;
-  }
   document.addEventListener('DOMContentLoaded',()=>{
     const card=document.querySelector('.access-card'),controls=document.createElement('div');controls.className='login-controls';
     controls.innerHTML=actions({guide:false,login:false});controls.append(document.querySelector('#theme-toggle-login'));card.prepend(controls);
@@ -213,7 +192,9 @@
     form.addEventListener('submit',async event=>{event.preventDefault();if(!form.reportValidity())return;const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;submit.disabled=true;error.hidden=true;try{await CRS.auth.passwordSignIn(form.email.value,form.password.value);}catch(problem){error.textContent=problem.message;error.hidden=false;}finally{form.password.value='';submit.disabled=false;translate();}});
     const observer=new MutationObserver(()=>translate());observer.observe(document.querySelector('#access-state-title'),{childList:true});
     const views=new MutationObserver(()=>decorate(document.querySelector('#view-root')));views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
-    translate();clearCursor=cursorEffect(document.querySelector('.login-layout'));
+    translate();cardEffect=global.CRSMagicUI?.mountCard(card)||null;
+    global.CRSMagicUI?.mountRipple(document.querySelector('.login-art'));
+    global.CRSMagicUI?.mountBlur(document.querySelector('.app-main'));
     global.CRSLoginParallax?.mount(document.querySelector('.login-story'));
     if(!CRS.auth.hasSession())showGuest();
   });
@@ -238,7 +219,7 @@
     if(key==='guide')dialog(t('guide'),'<p>'+escape(CRS.language.effective()==='en'?'Browse equipment, sign in with an authorized account, then submit a borrow request. Only an administrator can approve and check out equipment. Request a return; the administrator inspects it before completing the return.':'ค้นหาอุปกรณ์ ลงชื่อเข้าใช้ด้วยบัญชีที่ได้รับสิทธิ์ และส่งคำขอยืม ผู้ดูแลระบบจะอนุมัติและจ่ายอุปกรณ์ เมื่อต้องการคืนให้แจ้งคืน แล้วรอผู้ดูแลตรวจรับ')+'</p>');
     if(key==='notifications'){const node=dialog(t('notifications'),'<div data-inbox></div>');renderNotifications(node.querySelector('[data-inbox]'));}
   });
-  global.addEventListener('crs:bootstrapped',event=>{entryView='guest';stopGuest();guestResult=null;maskAll();clearCursor();badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
+  global.addEventListener('crs:bootstrapped',event=>{entryView='guest';stopGuest();guestResult=null;maskAll();cardEffect?.reset();badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
   global.addEventListener('crs:authentication-required',()=>{badge(0);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);if(!CRS.auth.hasSession()){if(entryView==='login')showLogin();else showGuest();}});
   global.addEventListener('crs:rpc-completed',event=>{if(['createBorrowRequest','adminApproveBorrow','adminRejectBorrow','adminCheckoutBorrow','requestReturn','adminCompleteReturn'].includes(event.detail.method))refreshInboxCount();});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshInboxCount();});

@@ -17,7 +17,7 @@ function fixture({eligible=true,hidden=false,rendered=true}={}){
   let serial=0,canceled=0;
   window.innerHeight=900;media.matches=eligible;document.hidden=hidden;
   const art={classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)},style:{setProperty:(name,value)=>styles.set(name,value),removeProperty:name=>styles.delete(name)},getClientRects:()=>rendered?[{}]:[],getBoundingClientRect:()=>({top:300,bottom:600})};
-  story.isConnected=true;story.querySelector=()=>art;story.closest=()=>access;story.parentNode={parentNode:access};access.parentNode=document;document.parentNode=null;
+  story.isConnected=true;story.querySelector=selector=>selector==='.login-art'?art:null;story.closest=()=>access;story.parentNode={parentNode:access};access.parentNode=document;document.parentNode=null;
   story.getBoundingClientRect=()=>({left:100,top:50,right:500,bottom:550,width:400,height:500});
   window.matchMedia=()=>media;
   window.requestAnimationFrame=callback=>{frames.set(++serial,callback);return serial;};
@@ -49,6 +49,15 @@ test('touch/pen, pointer exit/cancel, blur, scroll and resize restore the origin
     f.move();assert.equal(f.frames.size,1);target.emit(type);assert.equal(f.frames.size,0);
   }
   dispose();
+});
+
+test('stationary art stage, not the transformed illustration or story text, defines the activation region',()=>{
+  const f=fixture(),query=f.story.querySelector;
+  const stage={getBoundingClientRect:()=>({left:200,top:300,right:400,bottom:500,width:200,height:200})};
+  f.story.querySelector=selector=>selector==='.login-art-stage'?stage:query(selector);
+  const dispose=f.mount();f.move(350,450);f.flush();
+  assert.equal(f.styles.get('--login-parallax-x'),'0.5000');assert.equal(f.styles.get('--login-parallax-y'),'0.5000');
+  f.move(350,150);f.flush();assert.equal(f.classes.size,0);assert.equal(f.styles.size,0);dispose();
 });
 
 test('hidden Login/tab, reduced motion, offscreen artwork and page suspension cancel work and detach pointer listeners',()=>{

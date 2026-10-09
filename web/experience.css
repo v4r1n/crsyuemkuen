@@ -5,11 +5,14 @@
 /* The original CSS illustration stays decorative. Individual translations
  * preserve its Z rotations and finite entrance animations; only art tilts. */
 .login-art { pointer-events:none; }
+.login-art-stage { position:relative; margin:1rem 0 .5rem; }
+.login-art-stage .login-art { margin:0; }
 @media (min-width:768px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
- .login-art { transition:transform .18s var(--crs-ease); }
- .login-art > .login-orbit,.login-art > .login-art-card,.login-art > .login-art-chip { transition:translate .18s var(--crs-ease); }
- .login-art.is-parallax-active { transform:perspective(900px) rotateX(calc(var(--login-parallax-y,0) * -5deg)) rotateY(calc(var(--login-parallax-x,0) * 6deg)); transform-style:preserve-3d; }
- .login-art.is-parallax-active > .login-orbit { translate:calc(var(--login-parallax-x,0) * 3px) calc(var(--login-parallax-y,0) * 3px); }
+ /* Matching transform functions/depth on both states prevents an exit snap. */
+ .login-art { transform:perspective(900px) rotateX(0deg) rotateY(0deg); transform-style:preserve-3d; transition:transform .45s var(--crs-ease); }
+ .login-art > .magic-ripple,.login-art > .login-art-card,.login-art > .login-art-chip { translate:0px 0px 0px; transition:translate .45s var(--crs-ease); }
+ .login-art.is-parallax-active { transform:perspective(900px) rotateX(calc(var(--login-parallax-y,0) * -5deg)) rotateY(calc(var(--login-parallax-x,0) * 6deg)); }
+ .login-art.is-parallax-active > .magic-ripple { translate:calc(var(--login-parallax-x,0) * 3px) calc(var(--login-parallax-y,0) * 3px) 0px; }
  .login-art.is-parallax-active > .login-art-card { translate:calc(var(--login-parallax-x,0) * 8px) calc(var(--login-parallax-y,0) * 6px) 12px; }
  .login-art.is-parallax-active > .login-art-chip-qr { translate:calc(var(--login-parallax-x,0) * 12px) calc(var(--login-parallax-y,0) * 8px) 24px; }
  .login-art.is-parallax-active > .login-art-chip-return { translate:calc(var(--login-parallax-x,0) * 16px) calc(var(--login-parallax-y,0) * 10px) 32px; }
@@ -106,8 +109,6 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .guest-brand .brand-mark { width:52px; height:52px; }
 .guest-controls { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:.5rem; margin-inline-start:auto; }
 .guest-showcase { position:relative; isolation:isolate; border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius); padding:clamp(1rem,3vw,2rem); background:radial-gradient(ellipse at 15% 0%,var(--crs-primary-soft),transparent 65%),radial-gradient(ellipse at 85% 20%,var(--crs-pink-soft),transparent 65%),var(--crs-glass-bg); overflow:hidden; }
-.guest-glass-scene { position:absolute; inset:0 0 auto; width:100%; height:min(100%,360px); pointer-events:none; z-index:-1; }
-.guest-showcase[data-renderer="css"] .guest-glass-scene { visibility:hidden; }
 .guest-card { background:var(--crs-surface); box-shadow:var(--crs-shadow-sm); border:1px solid var(--crs-glass-border); }
 .guest-card .card-body { display:flex; flex-direction:column; align-items:flex-start; }
 .guest-card .btn { margin-top:auto; }
@@ -116,10 +117,5 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .notification-item { display:block; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:1rem; margin-bottom:.5rem; }
 .notification-item[data-unread="true"] { border-inline-start:4px solid var(--crs-primary); }
 .notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
-.liquid-glass-cursor { display:none; pointer-events:none; position:absolute; inset:0 auto auto 0; width:7rem; height:7rem; border:1px solid var(--crs-glass-border); border-radius:50%; background:radial-gradient(circle,var(--crs-pink-mist),transparent 70%); opacity:0; z-index:-1; }
-@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
- .liquid-glass-cursor { display:block; transition:opacity .2s; }
- .login-layout.has-cursor .liquid-glass-cursor { opacity:.45; }
-}
-@media (hover:none),(pointer:coarse),(prefers-reduced-motion:reduce) { .liquid-glass-cursor { display:none; } }
+@media (max-width:767px) { .login-art-stage { display:none; } }
 @media (max-width:767px) { .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }

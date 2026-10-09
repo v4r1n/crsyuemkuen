@@ -2,7 +2,7 @@
   'use strict';
   // Presentation only: no auth, requests, timers or continuous render loop.
   function mount(story){
-    const art=story?.querySelector('.login-art'),access=story?.closest('#access-state');
+    const art=story?.querySelector('.login-art'),surface=story?.querySelector('.login-art-stage')||story,access=story?.closest('#access-state');
     if(!art||!access||!global.matchMedia)return ()=>{};
     const media=global.matchMedia('(min-width:768px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)');
     let disposed=false,listening=false,paused=false,intersecting=true,frame=0,point=null;
@@ -15,9 +15,9 @@
     function paint(){
       frame=0;
       if(!point||!visible()){reset();return;}
-      // Measure the stationary story in viewport coordinates, not the tilted
+      // Measure the stationary art stage in viewport coordinates, not the tilted
       // artwork; this also works inside scaled/scrolled Login containers.
-      const bounds=story.getBoundingClientRect(),image=art.getBoundingClientRect();
+      const bounds=surface.getBoundingClientRect(),image=art.getBoundingClientRect();
       if(!bounds.width||!bounds.height||point.x<bounds.left||point.x>bounds.right||point.y<bounds.top||point.y>bounds.bottom||image.bottom<=0||image.top>=global.innerHeight){reset();return;}
       const clamp=value=>Math.max(-1,Math.min(1,value));
       art.style.setProperty('--login-parallax-x',clamp(2*(point.x-bounds.left)/bounds.width-1).toFixed(4));

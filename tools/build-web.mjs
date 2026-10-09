@@ -7,6 +7,7 @@ let index=await read('index');
 const includes=[...index.matchAll(/<\?!= include_\('([^']+)'\); \?>/g)];
 for(const match of includes){
   const name=match[1]; let text=await read(name);
+  if(name==='styles')text=text.replace(/\s*\.login-orbit \{[^}]*\}/,'');
   if(name==='scripts-api') text=text.replace(/  function serverRpc\(method, args\) \{[\s\S]*?\n  function randomBrowserSecret/,`  function serverRpc(method, args) {
     return global.CRS_SERVER_RPC(method, args || []).then(function(response) {
       if (response && response.ok) return response.data;
@@ -25,6 +26,9 @@ for(const match of includes){
     text=text.replace("? saved : 'auto';", "? saved : 'th';").replace("catch (error) { return 'auto'; }", "catch (error) { return 'th'; }");
     text=text.replace(/const base = \/\^https:[\s\S]*?\? configured : '';/,"const base = global.CRS_CANONICAL_BASE(configured) ? configured : '';");
     text=text.replace("new URLSearchParams(parts[1] || '')", "new URLSearchParams(raw ? (parts[1] || '') : global.location.search)");
+    const toggle='if (themeToggle) cycleTheme();';
+    if(!text.includes(toggle))throw new Error('Theme toggle composition seam changed');
+    text=text.replace(toggle,'if (themeToggle) { if (global.CRSMagicUI) global.CRSMagicUI.toggleTheme(themeToggle, cycleTheme); else cycleTheme(); }');
     text=text.replace(/!\/\^\[A-Za-z0-9\+\/\]\+\=\{0,2\}\$\/\.test\(result\.base64_data \|\| ''\) \|\|\s*result\.base64_data\.length > 14 \* 1024 \* 1024/, "!result.signed_url");
     const first=text.indexOf('      const binary = atob(result.base64_data);');
     const last=text.indexOf('      imageObjectUrls.set(image, objectUrl);',first);
@@ -68,7 +72,7 @@ for(const name of ['scripts-core','scripts-qr','scripts-dashboard','scripts-admi
   if(/drive\.google\.com|script\.google\.com|result\.base64_data/.test(generated)) throw new Error('Unadapted '+name+' seam');
 }
 index=index.replace('<?= initialView ?>','CRS_INITIAL_VIEW').replace('<?= initialAssetId ?>','CRS_INITIAL_ASSET');
-index=index.replace('</head>','<link rel="stylesheet" href="/crs/experience.css"><script src="/crs/transport.js"></script></head>');
+index=index.replace('</head>','<link rel="stylesheet" href="/crs/experience.css"><link rel="stylesheet" href="/crs/magic-ui.css"><script src="/crs/transport.js"></script></head>');
 index=index.replace('</body>','<script src="/crs/migration-admin.js"></script></body>');
 const loginControls=await readFile(join(root,'web','login-controls.html'),'utf8');
 index=index.replace('<div class="startup-card access-card">','<div class="startup-card access-card text-center">');
@@ -77,6 +81,12 @@ index=index.replace('<p class="login-welcome">ยินดีต้อนรั�
 const kicker=/<p class="login-kicker">[^<]*<\/p>/g;
 if([...index.matchAll(kicker)].length!==1)throw new Error('Login kicker composition seam changed');
 index=index.replace(kicker,'<p class="login-kicker" data-experience-text="loginKicker">อุปกรณ์พร้อมใช้ มีไหมนั่นอีกเรื่อง</p>');
+const artOpening='<div class="login-art" aria-hidden="true">',artClosing=/          <\/div>\r?\n        <\/div>\r?\n      <div class="startup-card access-card text-center">/;
+if(!index.includes(artOpening)||!artClosing.test(index))throw new Error('Login art stage seam changed');
+index=index.replace(artOpening,'<div class="login-art-stage" aria-hidden="true">'+artOpening).replace(artClosing,'          </div></div>\n        </div>\n      <div class="startup-card access-card text-center">');
+const orbit='<div class="login-orbit"></div>';
+if(index.split(orbit).length!==2)throw new Error('Login Ripple seam changed');
+index=index.replace(orbit,'<div class="magic-ripple" aria-hidden="true">'+Array.from({length:6},(_,i)=>'<span class="magic-ripple-ring" style="--ripple-size:'+ (150+i*50)+'px;--ripple-opacity:'+Math.max(.03,.22-i*.035).toFixed(3)+';--ripple-delay:'+i*.2+'s"></span>').join('')+'</div>');
 // Keep the Login-card caption removal.
 for(const selector of ['id="access-state-eyebrow"']){
   const pattern=new RegExp('<p[^>]*'+selector+'[^>]*>[\\s\\S]*?<\\/p>','g');
@@ -106,11 +116,13 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/guest-scene.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/experience.js"></script></body>');
 // Remove only this retired generated asset on incremental builds as well.
 await rm(join(output,'login-scene.js'),{force:true});
+await rm(join(output,'guest-scene.js'),{force:true});
 await writeFile(join(output,'recaptcha.js'),await readFile(join(root,'web','recaptcha.js'),'utf8'));
-await writeFile(join(output,'guest-scene.js'),await readFile(join(root,'web','guest-scene.js'),'utf8'));
+await writeFile(join(output,'magic-ui.js'),await readFile(join(root,'web','magic-ui.js'),'utf8'));
+await writeFile(join(output,'magic-ui.css'),await readFile(join(root,'web','magic-ui.css'),'utf8'));
 await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web','login-parallax.js'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));

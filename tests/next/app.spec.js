@@ -94,7 +94,7 @@ async function captureUi(page, name) {
   mkdirSync('test-results/ui', { recursive: true });
   await page.evaluate(async()=>{
     await document.fonts.ready;
-    await Promise.all(document.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));
+    await Promise.all(document.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity&&!animation.effect.target?.closest('.magic-grid-pattern')).map(animation=>animation.finished.catch(()=>{})));
   });
   await page.screenshot({ path: 'test-results/ui/' + name + '.png', fullPage: true });
 }
@@ -145,10 +145,10 @@ test('Login restores the earlier story/card illustration while retaining current
 
 test('original Login illustration responds to mouse with bounded 3D tilt and independent depth without moving text or controls',async({page})=>{
   await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:1000});await page.goto('/');await openLogin(page);
-  await page.evaluate(async()=>{await Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})));});
+  await page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));});
   const story=page.locator('.login-story'),art=page.locator('.login-art');
   const stationary=await page.locator('.login-headline,#password-login-form').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
-  const bounds=await story.boundingBox();
+  const bounds=await page.locator('.login-art-stage').boundingBox();
   for(const direction of [-1,1]){
     await page.mouse.move(bounds.x+bounds.width*(direction<0?.25:.75),bounds.y+bounds.height*(direction<0?.25:.75));
     await expect(art).toHaveClass(/is-parallax-active/);
@@ -163,12 +163,12 @@ test('original Login illustration responds to mouse with bounded 3D tilt and ind
   }
   await captureUi(page,'login-story-mouse-tilt-desktop');
   await page.locator('.login-layout').evaluate(node=>{node.style.transform='scale(.9)';node.style.transformOrigin='top left';});
-  const scaled=await story.boundingBox();await page.mouse.move(scaled.x+scaled.width*.75,scaled.y+scaled.height*.75);
+  const scaled=await page.locator('.login-art-stage').boundingBox();await page.mouse.move(scaled.x+scaled.width*.75,scaled.y+scaled.height*.75);
   await expect.poll(()=>art.evaluate(node=>Number(node.style.getPropertyValue('--login-parallax-x')))).toBeCloseTo(.5,2);
   await expect.poll(()=>art.evaluate(node=>Number(node.style.getPropertyValue('--login-parallax-y')))).toBeCloseTo(.5,2);
   await page.mouse.move(0,0);await expect(art).not.toHaveClass(/is-parallax-active/);
-  await expect(art).toHaveCSS('transform','none');
-  await expect(page.locator('.login-art-card')).toHaveCSS('translate','none');
+  await expect.poll(()=>art.evaluate(node=>{const m=new DOMMatrixReadOnly(getComputedStyle(node).transform);return Math.abs(m.m12)+Math.abs(m.m13)+Math.abs(m.m23);})).toBeLessThan(.001);
+  await expect(page.locator('.login-art-card')).toHaveCSS('translate','0px');
   const rotation=await page.locator('.login-art-card').evaluate(node=>{const m=new DOMMatrixReadOnly(getComputedStyle(node).transform);return Math.atan2(m.b,m.a)*180/Math.PI;});
   expect(rotation).toBeCloseTo(-6,1);
 });
@@ -190,7 +190,7 @@ test('Login parallax resets on viewport/visibility changes, reduced motion, Gues
   const story=page.locator('.login-story'),art=page.locator('.login-art');
   // Media/IntersectionObserver delivery is asynchronous after a viewport change;
   // keep moving like a real pointer until the eligible view is listening again.
-  const move=async()=>{await expect.poll(async()=>{const bounds=await story.boundingBox();await story.dispatchEvent('pointermove',{pointerType:'mouse',clientX:bounds.x+bounds.width*.75,clientY:bounds.y+bounds.height*.75});return art.evaluate(node=>node.classList.contains('is-parallax-active'));}).toBe(true);};
+  const move=async()=>{await expect.poll(async()=>{const bounds=await page.locator('.login-art-stage').boundingBox();await story.dispatchEvent('pointermove',{pointerType:'mouse',clientX:bounds.x+bounds.width*.75,clientY:bounds.y+bounds.height*.75});return art.evaluate(node=>node.classList.contains('is-parallax-active'));}).toBe(true);};
   await move();await page.locator('#access-state').evaluate(node=>node.hidden=true);await expect(art).not.toHaveClass(/is-parallax-active/);
   await page.locator('#access-state').evaluate(node=>node.hidden=false);await move();
   await move();await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await expect(art).not.toHaveClass(/is-parallax-active/);
@@ -270,37 +270,55 @@ test('blocked CAPTCHA SDK and rejected execution stay lazy, fail closed and neve
   expect(scriptLoads).toBe(1);
 });
 
-test('liquid cursor center follows actual viewport pointer after scrolling and rem changes',async({page})=>{
+test('Magic Card spotlight uses real card coordinates after scrolling/scaling and removes the old cursor',async({page})=>{
+  await mock(page,{signedOut:true});
   await page.route('**/*.woff2',route=>route.abort());
   await page.setViewportSize({width:1440,height:600});
   await page.emulateMedia({reducedMotion:'no-preference'});
   await page.goto('/',{waitUntil:'domcontentloaded'});
   await openLogin(page);
-  // Isolate positioning from the finite entrance animation, not the actual
-  // cursor handler, scrolling surface, transformed container or rem geometry.
+  await expect(page.locator('.liquid-glass-cursor')).toHaveCount(0);
   await page.locator('.login-layout').evaluate(node=>node.style.animation='none');
+  if(process.env.CRS_UI_CAPTURE==='1')for(const theme of ['light','dark']){
+    await page.evaluate(value=>window.CRS.theme.apply(value,true),theme);
+    const bounds=await page.locator('.access-card').boundingBox();await page.mouse.move(bounds.x+150,bounds.y+150);
+    await captureUi(page,'magic-card-'+theme);
+  }
   for(const fontSize of [16,20]) {
     await page.evaluate(size=>document.documentElement.style.fontSize=size+'px',fontSize);
     await page.locator('#access-state').evaluate((node,size)=>node.scrollTo({top:size===16?0:120,behavior:'instant'}),fontSize);
-    const bounds=await page.locator('.login-layout').boundingBox();
+    const card=page.locator('.access-card'),bounds=await card.boundingBox();
     const pointer={x:bounds.x+140,y:Math.max(100,bounds.y+140)};
     await page.mouse.move(pointer.x,pointer.y);
-    await expect.poll(()=>page.locator('.liquid-glass-cursor').evaluate((node,point)=>{
-      const rect=node.getBoundingClientRect();
-      return Math.hypot(rect.x+rect.width/2-point.x,rect.y+rect.height/2-point.y);
-    },pointer),{message:'Cursor visual center must match the real mouse position'}).toBeLessThan(2);
+    await expect(card).toHaveAttribute('data-magic-card-active','true');
+    await expect.poll(()=>card.evaluate(node=>getComputedStyle(node,'::after').opacity)).toBe('0.25');
+    const distance=()=>card.evaluate((node,point)=>{
+      const r=node.getBoundingClientRect(),s=getComputedStyle(node),x=parseFloat(s.getPropertyValue('--magic-x')),y=parseFloat(s.getPropertyValue('--magic-y'));
+      return Math.hypot(r.left+x*r.width/node.offsetWidth-point.x,r.top+y*r.height/node.offsetHeight-point.y);
+    },pointer);
+    await expect.poll(distance,{message:'Magic Card spotlight must match actual pointer coordinates'}).toBeLessThan(2);
     await page.locator('#access-state').evaluate(node=>node.scrollTop+=40);
-    await expect.poll(()=>page.locator('.liquid-glass-cursor').evaluate((node,point)=>{
-      const rect=node.getBoundingClientRect();
-      return Math.hypot(rect.x+rect.width/2-point.x,rect.y+rect.height/2-point.y);
-    },pointer),{message:'Scroll must realign the effect without another mouse move'}).toBeLessThan(2);
+    await expect.poll(distance,{message:'Scroll must realign the spotlight without another mouse move'}).toBeLessThan(2);
+  }
+  for(const theme of ['light','dark']){
+    await page.evaluate(value=>window.CRS.theme.apply(value,true),theme);
+    const contrast=await page.evaluate(()=>{
+      const s=getComputedStyle(document.documentElement),rgb=name=>[1,3,5].map(i=>parseInt(s.getPropertyValue('--crs-'+name).trim().slice(i,i+2),16));
+      const luminance=channels=>channels.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+      const background=rgb('surface').map((v,i)=>v*.75+rgb('pink-soft')[i]*.25),b=luminance(background);
+      return Math.min(...['ink','heading','label','muted'].map(name=>{const f=luminance(rgb(name));return (Math.max(f,b)+.05)/(Math.min(f,b)+.05);}));
+    });
+    expect(contrast,'Magic Card maximum spotlight '+theme).toBeGreaterThanOrEqual(4.5);
   }
   await page.locator('.login-layout').evaluate(node=>{node.style.transform='scale(.9)';node.style.transformOrigin='top left';});
-  const scaled=await page.locator('.login-layout').boundingBox(),point={x:scaled.x+140,y:100};
+  const scaled=await page.locator('.access-card').boundingBox(),point={x:scaled.x+140,y:Math.max(100,scaled.y+140)};
   await page.mouse.move(point.x,point.y);
-  await expect.poll(()=>page.locator('.liquid-glass-cursor').evaluate((node,p)=>{const r=node.getBoundingClientRect();return Math.hypot(r.x+r.width/2-p.x,r.y+r.height/2-p.y);},point)).toBeLessThan(2);
+  await expect.poll(()=>page.locator('.access-card').evaluate((node,p)=>{const r=node.getBoundingClientRect(),s=getComputedStyle(node);return Math.hypot(r.left+parseFloat(s.getPropertyValue('--magic-x'))*r.width/node.offsetWidth-p.x,r.top+parseFloat(s.getPropertyValue('--magic-y'))*r.height/node.offsetHeight-p.y);},point)).toBeLessThan(2);
   await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
-  await expect(page.locator('.login-layout')).not.toHaveClass(/has-cursor/);
+  await expect(page.locator('.access-card')).not.toHaveAttribute('data-magic-card-active','true');
+  const removed=await page.locator('.access-card').elementHandle();await page.locator('.access-card').evaluate(node=>node.remove());
+  await expect.poll(()=>removed.evaluate(node=>node.classList.contains('magic-card'))).toBe(false);
+  expect(await removed.evaluate(node=>node.style.getPropertyValue('--magic-x'))).toBe('');await removed.dispose();
 });
 
 test('Guest is signed-out home; separate Login moves the logo to brand marks and removes duplicate card actions',async({page})=>{
@@ -655,7 +673,8 @@ test('animated remember checkbox preserves native label, keyboard, saved prefere
   await expect(checkbox).not.toBeChecked();await expect(drawing).toHaveAttribute('aria-hidden','true');
   await expect(drawing.locator('svg')).toHaveAttribute('focusable','false');
   expect(await checkbox.evaluate(node=>node.labels.length)).toBe(1);
-  const target=await checkbox.boundingBox(),art=await drawing.boundingBox();
+  // Sample both boxes in the same layout/frame while the finite entry animates.
+  const {target,art}=await checkbox.evaluate(node=>({target:node.getBoundingClientRect().toJSON(),art:node.parentElement.querySelector('.check').getBoundingClientRect().toJSON()}));
   expect(target.width).toBe(44);expect(target.height).toBe(44);expect(art.width).toBe(18);expect(art.height).toBe(18);
   expect(Math.abs(target.x+target.width/2-art.x-art.width/2)).toBeLessThan(1);
   expect(Math.abs(target.y+target.height/2-art.y-art.height/2)).toBeLessThan(1);
@@ -744,9 +763,10 @@ test('hold-only password reveal masks on outside release, cancellation, blur and
 
 test('Guest auto-loads the public projection only, fallback is accessible and language does not refetch',async({page})=>{
   const {calls,record}=await mock(page,{signedOut:true});
-  await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl2'?null:original.call(this,type,...args);};});
+  await page.addInitScript(()=>{Element.prototype.animate=undefined;});
   await page.goto('/');await expect(page.locator('#guest-equipment [data-guest-borrow]')).toBeVisible();
-  await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','css');
+  await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','svg');
+  expect(await page.locator('.magic-grid-pattern').evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
   expect(calls.filter(c=>c.method==='listPublicEquipment')).toHaveLength(1);
   expect(calls.some(c=>['listEquipment','getEquipmentDetail','getEquipmentImage'].includes(c.method))).toBe(false);
   const language=page.locator('.guest-controls [data-experience-action="language"]');
@@ -759,13 +779,14 @@ test('Guest auto-loads the public projection only, fallback is accessible and la
   expect(calls.some(c=>c.method==='createBorrowRequest')).toBe(false);await expect(page.locator('.guest-glass-scene')).toHaveCount(0);
 });
 
-test('Guest scene survives WebGL2 context loss/reduced motion and keeps a bounded static canvas on mobile',async({page})=>{
+test('Guest Animated Grid uses bounded static SVG on mobile/reduced motion and never allocates a canvas',async({page})=>{
   await mock(page,{signedOut:true});await page.setViewportSize({width:390,height:844});await page.goto('/');
-  await expect(page.locator('.guest-glass-scene')).toHaveCount(1);
-  const size=await page.locator('.guest-glass-scene').evaluate(canvas=>({width:canvas.width,height:canvas.height}));expect(size.width).toBeLessThanOrEqual(1536);expect(size.height).toBeLessThanOrEqual(450);
-  await page.locator('.guest-glass-scene').evaluate(canvas=>canvas.dispatchEvent(new Event('webglcontextlost',{cancelable:true})));
-  await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','css');await expect(page.locator('[data-guest-borrow]')).toBeVisible();
-  await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','css');
+  await expect(page.locator('.guest-glass-scene')).toHaveCount(0);
+  await expect(page.locator('.magic-grid-pattern')).toHaveAttribute('aria-hidden','true');
+  await expect(page.locator('.magic-grid-square')).toHaveCount(16);
+  expect(await page.locator('.magic-grid-pattern').evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);
+  await expect(page.locator('[data-guest-borrow]')).toBeVisible();
+  await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','svg');
   await expectNoOverflow(page);await page.locator('#guest-equipment').scrollIntoViewIfNeeded();await captureUi(page,'guest-reduced-motion-mobile');
 });
 
@@ -779,30 +800,105 @@ test('Guest public API errors stay visible and cannot fall back to private RPCs'
   await expect(page.locator('[data-guest-content]')).toHaveAttribute('aria-busy','false');await expect(page.locator('[data-guest-borrow]')).toHaveCount(0);
 });
 
-test('available WebGL2 renders the decorative scene without an idle animation loop; context restoration keeps DOM controls',async({page})=>{
+test('Animated Grid owns finite opacity animations, pauses hidden tabs and disposes on Login/retranslation',async({page})=>{
   await mock(page,{signedOut:true});
-  await page.addInitScript(()=>{
-    window.fixtureDrawCount=0;
-    if(window.WebGL2RenderingContext){const original=WebGL2RenderingContext.prototype.drawArrays;WebGL2RenderingContext.prototype.drawArrays=function(...args){window.fixtureDrawCount++;const result=original.apply(this,args);const pixel=new Uint8Array(4);this.readPixels(0,0,1,1,this.RGBA,this.UNSIGNED_BYTE,pixel);window.fixtureCornerPixel=Array.from(pixel);return result;};}
+  await page.setViewportSize({width:1440,height:900});await page.goto('/');
+  const grid=page.locator('.magic-grid-pattern');await expect(grid).toHaveAttribute('data-motion','active');
+  expect(await grid.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(16);
+  expect(await grid.evaluate(node=>node.getAnimations({subtree:true}).every(a=>a.effect.getTiming().iterations===1))).toBe(true);
+  const old=await grid.elementHandle();
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  await expect(grid).toHaveAttribute('data-motion','paused');expect(await grid.evaluate(node=>node.getAnimations({subtree:true}).every(a=>a.playState==='paused'))).toBe(true);
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});await expect(grid).toHaveAttribute('data-motion','active');
+  await page.locator('.guest-controls [data-experience-action="language"]').click();await expect(grid).toHaveCount(1);
+  expect(await old.evaluate(node=>node.isConnected)).toBe(false);expect(await old.evaluate(node=>node.getAnimations({subtree:true}).length)).toBe(0);await old.dispose();
+  await expect(page.locator('[data-guest-borrow]')).toBeVisible();await captureUi(page,'guest-animated-grid-desktop');
+  await openLogin(page);await expect(grid).toHaveCount(0);
+  expect((await page.request.get('/crs/guest-scene.js')).status()).toBe(404);
+});
+
+test('Login tilt and layer depth interpolate smoothly on both entry and exit; Ripple pauses outside visible desktop Login',async({page})=>{
+  await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:1000});await page.goto('/');await openLogin(page);
+  const art=page.locator('.login-art'),rings=page.locator('.magic-ripple-ring');await expect(rings).toHaveCount(6);
+  await expect(page.locator('.magic-ripple')).toHaveAttribute('data-motion','active');
+  await expect(rings.first()).toHaveCSS('animation-play-state','running');
+  const stage=await page.locator('.login-art-stage').boundingBox();
+  const depth=async()=>page.locator('.login-art-card').evaluate(node=>{
+    const animation=node.getAnimations().find(a=>a.transitionProperty==='translate');
+    if(!animation)return null;animation.pause();animation.currentTime=225;
+    return {duration:animation.effect.getTiming().duration,translate:getComputedStyle(node).translate,style:getComputedStyle(node.parentElement).transformStyle};
   });
-  await page.goto('/');await expect(page.locator('.guest-glass-scene')).toHaveCount(1);
-  const available=await page.locator('.guest-glass-scene').evaluate(canvas=>!!canvas.getContext('webgl2'));
-  test.skip(!available,'Browser has no WebGL2; explicit CSS-fallback tests still run.');
-  await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','webgl2');
-  await page.evaluate(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});
-  const before=await page.evaluate(()=>window.fixtureDrawCount);expect(before).toBeGreaterThan(0);
-  const pixel=await page.evaluate(()=>window.fixtureCornerPixel);
-  // Transparent canvas uses premultiplied alpha: otherwise low-alpha pixels
-  // composite as an opaque white rectangle and obscure the CSS glass gradient.
-  expect(Math.max(...pixel.slice(0,3))).toBeLessThanOrEqual(pixel[3]);
-  await page.waitForTimeout(150);expect(await page.evaluate(()=>window.fixtureDrawCount)).toBe(before);
-  await page.locator('#guest-equipment').scrollIntoViewIfNeeded();await captureUi(page,'guest-webgl2-desktop');
-  await page.locator('.guest-glass-scene').evaluate(canvas=>{window.fixtureContextControl=canvas.getContext('webgl2').getExtension('WEBGL_lose_context');window.fixtureContextControl.loseContext();});
-  await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','css');
-  await expect(page.locator('[data-guest-borrow]')).toBeVisible();
-  await page.waitForTimeout(1100);await page.evaluate(()=>window.fixtureContextControl.restoreContext());
-  await expect(page.locator('.guest-showcase')).toHaveAttribute('data-renderer','webgl2');
-  await expect(page.locator('[data-guest-borrow]')).toBeVisible();
+  await page.locator('.login-story').dispatchEvent('pointermove',{pointerType:'mouse',clientX:stage.x+stage.width*.75,clientY:stage.y+stage.height*.75});
+  await expect(art).toHaveClass(/is-parallax-active/);let sample;
+  await expect.poll(async()=>{sample=await depth();return sample!==null;}).toBe(true);
+  expect(sample.duration).toBe(450);expect(sample.style).toBe('preserve-3d');expect(parseFloat(sample.translate)).toBeGreaterThan(0);expect(parseFloat(sample.translate)).toBeLessThan(4);
+  await page.evaluate(()=>document.querySelector('.login-art-card').getAnimations().filter(a=>a.transitionProperty==='translate').forEach(a=>a.finish()));
+  await page.locator('.login-story').dispatchEvent('pointerleave');await expect(art).not.toHaveClass(/is-parallax-active/);
+  await expect.poll(async()=>{sample=await depth();return sample!==null;}).toBe(true);
+  expect(sample.duration).toBe(450);expect(sample.style).toBe('preserve-3d');expect(parseFloat(sample.translate)).toBeGreaterThan(0);expect(parseFloat(sample.translate)).toBeLessThan(4);
+  await page.evaluate(()=>document.querySelector('.login-art-card').getAnimations().filter(a=>a.transitionProperty==='translate').forEach(a=>a.finish()));
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  await expect(rings.first()).toHaveCSS('animation-play-state','paused');
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});
+  await page.emulateMedia({reducedMotion:'reduce'});await expect(rings.first()).toHaveCSS('animation-name','none');
+  await page.setViewportSize({width:390,height:844});await expect(art).toBeHidden();
+});
+
+test('controlled theme reveal preserves effective state, storage, keyboard focus and reduced-motion fallback',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+  const native=await page.evaluate(()=>{
+    window.fixtureThemeReveal=[];const root=document.documentElement,animate=root.animate.bind(root);
+    root.animate=(frames,options)=>{if(options?.pseudoElement)window.fixtureThemeReveal.push({frames,options});return animate(frames,options);};
+    return typeof document.startViewTransition==='function';
+  });
+  const button=page.locator('#theme-toggle-login');await page.evaluate(()=>window.CRS.theme.apply('light',true));
+  await button.focus();await page.keyboard.press('Enter');await expect(page.locator('html')).toHaveAttribute('data-bs-theme','dark');
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.magicuiThemeVt||'')).toBe('');
+  if(native){const reveal=await page.evaluate(()=>window.fixtureThemeReveal);expect(reveal).toHaveLength(1);expect(reveal[0].frames.clipPath[0]).toMatch(/^circle\(0% at [\d.]+% [\d.]+%\)$/);}
+  await expect(button).toBeFocused();expect(await page.evaluate(()=>localStorage.getItem('crs-theme'))).toBe('dark');
+  await page.emulateMedia({reducedMotion:'reduce'});await page.keyboard.press('Enter');await expect(page.locator('html')).toHaveAttribute('data-bs-theme','light');
+  expect(await page.evaluate(()=>document.documentElement.dataset.magicuiThemeVt||'')).toBe('');await expect(button).toBeFocused();
+  await page.evaluate(()=>document.startViewTransition=undefined);await button.click();await expect(page.locator('html')).toHaveAttribute('data-bs-theme','dark');
+});
+
+test('Progressive Blur is a bounded pointer-transparent scroll cue, avoids focused controls and mobile navigation, and disposes',async({page})=>{
+  await mock(page,{signedOut:true});await page.setViewportSize({width:1440,height:700});await page.goto('/');
+  const section=page.locator('#guest-equipment'),blur=section.locator('.magic-progressive-blur');
+  await section.evaluate(node=>{const filler=document.createElement('div');filler.style.height='1500px';filler.dataset.blurFixture='';node.append(filler);});
+  await expect(blur).toBeVisible();await expect(blur).toHaveAttribute('aria-hidden','true');await expect(blur).toHaveCSS('pointer-events','none');await expect(blur.locator('span')).toHaveCount(4);
+  const bounds=await blur.boundingBox();expect(bounds.height).toBe(28);expect(bounds.y+bounds.height).toBeCloseTo(700,0);
+  await blur.locator('span').evaluateAll(nodes=>nodes.forEach(node=>{node.style.backdropFilter='none';node.style.webkitBackdropFilter='none';}));
+  expect(await blur.evaluate(node=>getComputedStyle(node).backgroundImage)).toContain('linear-gradient');await expect(blur).toBeVisible();
+  await section.evaluate(node=>{const button=document.createElement('button');button.textContent='Fixture focus';button.dataset.blurFocus='';Object.assign(button.style,{position:'fixed',bottom:'0',left:'100px'});node.append(button);button.focus();});
+  await expect(blur).toBeHidden();await page.locator('[data-blur-focus]').evaluate(node=>node.remove());
+  await page.evaluate(()=>window.dispatchEvent(new Event('resize')));await expect(blur).toBeVisible();
+  await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));await expect(blur).toBeHidden();
+  const old=await blur.elementHandle();await openLogin(page);expect(await old.evaluate(node=>node.isConnected)).toBe(false);await old.dispose();
+  await page.locator('.entry-navigation [data-experience-action="home"]').click();await expect(section.locator('.magic-progressive-blur')).toHaveCount(1);
+  await section.evaluate(node=>{const filler=document.createElement('div');filler.style.height='1500px';node.append(filler);});
+  await page.emulateMedia({forcedColors:'active'});await expect(section.locator('.magic-progressive-blur')).toBeHidden();
+});
+
+test('signed-in main receives Progressive Blur without changing navigation or covering the mobile bottom bar',async({page})=>{
+  await mock(page);await page.setViewportSize({width:390,height:844});await page.goto('/');
+  await expect(page.locator('#app-shell')).toBeVisible();
+  await page.locator('.app-main').focus();
+  await page.locator('.app-main').evaluate(node=>{const filler=document.createElement('div');filler.style.height='1500px';node.append(filler);});
+  const blur=page.locator('.app-main .magic-progressive-blur');await expect(blur).toBeVisible();
+  const b=await blur.boundingBox(),nav=await page.locator('.mobile-bottom-nav').boundingBox();expect(b.y+b.height).toBeCloseTo(nav.y,0);
+  await captureUi(page,'main-progressive-blur-mobile');
+  await page.locator('.mobile-bottom-nav [data-route="equipment"]').click();await expect(page.locator('#page-equipment')).toBeVisible();
+  await expect(blur).toHaveCSS('pointer-events','none');await expectNoOverflow(page);
+});
+
+test('blocked Magic UI module keeps static artwork/public catalog and both sign-in controls functional',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true}),errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.route('**/crs/magic-ui.js',route=>route.abort());await page.goto('/');await expect(page.locator('[data-guest-borrow]')).toBeVisible();
+  await expect(page.locator('.magic-grid-pattern')).toHaveCount(0);await openLogin(page);
+  await expect(page.locator('.magic-ripple-ring')).toHaveCount(6);await expect(page.locator('.magic-ripple-ring').first()).toHaveCSS('animation-play-state','paused');
+  await expect(page.locator('#password-login-submit')).toBeVisible();await expect(page.locator('#google-signin-button')).toBeVisible();
+  await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#theme-toggle-login').click();await expect(page.locator('.access-card')).not.toHaveClass(/magic-card/);
+  expect(calls.filter(call=>call.method==='listPublicEquipment').length).toBe(1);expect(calls.some(call=>['listEquipment','getEquipmentDetail','createBorrowRequest'].includes(call.method))).toBe(false);expect(errors).toEqual([]);
 });
 
 test.describe('touch login',()=>{
