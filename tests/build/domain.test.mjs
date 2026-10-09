@@ -56,7 +56,7 @@ test('callback function trace packages its runtime stylesheet instead of relying
 
 test('all production route traces exclude private exports/credentials and public assets contain no server secret configuration',()=>{
   const root=resolve('.');
-  for(const route of ['route.js','auth/callback/route.js','api/rpc/route.js','api/experience/route.js','api/auth/recaptcha/route.js','api/image-placeholder/route.js']) {
+  for(const route of ['route.js','auth/callback/route.js','api/rpc/route.js','api/experience/route.js','api/auth/recaptcha/route.js','api/image-placeholder/route.js','api/public-equipment/[assetId]/thumbnail/route.js']) {
     const path=resolve('.next/server/app',route+'.nft.json'),trace=JSON.parse(readFileSync(path,'utf8'));
     for(const file of trace.files){
       const name=relative(root,resolve(path,'..',file)).replaceAll('\\','/');

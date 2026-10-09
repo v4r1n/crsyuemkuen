@@ -151,9 +151,9 @@
     if(!items.length)return en?'No equipment matches your search.':'ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา';
     return en?(query?items.length+' matching items':items.length+' items'):(query?'พบอุปกรณ์ '+items.length+' รายการ':'อุปกรณ์ '+items.length+' รายการ');
   }
-  function renderWall(content,result,publicView,layout='wall'){
+  function renderWall(content,result,publicView,layout='wall',controlHost=null){
     const select=(item,node)=>selectEquipment(item,node,publicView);
-    if(global.CRSReactBits)return global.CRSReactBits.mountWall(content,result.items,{publicView,onSelect:select,layout});
+    if(global.CRSReactBits)return global.CRSReactBits.mountWall(content,result.items,{publicView,onSelect:select,layout,controlHost});
     // Semantic fallback when the optional presentation script is unavailable.
     content.innerHTML='<div class="guest-grid">'+result.items.map(item=>'<article class="card guest-card h-100"><div class="card-body"><span class="guest-card-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><h3 class="h5">'+escape(item.name)+'</h3><p>'+escape(statusText(item.status||(item.can_borrow?'AVAILABLE':'UNKNOWN')))+'</p><button type="button" class="btn btn-primary" '+(publicView&&item.can_borrow?'data-guest-borrow="'+escape(item.asset_id)+'" ':'')+'data-wall-asset="'+escape(item.asset_id)+'">'+escape(item.can_borrow?t('borrow'):(CRS.language.effective()==='en'?'View status':'ดูสถานะ'))+'</button></div></article>').join('')+'</div>';
     content.querySelectorAll('[data-wall-asset]').forEach(node=>node.onclick=()=>select(result.items.find(item=>item.asset_id===node.dataset.wallAsset),node));return ()=>content.replaceChildren();
@@ -166,7 +166,7 @@
       disposeWall?.();disposeWall=null;content.replaceChildren();content.setAttribute('aria-busy','false');
       const query=normalizeSearch(input.value),items=matchingEquipment(result,query,publicView);
       status.textContent=catalogStatus(result,items,query,publicView);
-      if(items.length)disposeWall=renderWall(content,{items},publicView,query?'gallery':'wall');
+      if(items.length)disposeWall=renderWall(content,{items},publicView,query?'gallery':'wall',form.querySelector('[data-wall-controls]'));
     }
     const change=event=>{if(event.isComposing)return;onSearch(input.value);draw();};
     async function load(){
@@ -191,7 +191,7 @@
     access.after(guestPage);guestPage.setAttribute('aria-labelledby','guest-title');
     access.hidden=true;document.querySelector('#app-splash').hidden=true;document.querySelector('#app-shell').hidden=true;
     guestPage.hidden=false;
-    guestPage.innerHTML='<div class="guest-showcase"><header class="guest-heading"><div class="guest-brand"><span class="brand-mark" aria-hidden="true"><img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async"></span><div><p class="eyebrow mb-1">CRS Yuem-Kuen</p><h1 id="guest-title" class="h3">'+escape(t('equipment'))+'</h1></div></div><div class="guest-controls">'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></div></header><form data-guest-search class="catalog-search mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" autocomplete="off" maxlength="100" aria-describedby="guest-catalog-status" value="'+escape(input.search||'')+'"><button class="btn btn-primary mt-2" type="submit">'+escape(t('search'))+'</button></form><p id="guest-catalog-status" class="guest-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-guest-content aria-busy="true"></div></div>';
+    guestPage.innerHTML='<div class="guest-showcase"><header class="guest-heading"><div class="guest-brand"><span class="brand-mark" aria-hidden="true"><img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async"></span><div><p class="eyebrow mb-1">CRS Yuem-Kuen</p><h1 id="guest-title" class="h3">'+escape(t('equipment'))+'</h1></div></div><div class="guest-controls">'+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button></div></header><form data-guest-search class="catalog-search mb-4"><label for="guest-search" class="form-label">'+escape(t('search'))+'</label><input id="guest-search" class="form-control" type="search" autocomplete="off" maxlength="100" aria-describedby="guest-catalog-status" value="'+escape(input.search||'')+'"><div class="catalog-search-actions"><button class="btn btn-primary" type="submit">'+escape(t('search'))+'</button><div class="catalog-wall-controls" data-wall-controls></div></div></form><p id="guest-catalog-status" class="guest-status" role="status" aria-live="polite">'+escape(t('loading'))+'</p><div data-guest-content aria-busy="true"></div></div>';
     CRS.theme.apply(CRS.theme.current(),false);
     const disposeEffect=global.CRSMagicUI?.mountGuest(guestPage);
     translate(guestPage);

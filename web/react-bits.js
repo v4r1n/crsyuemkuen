@@ -10,17 +10,18 @@
   const statuses={AVAILABLE:['พร้อมยืม','Available'],PENDING:['รออนุมัติ','Pending approval'],RESERVED:['จองแล้ว','Reserved'],BORROWED:['ถูกยืม','Borrowed'],RETURNING:['รอตรวจรับคืน','Awaiting inspection'],MAINTENANCE:['ซ่อมบำรุง','Maintenance'],DAMAGED:['ชำรุด','Damaged'],LOST:['สูญหาย','Lost'],RETIRED:['ปลดระวาง','Retired'],DELETED:['ลบแล้ว','Deleted']};
   const statusLabel=status=>(statuses[status]||['ไม่พร้อมยืม','Unavailable'])[en()?1:0];
   let wallSerial=0;
-  function mountWall(host,items,{publicView=false,onSelect,layout='wall'}={}){
+  function mountWall(host,items,{publicView=false,onSelect,layout='wall',controlHost=null}={}){
     const id='drift-wall-'+(++wallSerial),images=[],animations=[],cleanups=[];
     const gallery=layout==='gallery';
     let disposed=false,visible=true,manualStatic=gallery,pointerActive=false;
     const motion=matchMedia('(min-width:768px) and (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)');
     const wall=document.createElement('div');wall.className='equipment-wall';
     wall.dataset.layout=gallery?'gallery':'wall';
-    wall.innerHTML='<div class="drift-controls"><p class="small mb-0">'+escape(copy('คลิกอุปกรณ์เพื่อยืม หรือดูสถานะ','Select equipment to borrow or view its status'))+'</p><button type="button" class="btn btn-outline-secondary" data-wall-mode aria-controls="'+id+'"></button></div><div id="'+id+'" class="drift-wall" data-static="true"><div class="drift-wall__plane"></div></div>';
+    wall.innerHTML='<div id="'+id+'" class="drift-wall" data-static="true"><div class="drift-wall__plane"></div></div>';
     host.append(wall);
-    const stage=wall.querySelector('.drift-wall'),plane=wall.querySelector('.drift-wall__plane'),mode=wall.querySelector('[data-wall-mode]');
-    mode.hidden=gallery;
+    const stage=wall.querySelector('.drift-wall'),plane=wall.querySelector('.drift-wall__plane'),mode=document.createElement('button');
+    mode.type='button';mode.className='btn btn-outline-secondary';mode.dataset.wallMode='';mode.setAttribute('aria-controls',id);
+    if(!gallery){if(controlHost)controlHost.append(mode);else{const controls=document.createElement('div');controls.className='drift-controls';controls.append(mode);wall.prepend(controls);}}
     const columns=Array.from({length:5},()=>[]);
     items.forEach((item,index)=>columns[index%5].push(item));
     function tile(item,duplicate=false){
@@ -31,10 +32,14 @@
       node.setAttribute('aria-label',item.name+' · '+statusLabel(status));
       node.innerHTML='<span class="drift-wall__tile-inner"><span class="drift-image-fallback" aria-hidden="true"><i class="bi bi-box-seam"></i></span><span class="drift-wall__overlay" aria-hidden="true"></span><span class="drift-caption"><span class="drift-name">'+escape(item.name)+'</span><span class="drift-status" data-status="'+escape(status)+'">'+escape(statusLabel(status))+'</span><span class="drift-action">'+escape(item.can_borrow?copy('ยืม','Borrow'):copy('ดูสถานะ','View status'))+'</span></span></span>';
       node.addEventListener('click',()=>onSelect(item,node));
-      // Private delivery only for authenticated catalog DTOs; Guest never reads images.
-      if(!duplicate&&!publicView&&item.imageAvailable!==false&&item.image_url==='/api/image-placeholder'){
+      const publicUrl=publicView&&/^AST-\d{6}$/.test(item.asset_id)&&item.thumbnail_url==='/api/public-equipment/'+item.asset_id+'/thumbnail'?item.thumbnail_url:null;
+      // Guest may use only the approved same-origin derivative, never a file
+      // ID, original URL, Storage capability or authenticated image RPC.
+      if(!duplicate&&(publicUrl||!publicView&&item.imageAvailable!==false&&item.image_url==='/api/image-placeholder')){
         const image=document.createElement('img');image.hidden=true;image.alt='';image.referrerPolicy='no-referrer';image.className='drift-image';
-        node.querySelector('.drift-wall__tile-inner').prepend(image);images.push({image,item,fallback:node.querySelector('.drift-image-fallback')});
+        const fallback=node.querySelector('.drift-image-fallback');
+        if(publicUrl){image.onload=()=>{if(!disposed){image.hidden=false;fallback.hidden=true;}};image.onerror=()=>{image.hidden=true;fallback.hidden=false;image.removeAttribute('src');};}
+        node.querySelector('.drift-wall__tile-inner').prepend(image);images.push({image,item,fallback,publicUrl});
       }
       return node;
     }
@@ -79,12 +84,13 @@
     const visibility=()=>{if(document.hidden)pointerActive=false;sync();};document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',sync);
     const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;sync();}):null;observer?.observe(wall);
     const requested=new Set();
-    const imageObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){const value=images.find(value=>value.item.asset_id===entry.target.dataset.wallAsset);if(value&&!requested.has(value.item.asset_id)){requested.add(value.item.asset_id);CRS.recoverEquipmentImage(value.image,value.fallback,value.item);}imageObserver.unobserve(entry.target);}}):null;
-    for(const value of images){if(imageObserver){for(const node of wall.querySelectorAll('[data-wall-asset]'))if(node.dataset.wallAsset===value.item.asset_id)imageObserver.observe(node);}else CRS.recoverEquipmentImage(value.image,value.fallback,value.item);}
+    const recover=value=>{if(value.publicUrl)value.image.src=value.publicUrl;else CRS.recoverEquipmentImage(value.image,value.fallback,value.item);};
+    const imageObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){const value=images.find(value=>value.item.asset_id===entry.target.dataset.wallAsset);if(value&&!requested.has(value.item.asset_id)){requested.add(value.item.asset_id);recover(value);}imageObserver.unobserve(entry.target);}}):null;
+    for(const value of images){if(imageObserver){for(const node of wall.querySelectorAll('[data-wall-asset]'))if(node.dataset.wallAsset===value.item.asset_id)imageObserver.observe(node);}else recover(value);}
     cleanups.push(()=>observer?.disconnect(),()=>imageObserver?.disconnect(),()=>document.removeEventListener('visibilitychange',visibility),()=>motion.removeEventListener('change',sync),()=>stage.removeEventListener('focusin',focus));
     cleanups.push(()=>stage.removeEventListener('pointerdown',press,true),()=>global.removeEventListener('pointerup',release),()=>global.removeEventListener('pointercancel',release),()=>global.removeEventListener('blur',release));
     sync();
-    return ()=>{if(disposed)return;disposed=true;animations.forEach(animation=>animation.cancel());images.forEach(value=>CRS.cancelEquipmentImage(value.image));cleanups.forEach(clean=>clean());wall.remove();};
+    return ()=>{if(disposed)return;disposed=true;animations.forEach(animation=>animation.cancel());images.forEach(value=>{if(value.publicUrl){value.image.onload=null;value.image.onerror=null;value.image.removeAttribute('src');}else CRS.cancelEquipmentImage(value.image);});cleanups.forEach(clean=>clean());mode.onclick=null;mode.remove();wall.remove();};
   }
 
   // One delegated hold controller covers catalog, table, detail and final dialog.

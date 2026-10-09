@@ -36,13 +36,14 @@ export async function notificationInbox(db,user,input = {}) {
   const unread = await unreadNotifications(db,user.user_id);
   return {items:rows.rows,unread};
 }
-function publicDto(data,category) {
-  // Never return a domain DTO or raw JSON. Images remain authenticated/private.
+function publicDto(data,category,thumbnailUrl='') {
+  // Never return a domain DTO or raw JSON. Original images remain private;
+  // only the separately approved, asset-scoped derivative route is public.
   return {asset_id:data.asset_id,name:data.name,brand:data.brand || '',model:data.model || '',
     category_name:category || '',status:data.status,can_borrow:data.status === 'AVAILABLE',
-    imageAvailable:false,detail_url:config().WEB_APP_URL + '?view=equipment-detail&id=' + encodeURIComponent(data.asset_id)};
+    imageAvailable:false,thumbnail_url:thumbnailUrl,detail_url:config().WEB_APP_URL + '?view=equipment-detail&id=' + encodeURIComponent(data.asset_id)};
 }
-export async function publicEquipment(db,input = {}) {
+export async function publicEquipment(db,input = {},options = {}) {
   const search = typeof input.search === 'string' ? input.search.trim().slice(0,100).toLowerCase() : '';
   const page = Math.max(1,Math.min(10000,Math.trunc(Number(input.page)||1)));
   const id = input.assetId;
@@ -55,7 +56,12 @@ export async function publicEquipment(db,input = {}) {
   const filtered = rows.rows.filter(row => (!id || row.data.asset_id === id) &&
     [row.data.name,row.data.brand,row.data.model,row.category].some(value => String(value || '').toLowerCase().includes(search)));
   if (id && filtered.length !== 1) fail('NOT_FOUND','ไม่พบอุปกรณ์สาธารณะ');
-  const items = filtered.slice((page-1)*24,page*24).map(row => publicDto(row.data,row.category));
+  const selected=filtered.slice((page-1)*24,page*24);
+  // Keep native image processing outside the synchronous domain/auth module
+  // graph. This Guest-only seam avoids a domain -> image -> domain cycle.
+  const {publicThumbnailUrls}=await import('./public-thumbnail.mjs');
+  const thumbnails=await publicThumbnailUrls(db,selected.map(row=>({asset_id:row.data.asset_id})),options);
+  const items = selected.map(row => publicDto(row.data,row.category,thumbnails[row.data.asset_id]||''));
   return {items,total:filtered.length,page,totalPages:Math.max(1,Math.ceil(filtered.length/24))};
 }
 export async function setVisibility(db,domain,user,input) {

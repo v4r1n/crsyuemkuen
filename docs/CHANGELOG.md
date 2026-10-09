@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Approved public thumbnails and Guest controls (2026-10-09, source accepted before activation)
+
+- Diagnose Guest placeholders against verified originals/current references and the prior private-only image contract. Following explicit user approval, add only an asset-bound backend thumbnail projection: current public/category/lifecycle/READY evidence, verified original bytes, bounded metadata-free WebP, post-I/O reauthorization, persistent quotas/concurrency bounds and no-store/optimizer denial. Keep originals, Storage and authenticated delivery private; no durable data/schema/business rewrite or automatic publication.
+- Remove the Wall instruction paragraph and move its native pause/show-all button into Guest's search action row, beneath the input at the right. Load only approved same-origin thumbnail URLs, replicate decoded pixels for animated tiles and keep placeholders on failure. Preserve live gallery search, existing borrowing handoff, Dashboard private images and hold/delete guards.
+- Fresh isolated installation has zero advisories. Complete component coverage passes 301 checks and production build; retain the compiled-domain assertion after fixing native-import coupling with a Guest-only lazy seam. Two focused browser repeats and four visually reviewed responsive Light/Dark captures pass. Phase-only diff/actual-value privacy gates exclude unrelated edits and operator evidence. Protected Preview activation is next, separately guarded; no Production rollout or writer reopening.
+
 ### Catalog visibility diagnosis and live search gallery (2026-10-09)
 
 - Identify empty Guest results as three private assets, not a failed Drift Wall. After explicit user approval and current Admin/backup/lock/version guards, publish only their narrow catalog via the existing domain workflow; verify three History entries, idempotent replay and the live Preview projection. Preserve private images/internal fields, all other durable data and both web write freezes; no account promotion, browser-session fabrication or manual Sheet/database edits.

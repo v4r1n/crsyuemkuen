@@ -7,6 +7,9 @@ import { fields,tables } from '../../server/schema.mjs';
 import { loadDomain,saveDomain } from '../../server/domain.mjs';
 import { publicEquipment,setVisibility,notificationInbox,publicLinks } from '../../server/experience.mjs';
 import { applyAdditiveMigrations } from '../../server/migrations.mjs';
+import {createPublicThumbnailHandler} from '../../server/public-thumbnail.mjs';
+import {digest} from '../../server/domain.mjs';
+import sharp from 'sharp';
 const {bootstrappedHarness,createEquipment,createUser}=createRequire(import.meta.url)('../backend/test-helpers.cjs');
 process.env.WEB_APP_URL='https://fixture.example.test';
 process.env.GOOGLE_OAUTH_CLIENT_ID='experience-fixture.apps.googleusercontent.com';
@@ -42,7 +45,7 @@ test('Guest sees no assets by default; explicit publication projects allowlisted
     const payload={assetId:f.asset.asset_id,isPublic:true,expectedVersion:f.asset.row_version,commandId:'public-fixture-publish'};
     await f.transact(async db=>{const domain=await loadDomain(db,{session:f.session});await setVisibility(db,domain,f.admin,payload);await saveDomain(db,domain);});
     const result=await publicEquipment(f.db);assert.equal(result.items.length,1);
-    assert.deepEqual(Object.keys(result.items[0]).sort(),['asset_id','name','brand','model','category_name','status','can_borrow','imageAvailable','detail_url'].sort());
+    assert.deepEqual(Object.keys(result.items[0]).sort(),['asset_id','name','brand','model','category_name','status','can_borrow','imageAvailable','thumbnail_url','detail_url'].sort());
     assert.equal(result.items[0].status,'AVAILABLE');
     assert.match(result.items[0].detail_url,/^https:\/\/fixture\.example\.test/);assert.equal(result.items[0].imageAvailable,false);
     await f.transact(async db=>{const domain=await loadDomain(db,{session:f.session});await setVisibility(db,domain,f.admin,payload);await saveDomain(db,domain);});
@@ -71,6 +74,31 @@ test('public catalog pages/status remain narrow; private, deleted, retired, lost
   }finally{await f.db.close();}
 });
 
+test('real database joins expose derivatives only for a current published asset/category/READY reference, with immediate revocation',async()=>{
+  const f=await setup();try{
+    const bytes=await sharp({create:{width:600,height:400,channels:3,background:'#014d8b'}}).png().toBuffer();
+    await f.db.query(`INSERT INTO crs.image_resources(id,object_key,operation_id,asset_id,mime_type,byte_length,digest,name,folder_id,owner_user_id,state)
+      VALUES('fixture-resource','private/fixture.png','fixture-image-operation',$1,'image/png',$2,$3,'fixture.png','private-bucket',$4,'READY')`,[f.asset.asset_id,bytes.length,digest(bytes),f.admin.user_id]);
+    await f.db.query("UPDATE crs.equipment SET data=jsonb_set(data,'{image_file_id}','\"fixture-resource\"') WHERE id=$1",[f.asset.asset_id]);
+    const storage={info:async()=>({data:{size:bytes.length,contentType:'image/png'}}),download:async()=>({data:new Blob([bytes],{type:'image/png'})})};
+    const handler=createPublicThumbnailHandler({transact:f.transact,storageFactory:async()=>storage}),request=new Request('https://fixture.example.test/api/public-equipment/'+f.asset.asset_id+'/thumbnail');
+    assert.equal((await handler(request,f.asset.asset_id)).status,404);
+    await f.db.query('INSERT INTO crs.equipment_visibility(asset_id,is_public,updated_by) VALUES($1,true,$2)',[f.asset.asset_id,f.admin.user_id]);
+    const list=()=>publicEquipment(f.db,{}, {storage});
+    assert.equal((await list()).items[0].thumbnail_url,'/api/public-equipment/'+f.asset.asset_id+'/thumbnail');assert.equal((await handler(request,f.asset.asset_id)).status,200);
+    const originalInfo=storage.info;storage.info=async()=>({error:{statusCode:404}});assert.equal((await list()).items[0].thumbnail_url,'');storage.info=originalInfo;
+    for(const state of ['STAGED','TRASHED']){await f.db.query('UPDATE crs.image_resources SET state=$1',[state]);assert.equal((await handler(request,f.asset.asset_id)).status,404);assert.equal((await list()).items[0].thumbnail_url,'');}
+    await f.db.query("UPDATE crs.image_resources SET state='READY',asset_id='AST-999999'");assert.equal((await handler(request,f.asset.asset_id)).status,404);
+    await f.db.query('UPDATE crs.image_resources SET asset_id=$1',[f.asset.asset_id]);
+    await f.db.query("UPDATE crs.categories SET data=jsonb_set(data,'{status}','\"INACTIVE\"') WHERE id=$1",[f.asset.category_id]);assert.equal((await list()).total,0);assert.equal((await handler(request,f.asset.asset_id)).status,404);
+    await f.db.query("UPDATE crs.categories SET data=jsonb_set(data,'{status}','\"ACTIVE\"') WHERE id=$1",[f.asset.category_id]);
+    await f.db.query('UPDATE crs.equipment_visibility SET is_public=false');assert.equal((await handler(request,f.asset.asset_id)).status,404);
+    await f.db.query('UPDATE crs.equipment_visibility SET is_public=true');
+    storage.download=async()=>{await f.db.query('UPDATE crs.equipment_visibility SET is_public=false');return {data:new Blob([bytes],{type:'image/png'})};};assert.equal((await handler(request,f.asset.asset_id)).status,404);
+    for(const status of ['RETIRED','LOST','DELETED']){await f.db.query('UPDATE crs.equipment_visibility SET is_public=true');await f.db.query("UPDATE crs.equipment SET data=jsonb_set(data,'{status}',to_jsonb($1::text)) WHERE id=$2",[status,f.asset.asset_id]);assert.equal((await list()).total,0);assert.equal((await handler(request,f.asset.asset_id)).status,404);}
+  }finally{await f.db.close();}
+});
+
 test('three explicit publications commit atomically with authoritative History, replay safely and leave private records intact',async()=>{
   const f=await setup();try{
     const base=(await f.db.query('SELECT data FROM crs.equipment WHERE id=$1',[f.asset.asset_id])).rows[0].data;
@@ -84,7 +112,7 @@ test('three explicit publications commit atomically with authoritative History, 
     const result=await publicEquipment(f.db);assert.equal(result.total,3);
     assert.equal((await publicEquipment(f.db,{search:'asus'})).total,1);
     assert.equal((await publicEquipment(f.db,{search:'private keyword'})).total,0);
-    for(const item of result.items){assert.equal(item.imageAvailable,false);assert.deepEqual(Object.keys(item).sort(),['asset_id','name','brand','model','category_name','status','can_borrow','imageAvailable','detail_url'].sort());}
+    for(const item of result.items){assert.equal(item.imageAvailable,false);assert.deepEqual(Object.keys(item).sort(),['asset_id','name','brand','model','category_name','status','can_borrow','imageAvailable','thumbnail_url','detail_url'].sort());}
     assert.deepEqual((await f.db.query('SELECT * FROM crs.equipment ORDER BY id')).rows,before);
     const events=(await f.db.query("SELECT data FROM crs.history WHERE data->>'action'='PUBLISH_ASSET'")).rows;
     assert.equal(events.length,3);assert.ok(events.every(row=>row.data.actor_user_id===f.admin.user_id));

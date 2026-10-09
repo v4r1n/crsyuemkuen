@@ -45,6 +45,45 @@ async function mock(page,{signedOut=false,restricted=false}={}){
   return {calls,record};
 }
 
+test('Guest wall controls live beneath the search box on the right without the obsolete instruction paragraph',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/');
+  const form=page.locator('[data-guest-search]'),mode=form.locator('[data-wall-mode]');
+  await expect(mode).toBeVisible();await expect(page.locator('.drift-controls p.small.mb-0')).toHaveCount(0);
+  expect(await mode.getAttribute('type')).toBe('button');
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:900});
+    const input=await form.locator('input').boundingBox(),button=await mode.boundingBox();
+    expect(button.y).toBeGreaterThanOrEqual(input.y+input.height);expect(Math.abs(button.x+button.width-input.x-input.width)).toBeLessThan(2);
+  }
+  await mode.click();await expect(page.locator('.drift-wall')).toHaveAttribute('data-static','true');
+  await form.locator('input').fill('Fixture');await expect(mode).toHaveCount(0);
+  await form.locator('input').fill('');await expect(form.locator('[data-wall-mode]')).toHaveCount(1);
+  await expectNoOverflow(page);
+});
+
+test('Guest wall displays only the approved thumbnail endpoint and retains placeholders on failure',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=','base64');
+  await page.route('**/api/public-equipment/*/thumbnail',route=>route.fulfill(route.request().url().includes('000002')?{status:404,body:''}:{status:200,contentType:'image/png',body:png}));
+  await page.route('**/api/rpc',async route=>{if(route.request().postDataJSON().method!=='listPublicEquipment')return route.fallback();await route.fulfill({json:{ok:true,data:{items:[1,2,3].map(i=>({asset_id:'AST-00000'+i,name:'Thumbnail '+i,status:'AVAILABLE',can_borrow:true,imageAvailable:false,thumbnail_url:i===3?'https://private.invalid/original':'/api/public-equipment/AST-00000'+i+'/thumbnail'})),page:1,total:3,totalPages:1}}});});
+  await page.goto('/');await page.locator('[data-wall-mode]').click();
+  const first=page.locator('[data-wall-asset="AST-000001"]:not([data-wall-copy])');
+  await expect(first.locator('img')).toBeVisible();await expect(first.locator('.drift-image-fallback')).toBeHidden();
+  await expect(page.locator('[data-wall-asset="AST-000002"]:not([data-wall-copy]) .drift-image-fallback')).toBeVisible();
+  await expect(page.locator('[data-wall-asset="AST-000003"]:not([data-wall-copy]) img')).toHaveCount(0);
+  expect(calls.some(call=>['getEquipmentImage','getEquipmentDetail','listEquipment'].includes(call.method))).toBe(false);
+  await page.locator('#guest-search').fill('Thumbnail 1');await expect(page.locator('[data-layout="gallery"] img')).toBeVisible();
+  await page.locator('#guest-search').fill('');await page.locator('[data-wall-mode]').click();
+  for(const width of [390,1440])for(const theme of ['light','dark']){await page.setViewportSize({width,height:900});await page.evaluate(theme=>CRS.theme.apply(theme,true),theme);await expectNoOverflow(page);await captureUi(page,'public-thumbnail-'+width+'-'+theme);}
+});
+
+test('the real thumbnail HTTP boundary denies file identifiers, query overrides and image-optimizer cache bypass',async({request})=>{
+  for(const path of ['/api/public-equipment/private-resource/thumbnail','/api/public-equipment/AST-000001/thumbnail?file=private-resource']){
+    const result=await request.get(path);expect(result.status()).toBe(404);expect(result.headers()['cache-control']).toContain('no-store');expect((await result.body()).length).toBe(0);
+  }
+  expect((await request.get('/_next/image?url=%2Fapi%2Fpublic-equipment%2FAST-000001%2Fthumbnail&w=256&q=75')).status()).toBe(400);
+});
+
 test('Guest live search filters the complete public snapshot into a gallery without submit, private calls or lost focus',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});
   await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();calls.push(input);await route.fulfill({json:{ok:true,data:{items:[

@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-033 — Explicit catalog thumbnail publication keeps originals private
+
+Status: user-approved implementation — 2026-10-09; protected Preview activation recorded separately in Memory.
+
+The user explicitly approves public thumbnails after being informed that earlier publication covered catalog fields only. This narrowly supersedes ADR-028/032's Guest image-placeholder restriction: current explicitly published, lifecycle/category-eligible assets may expose a bounded metadata-free derivative through the backend. Originals, Storage, resource IDs, internal fields and authenticated image capabilities stay private. Publication is not borrowing authority. [Thumbnail contract](LOGIN_GUEST_DOMAINS.md#public-catalog-thumbnails-2026-10-09) owns delivery, quotas, revocation, failure behavior and acceptance; no schema or business-record rewrite is needed. Downloaded public pixels cannot be recalled, even after server revocation.
+
 ## ADR-032 — Catalog motion and deletion gestures do not confer authority
 
 Status: user-authorized source refinement, isolated tests/build accepted — 2026-10-09; protected Preview activation recorded separately in Memory.

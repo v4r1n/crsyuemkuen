@@ -1,7 +1,9 @@
 /* React Bits DOM adaptations; MIT + Commons Clause: react-bits-license.txt. */
 .equipment-wall { min-width:0; }
-.drift-controls { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; }
-.drift-controls .btn { min-height:44px; }
+.drift-controls { display:flex; justify-content:flex-end; margin-bottom:1rem; }
+.catalog-search-actions { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-top:.5rem; }
+.catalog-wall-controls { margin-inline-start:auto; max-width:100%; }
+:is(.drift-controls,.catalog-search-actions) .btn { min-height:44px; }
 .drift-wall { --dw-tile-w:200px; --dw-tile-h:132px; --dw-gap:18px; --dw-radius:14px; --dw-lift:64px; position:relative; height:600px; overflow:hidden; border-radius:var(--crs-radius); background:var(--crs-surface); perspective:1200px; }
 .drift-wall__plane { position:absolute; top:0; left:50%; display:flex; transform:translate(-50%,0) scale(1.18) rotateX(0deg) rotateY(0deg) translateZ(-120px); transform-origin:top center; transform-style:preserve-3d; }
 .drift-wall__col { width:calc(var(--dw-tile-w) + var(--dw-gap)); flex:none; }
@@ -33,7 +35,6 @@
 .drift-wall[data-static="true"] [data-wall-copy] { display:none; }
 .dashboard-equipment-wall { margin-top:2rem; }
 .catalog-search input.form-control { border-radius:var(--crs-control-radius); }
-.equipment-wall[data-layout="gallery"] .drift-controls { margin-bottom:.5rem; }
 /* HoldButton: destructive red fill with AA white labels; never imply backend
  * success before its guarded transaction. Preserve native disabled state. */
 .hold-button { --hb-radius:var(--crs-control-radius); --hb-bg:#fff0f2; --hb-fill:#b4233f; --hb-text:#8e1b31; --hb-fill-text:#fff; --hb-p:0; position:relative; display:inline-grid; place-items:center; isolation:isolate; border:1px solid #b4233f; border-radius:var(--hb-radius); background:var(--hb-bg); color:var(--hb-text); min-height:44px; padding:.6rem .85rem; font:inherit; font-weight:600; line-height:1.4; cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation; transition:transform .16s,box-shadow .2s; }

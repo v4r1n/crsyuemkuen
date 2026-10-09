@@ -42,6 +42,8 @@ Preview writes ignored private `.migration/<source-hash>/` copies plus a manifes
 
 ## Image lifecycle
 
+Current Guest exception: explicitly approved catalog thumbnails use the separate [backend derivative contract](LOGIN_GUEST_DOMAINS.md#public-catalog-thumbnails-2026-10-09), not public Storage or an original-image capability. All lifecycle/original-byte contracts below remain unchanged. Earlier public-image-denial acceptance refers to originals.
+
 Private `image_resources` maps the existing `image_file_id` to immutable Storage keys and ownership/digest/MIME/byte evidence. Import preserves IDs. New upload generates an opaque ID. Legacy `image_url`/`qr_url` values remain archival data; API never trusts them for availability or link generation.
 
 1. Authorize current Admin/version/operation under lock; commit STARTED plus STAGED resource reservation before uploading.

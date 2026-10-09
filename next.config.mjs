@@ -1,5 +1,8 @@
 export default {
   poweredByHeader: false,
+  // Only brand assets may use Next's caching optimizer. Public catalog
+  // thumbnails must recheck publication/reference on every no-store request.
+  images: {localPatterns:[{pathname:'/brand/**',search:''}]},
   serverExternalPackages: ['pg', 'exceljs'],
   outputFileTracingIncludes: {
     '/*': ['./src/*.gs', './public/crs/shell.html'],

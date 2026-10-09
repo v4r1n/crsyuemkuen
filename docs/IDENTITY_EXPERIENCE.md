@@ -6,6 +6,8 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+Current Guest image policy: the user's 2026-10-09 explicit thumbnail approval supersedes earlier private-image-placeholder statements below only for backend-derived catalog thumbnails. Originals and authenticated image delivery remain private. Read the [thumbnail contract](LOGIN_GUEST_DOMAINS.md#public-catalog-thumbnails-2026-10-09) before changing or activating public delivery.
+
 - Google state/nonce/PKCE, verified code exchange, handoff and opaque sessions remain intact. Local sign-in resolves the SAME existing ACTIVE User, current allowed domain/email/role; never auto-provisions or trusts a browser role. Six-hour session ceiling and existing remember behavior remain.
 - Unique salted scrypt hashes use fixed N=131072/r=8/p=1 and bounded decoding. Policy: 15–128 Unicode code points after NFC, no control characters, four distinct characters, and rejection of a small built-in common-password list or own email. Matching confirmation and policy are enforced server-side and mirrored in UI. The blocklist is not exhaustive breached-password screening.
 - Persistent throttles: sign-in IP 20/10 minutes, normalized email 10/15 minutes before expensive work; five failures lock for 15 minutes. Unknown identities do the same hash work. Recheck User, credential/email/generation after hashing and on protected calls. Expired temporary credentials cannot log in.
