@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Login mouse parallax protected Preview activation (2026-10-09)
+
+- Deploy immutable accepted `e9c66fb` (0.1.12) on staging/Singapore; candidate checks precede assigning only `https://crsyuemkuen-preview.vercel.app`, followed by canonical smoke. Production, protected rollback, all environment/runtime/protection settings and both write freezes remain unchanged.
+- Reuse the fresh 258-check source/build and six reviewed captures, verify all 164 uploaded blobs, and repeat five compiled-build plus six parallax/composition checks. Nine candidate and ten canonical smoke groups pass exact shell/assets/copy, retired-scene 404, privacy/public-private/reCAPTCHA/origin/protection/freeze and canonical OAuth-start gates. Fresh private DB/seven-image backup checksums and durable-table/migration guards verify.
+- Record activation separately from source preparation. No schema, Storage/business mutation, credential/publication provisioning, mail or application session; preserve unrelated local edits. Positive provider/account/device acceptance and Production/write-opening decisions remain separate.
+
 ### Login mouse parallax and copy (2026-10-09, source only)
 
 - Explain Google reCAPTCHA spam protection in the translated security note and change the Thai story kicker to `อุปกรณ์พร้อมใช้ มีไหมนั่นอีกเรื่อง`, with English translation. Preserve the remaining user-owned copy and existing illustration.
