@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-032 — Catalog motion and deletion gestures do not confer authority
+
+Status: user-authorized source refinement, isolated tests/build accepted — 2026-10-09; protected Preview activation recorded separately in Memory.
+
+Guest catalog auto-pagination adds only canonical Equipment `status` to the existing explicit public projection. Existing visibility/category/lifecycle exclusions and private images remain; "all" means all already-published assets for Guest, all allowed catalog assets for a current authenticated User. The DOM DriftWall adapter receives DTOs, not a database connection. Selection carries the existing confirmed Login intent or enters the existing guarded borrow form; displayed availability never authorizes a transaction. The HoldButton adapter gates existing delete controls, including the final typed-ID dialog, without changing authorization, versions, active-loan denial, idempotency or soft-delete/History. A blocked adapter denies delete interaction rather than restoring single-click deletion. [Presentation contract](LOGIN_GUEST_DOMAINS.md#drift-wall-and-hold-delete-2026-10-09) owns lifecycle/accessibility and attribution.
+
 ## ADR-031 — Action-bound abuse proof is not identity
 
 Status: user-authorized source implementation — 2026-10-08; activation pending.

@@ -42,7 +42,8 @@ test('Guest sees no assets by default; explicit publication projects allowlisted
     const payload={assetId:f.asset.asset_id,isPublic:true,expectedVersion:f.asset.row_version,commandId:'public-fixture-publish'};
     await f.transact(async db=>{const domain=await loadDomain(db,{session:f.session});await setVisibility(db,domain,f.admin,payload);await saveDomain(db,domain);});
     const result=await publicEquipment(f.db);assert.equal(result.items.length,1);
-    assert.deepEqual(Object.keys(result.items[0]).sort(),['asset_id','name','brand','model','category_name','can_borrow','imageAvailable','detail_url'].sort());
+    assert.deepEqual(Object.keys(result.items[0]).sort(),['asset_id','name','brand','model','category_name','status','can_borrow','imageAvailable','detail_url'].sort());
+    assert.equal(result.items[0].status,'AVAILABLE');
     assert.match(result.items[0].detail_url,/^https:\/\/fixture\.example\.test/);assert.equal(result.items[0].imageAvailable,false);
     await f.transact(async db=>{const domain=await loadDomain(db,{session:f.session});await setVisibility(db,domain,f.admin,payload);await saveDomain(db,domain);});
     assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.history WHERE data->>\'operation_id\'=$1',[payload.commandId])).rows[0].n,1);
@@ -52,6 +53,24 @@ test('Guest sees no assets by default; explicit publication projects allowlisted
     await assert.rejects(publicEquipment(f.db,{assetId:f.asset.asset_id}),e=>e.code==='NOT_FOUND');
   }finally{await f.db.close();}
 });
+test('public catalog pages/status remain narrow; private, deleted, retired, lost and inactive-category records never enter the wall',async()=>{
+  const f=await setup();try{
+    const base=(await f.db.query('SELECT data FROM crs.equipment WHERE id=$1',[f.asset.asset_id])).rows[0].data;
+    for(let i=1;i<=30;i++){
+      const id='AST-'+String(i+10).padStart(6,'0'),status=i===28?'LOST':i===29?'RETIRED':i===30?'DELETED':i%2?'MAINTENANCE':'AVAILABLE';
+      await f.db.query('INSERT INTO crs.equipment(data) VALUES($1)',[JSON.stringify({...base,asset_id:id,status,sku:'PUBLIC-'+i,serial_number:'PUBLIC-SERIAL-'+i,image_file_id:'private-resource',image_url:'https://private.invalid/image',note:'internal-private',active_borrow_id:'',name:'Public '+String(i).padStart(2,'0')})]);
+      await f.db.query('INSERT INTO crs.equipment_visibility(asset_id,is_public,updated_by) VALUES($1,true,$2)',[id,f.admin.user_id]);
+    }
+    const first=await publicEquipment(f.db),second=await publicEquipment(f.db,{page:2});
+    assert.equal(first.items.length,24);assert.equal(second.items.length,3);assert.equal(first.total,27);assert.equal(first.totalPages,2);
+    const all=[...first.items,...second.items];assert.equal(new Set(all.map(item=>item.asset_id)).size,27);
+    for(const item of all){assert.equal(item.can_borrow,item.status==='AVAILABLE');assert.equal(item.imageAvailable,false);assert.ok(['AVAILABLE','MAINTENANCE'].includes(item.status));for(const field of ['note','serial_number','image_file_id','image_url','active_borrow_id','row_version'])assert.ok(!Object.hasOwn(item,field));}
+    assert.ok(!all.some(item=>item.asset_id===f.asset.asset_id));
+    await f.db.query("UPDATE crs.categories SET data=jsonb_set(data,'{status}','\"INACTIVE\"') WHERE id=$1",[base.category_id]);
+    assert.equal((await publicEquipment(f.db)).items.length,0);
+  }finally{await f.db.close();}
+});
+
 test('new committed Borrow History projects per-recipient notifications exactly once; inbox/read ownership remains private',async()=>{
   const f=await setup();try{
     const invoke=async(method,input,actor)=>f.transact(async db=>{const domain=await loadDomain(db,{session:{...f.session,userId:actor.user_id,email:actor.email}});const response=domain.invoke(method,['fixture-session',input]);assert.equal(response.ok,true,JSON.stringify(response.error));await saveDomain(db,domain);return response.data;});

@@ -85,3 +85,7 @@ Final `npm test`: 218 top-level checks pass (17 contracts, 83 preserved backend,
 - Operations/config: `.env.example`, package/lockfile, `tools/database.mjs`, `restore-records.mjs`.
 - Tests: migration password/experience/auth/domain/restore, callback fixture, frontend OTP/theme, Next/browser and production-artifact privacy checks.
 - Documentation: `CLAUDE.md`, `CONTEXT.md`, this runbook, linked ADR, `DECISIONS.md`, `MEMORY.md`, `CHANGELOG.md`. Build/captures and unrelated local edits are excluded.
+
+## Public catalog status refinement (2026-10-09)
+
+Guest DTO adds only canonical Equipment `status` for the requested status overlay. Explicit publication, lifecycle/category exclusions, all other allowlisted fields and `imageAvailable=false` remain. No Guest image permission or new session/business authority is inferred. Authenticated Dashboard auto-loads its existing guarded catalog. [Drift/Hold contract](LOGIN_GUEST_DOMAINS.md#drift-wall-and-hold-delete-2026-10-09) owns presentation and gesture lifecycle; ADR-032 records the authority seam. Source and guarded Preview acceptance are recorded separately in Memory.

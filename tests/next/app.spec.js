@@ -22,7 +22,7 @@ async function mock(page,{signedOut=false,restricted=false}={}){
     const input=route.request().postDataJSON();calls.push(input);
     let response;
     if(input.method==='passwordSignIn') response={ok:true,data:{status:'COMPLETE',expiresAt:Math.floor(Date.now()/1000)+600}};
-    else if(input.method==='listPublicEquipment') response={ok:true,data:{items:[{asset_id:record.asset_id,name:record.name,brand:'Fixture',model:'Public',category_name:'Public',can_borrow:true,imageAvailable:false}],page:1,total:1,totalPages:1}};
+    else if(input.method==='listPublicEquipment') response={ok:true,data:{items:[{asset_id:record.asset_id,name:record.name,brand:'Fixture',model:'Public',category_name:'Public',status:'AVAILABLE',can_borrow:true,imageAvailable:false}],page:1,total:1,totalPages:1}};
     else if(input.method==='adminGetEquipmentVisibility') response={ok:true,data:{isPublic:false}};
     else if(input.method==='adminSetEquipmentPublic') response={ok:true,data:{updated:true}};
     else if(input.method==='adminIssueTemporaryPassword') response={ok:true,data:{deliveryStatus:'SENT',activated:true,mustChangePassword:true}};
@@ -44,6 +44,135 @@ async function mock(page,{signedOut=false,restricted=false}={}){
   expect(session).toBeTruthy();
   return {calls,record};
 }
+
+test('Drift Wall auto-loads every published page only, exposes status overlays and keeps the Guest borrow handoff',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});const publicCalls=[];
+  const items=Array.from({length:29},(_,i)=>({asset_id:'AST-'+String(i+1).padStart(6,'0'),name:'Public item '+(i+1),category_name:'Public',brand:'Fixture',model:'Wall',status:i%2?'MAINTENANCE':'AVAILABLE',can_borrow:i%2===0,imageAvailable:false}));
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();publicCalls.push(input);const number=input.args[0].page;await route.fulfill({json:{ok:true,data:{items:items.slice((number-1)*24,number*24),page:number,total:29,totalPages:2}}});});
+  await page.goto('/');await expect(page.locator('.drift-wall__tile:not([data-wall-copy])')).toHaveCount(29);
+  expect(publicCalls.map(value=>value.args[0].page)).toEqual([1,2]);
+  await page.locator('[data-wall-mode]').click();
+  const unavailable=page.locator('[data-wall-asset="AST-000002"]:not([data-wall-copy])');await unavailable.click();
+  await expect(page.locator('.experience-dialog')).toContainText('ซ่อมบำรุง');await expect(page.locator('.experience-dialog')).toContainText('ยังไม่พร้อมให้ยืม');
+  await page.keyboard.press('Escape');await expect(unavailable).toBeFocused();
+  await page.locator('[data-guest-borrow="AST-000001"]').click();await expect(page.locator('#confirm-modal')).toBeVisible();
+  await page.locator('#confirm-modal [data-confirm-accept]').click();await expect(page.locator('#login-email')).toBeVisible();
+  expect(calls.some(call=>['listEquipment','getEquipmentImage','createBorrowRequest'].includes(call.method))).toBe(false);
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('crs.guest.borrow-intent.v1')).assetId)).toBe('AST-000001');
+  expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.target?.closest('.equipment-wall')).length)).toBe(0);
+});
+
+test('Drift Wall pauses offscreen/hidden, provides unique keyboard controls and static responsive TH/EN Light/Dark fallbacks',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/');await expect(page.locator('.equipment-wall')).toHaveAttribute('data-motion','running');
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  await expect(page.locator('.equipment-wall')).toHaveAttribute('data-motion','paused');
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});
+  await expect(page.locator('.equipment-wall')).toHaveAttribute('data-motion','running');
+  await page.locator('[data-guest-borrow]').focus();await expect(page.locator('.drift-wall')).toHaveAttribute('data-static','true');
+  for(const width of [320,390,1024,1440])for(const theme of ['light','dark'])for(const language of ['th','en']){
+    await page.setViewportSize({width,height:900});await page.evaluate(({theme,language})=>{CRS.theme.apply(theme,true);CRS.language.set(language);},{theme,language});
+    await expect(page.locator('.drift-wall__tile:not([data-wall-copy])')).toHaveCount(1);
+    await expect(page.locator('[data-guest-borrow] .drift-status')).toHaveText(language==='th'?'พร้อมยืม':'Available');await expectNoOverflow(page);
+  }
+  await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.drift-wall')).toHaveAttribute('data-static','true');await expect(page.locator('.equipment-wall')).toHaveAttribute('data-motion','paused');
+  await captureUi(page,'drift-wall-reduced-desktop-dark');await page.setViewportSize({width:390,height:844});await captureUi(page,'drift-wall-mobile-dark');
+});
+
+test('authenticated Dashboard Wall uses the guarded catalog and selection enters the unchanged borrow workflow',async({page})=>{
+  const {calls,record}=await mock(page);await page.goto('/');await expect(page.locator('.dashboard-equipment-wall .drift-wall')).toBeVisible();
+  const item=page.locator('.dashboard-equipment-wall .drift-wall__tile:not([data-wall-copy])');await item.focus();await item.click();
+  await expect(page.locator('#page-borrow')).toBeVisible();
+  expect(calls.some(call=>call.method==='listEquipment'&&call.args[0].pageSize===100)).toBe(true);
+  expect(calls.some(call=>call.method==='getEquipmentDetail'&&call.args[0]===record.asset_id)).toBe(true);
+  expect(calls.some(call=>call.method==='createBorrowRequest')).toBe(false);
+  expect(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.target?.closest('.equipment-wall')).length)).toBe(0);
+});
+
+test('Wall retains private image delivery/fallback and unavailable authenticated selection cannot submit a borrow',async({page})=>{
+  const {calls,record}=await mock(page);
+  await page.route('https://test.supabase.co/**',route=>route.fulfill({status:404,body:''}));
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listEquipment')return route.fallback();await route.fulfill({json:{ok:true,data:{items:[{...record,status:'DAMAGED',can_borrow:false,imageAvailable:true,image_url:'/api/image-placeholder'}],page:1,total:1,totalPages:1}}});});
+  await page.goto('/');const item=page.locator('.dashboard-equipment-wall [data-wall-asset]:not([data-wall-copy])');await item.focus();
+  await expect(item.locator('.drift-image-fallback')).toBeVisible();await expect.poll(()=>calls.filter(c=>c.method==='getEquipmentImage').length).toBe(1);
+  await item.click();await expect(page.locator('.experience-dialog')).toContainText('ชำรุด');await page.keyboard.press('Escape');await expect(item).toBeFocused();
+  expect(calls.some(c=>c.method==='createBorrowRequest')).toBe(false);expect(await item.locator('img').getAttribute('src')).toBeNull();
+  await page.evaluate(()=>CRS.theme.apply('dark',true));await captureUi(page,'drift-dashboard-dark-placeholder');
+});
+
+test('incomplete/changing public pagination fails visibly without private fallbacks or stale wall insertion',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});let requests=0;
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();requests++;await route.fulfill({json:{ok:true,data:{items:[],page:input.args[0].page,total:requests===1?25:26,totalPages:2}}});});
+  await page.goto('/');await expect(page.locator('.guest-status')).toContainText('รายการอุปกรณ์เปลี่ยนแปลง');await expect(page.locator('.equipment-wall')).toHaveCount(0);expect(requests).toBe(2);expect(calls.some(c=>c.method==='listEquipment')).toBe(false);
+});
+
+async function holdKey(page,control,key=' '){await control.focus();await page.keyboard.down(key);await expect(page.locator('#equipment-delete-modal')).toBeVisible({timeout:4000});await page.keyboard.up(key);}
+test('Hold Button covers detail and final delete, requires exact typed ID, blocks click/Enter-submit, and sends one guarded mutation',async({page})=>{
+  const {calls,record}=await mock(page);await page.goto('/?view=equipment-detail&id='+record.asset_id);
+  const entry=page.locator('#page-equipment-detail [data-action="delete-equipment"]');await expect(entry).toHaveClass(/hold-button/);
+  await entry.click();await expect(page.locator('#equipment-delete-modal')).toBeHidden();await holdKey(page,entry);
+  await expect(page.locator('#equipment-delete-modal')).toBeVisible();const submit=page.locator('#equipment-delete-form [data-submit]');await expect(submit).toBeDisabled();
+  await page.locator('#equipment-delete-confirm').fill('wrong');await expect(submit).toBeDisabled();
+  await page.locator('#equipment-delete-confirm').fill(record.asset_id);await expect(submit).toBeEnabled();
+  await submit.click();await page.locator('#equipment-delete-confirm').press('Enter');
+  expect(calls.filter(call=>call.method==='adminDeleteEquipment')).toHaveLength(0);
+  await submit.focus();await page.keyboard.down('Enter');await expect(page.locator('#equipment-delete-modal')).toBeHidden({timeout:5000});await page.keyboard.up('Enter');
+  const requests=calls.filter(call=>call.method==='adminDeleteEquipment');expect(requests).toHaveLength(1);
+  expect(requests[0].args[0]).toMatchObject({asset_id:record.asset_id,confirm:true,confirm_asset_id:record.asset_id,expected_version:record.row_version});
+  await expect(page.locator('#page-equipment')).toBeVisible();
+});
+
+test('Hold Button cancels release, pointer escape/cancel, focus loss, tab hiding, disabled transitions and repeated keys',async({page})=>{
+  const {calls,record}=await mock(page);await page.goto('/?view=equipment-detail&id='+record.asset_id);
+  const button=page.locator('#page-equipment-detail [data-action="delete-equipment"]');await expect(button).toHaveClass(/hold-button/);
+  const box=await button.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await expect(button).toHaveAttribute('data-phase','holding');await page.mouse.up();await expect(button).toHaveAttribute('data-phase','idle');
+  await page.mouse.down();await page.mouse.move(box.x-20,box.y);await expect(button).toHaveAttribute('data-phase','idle');await page.mouse.up();
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.evaluate(()=>document.querySelector('#page-equipment-detail [data-action="delete-equipment"]').dispatchEvent(new PointerEvent('pointercancel',{pointerId:1,bubbles:true})));await expect(button).toHaveAttribute('data-phase','idle');await page.mouse.up();
+  for(const cancellation of ['blur','hidden','disable','cancel','focus','scroll','resize']){
+    await button.focus();await page.keyboard.down(' ');await expect(button).toHaveAttribute('data-phase','holding');
+    await page.evaluate(kind=>{const b=document.querySelector('#page-equipment-detail [data-action="delete-equipment"]');if(kind==='blur')window.dispatchEvent(new Event('blur'));if(kind==='hidden'){Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));}if(kind==='disable')b.disabled=true;if(kind==='cancel')b.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));if(kind==='focus')document.querySelector('[data-route="equipment"]').focus();if(kind==='scroll')window.dispatchEvent(new Event('scroll'));if(kind==='resize')window.dispatchEvent(new Event('resize'));},cancellation);
+    await expect(button).toHaveAttribute('data-phase','idle');await page.keyboard.up(' ');
+    await page.evaluate(()=>{document.querySelector('#page-equipment-detail [data-action="delete-equipment"]').disabled=false;Object.defineProperty(document,'hidden',{configurable:true,value:false});});
+  }
+  expect(calls.some(call=>call.method==='adminDeleteEquipment')).toBe(false);await expect(page.locator('#equipment-delete-modal')).toBeHidden();
+  await button.focus();await page.keyboard.down(' ');await page.keyboard.down(' ');await page.keyboard.press('Escape');await page.keyboard.up(' ');await expect(button).toHaveAttribute('data-phase','idle');
+});
+
+test('Hold Button is applied in cards/table and protected controls remain fail-closed if its optional module fails',async({page})=>{
+  const {calls}=await mock(page);await page.goto('/?view=equipment');
+  await expect(page.locator('#page-equipment [data-action="delete-equipment"]:visible')).toHaveClass(/hold-button/);
+  await page.locator('[data-action="set-equipment-view"][data-view-mode="table"]').click();await expect(page.locator('#page-equipment [data-action="delete-equipment"]:visible')).toHaveClass(/hold-button/);
+  await page.route('**/crs/react-bits.js',route=>route.abort());await page.reload();
+  await page.locator('#page-equipment [data-action="delete-equipment"]:visible').click();await expect(page.locator('#equipment-delete-modal')).toBeHidden();
+  expect(calls.some(call=>call.method==='adminDeleteEquipment')).toBe(false);
+});
+
+test('moving Wall pointer selection does not rearrange the pressed tile; optional-adapter fallback stays public-only',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});await page.goto('/');await expect(page.locator('.equipment-wall')).toHaveAttribute('data-motion','running');
+  // Actual pointer path, not actionability waiting for an infinite animation.
+  const box=await page.locator('.drift-wall__tile[data-wall-copy]').first().boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
+  await expect(page.locator('.equipment-wall')).toHaveAttribute('data-motion','paused');await expect(page.locator('.drift-wall')).toHaveAttribute('data-static','false');await page.mouse.up();
+  await expect(page.locator('#confirm-modal')).toBeVisible();await page.locator('[data-confirm-cancel]').click();
+  await page.route('**/crs/react-bits.js',route=>route.abort());await page.reload();await expect(page.locator('.guest-grid [data-guest-borrow]')).toBeVisible();
+  expect(calls.some(c=>['listEquipment','getEquipmentImage','createBorrowRequest'].includes(c.method))).toBe(false);
+});
+
+test('native touch hold opens only the guarded delete dialog and release before completion cancels',async({page})=>{
+  await page.setViewportSize({width:390,height:844});const {calls,record}=await mock(page);await page.goto('/?view=equipment-detail&id='+record.asset_id);
+  const button=page.locator('#page-equipment-detail [data-action="delete-equipment"]');await button.scrollIntoViewIfNeeded();await expect(button).toHaveClass(/hold-button/);
+  const cdp=await page.context().newCDPSession(page);await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true});const box=await button.boundingBox(),point={x:box.x+box.width/2,y:box.y+box.height/2};
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});await expect(button).toHaveAttribute('data-phase','holding');await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await expect(button).toHaveAttribute('data-phase','idle');
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});await expect(page.locator('#equipment-delete-modal')).toBeVisible({timeout:4000});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await expect(page.locator('#equipment-delete-form [data-submit]')).toBeDisabled();expect(calls.some(c=>c.method==='adminDeleteEquipment')).toBe(false);
+});
+
+test('Drift/Hold presentation captures use only synthetic catalog data across themes and mobile',async({page})=>{
+  const {record}=await mock(page,{signedOut:true});
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listPublicEquipment')return route.fallback();await route.fulfill({json:{ok:true,data:{items:Array.from({length:10},(_,i)=>({asset_id:'AST-'+String(i+1).padStart(6,'0'),name:'Equipment '+(i+1),status:i%2?'RESERVED':'AVAILABLE',can_borrow:i%2===0,imageAvailable:false})),page:1,total:10,totalPages:1}}});});
+  await page.goto('/');for(const theme of ['light','dark']){await page.evaluate(theme=>CRS.theme.apply(theme,true),theme);await expect(page.locator('.drift-wall')).toBeVisible();await captureUi(page,'drift-wall-desktop-'+theme);}
+  await page.setViewportSize({width:390,height:844});await expect(page.locator('.drift-wall')).toHaveAttribute('data-static','true');await captureUi(page,'drift-wall-mobile-catalog');
+  await page.unroute('**/api/rpc');await mock(page);await page.goto('/?view=equipment-detail&id='+record.asset_id);const entry=page.locator('#page-equipment-detail [data-action="delete-equipment"]');await holdKey(page,entry);await page.locator('#equipment-delete-confirm').fill(record.asset_id);
+  for(const theme of ['light','dark']){await page.evaluate(theme=>CRS.theme.apply(theme,true),theme);await captureUi(page,'hold-delete-dialog-mobile-'+theme);}await expectNoOverflow(page);
+});
 test('actual Next shell preserves query navigation, Thai settings and canonical QR without GAS runtime',async({page})=>{
   const {record}=await mock(page);
   await page.goto('/?view=equipment-detail&id='+record.asset_id);
@@ -552,7 +681,7 @@ test('password login uses the existing opaque remembered session and clears the 
 test('Guest confirmation hands off only an asset intent and opens the unchanged borrow form after sign-in',async({page})=>{
   const {calls,record}=await mock(page,{signedOut:true});await page.goto('/');
   await expect(page.locator('#guest-equipment')).toBeVisible();
-  await page.locator('[data-guest-borrow]').click();await expect(page.locator('#confirm-modal')).toBeVisible();
+  await page.locator('[data-guest-borrow]').focus();await page.locator('[data-guest-borrow]').click();await expect(page.locator('#confirm-modal')).toBeVisible();
   await page.locator('#confirm-modal [data-confirm-accept]').click();await expect(page.locator('#password-login-form')).toBeVisible();
   await page.locator('#login-email').fill('admin@example.test');await page.locator('#login-password').fill('Fixture passphrase only!');await page.locator('#password-login-submit').click();
   await expect(page.locator('#form-borrow-request')).toBeVisible();
@@ -844,7 +973,7 @@ test('Guest auto-loads the public projection only, fallback is accessible and la
   expect(calls.filter(c=>c.method==='listPublicEquipment')).toHaveLength(1);
   expect(calls.some(c=>['listEquipment','getEquipmentDetail','getEquipmentImage'].includes(c.method))).toBe(false);
   const language=page.locator('.guest-controls [data-experience-action="language"]');
-  await language.focus();await page.keyboard.press('Enter');await expect(page.locator('[data-guest-borrow]')).toHaveText('Borrow');
+  await language.focus();await page.keyboard.press('Enter');await expect(page.locator('[data-guest-borrow] .drift-action')).toHaveText('Borrow');
   await expect(language).toBeFocused();
   expect(calls.filter(c=>c.method==='listPublicEquipment')).toHaveLength(1);
   const borrow=page.locator('[data-guest-borrow]');await borrow.focus();await page.keyboard.press('Enter');await expect(page.locator('#confirm-modal')).toBeVisible();

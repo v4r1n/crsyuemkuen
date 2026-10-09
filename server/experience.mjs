@@ -39,7 +39,7 @@ export async function notificationInbox(db,user,input = {}) {
 function publicDto(data,category) {
   // Never return a domain DTO or raw JSON. Images remain authenticated/private.
   return {asset_id:data.asset_id,name:data.name,brand:data.brand || '',model:data.model || '',
-    category_name:category || '',can_borrow:data.status === 'AVAILABLE',
+    category_name:category || '',status:data.status,can_borrow:data.status === 'AVAILABLE',
     imageAvailable:false,detail_url:config().WEB_APP_URL + '?view=equipment-detail&id=' + encodeURIComponent(data.asset_id)};
 }
 export async function publicEquipment(db,input = {}) {

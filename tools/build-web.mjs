@@ -72,7 +72,7 @@ for(const name of ['scripts-core','scripts-qr','scripts-dashboard','scripts-admi
   if(/drive\.google\.com|script\.google\.com|result\.base64_data/.test(generated)) throw new Error('Unadapted '+name+' seam');
 }
 index=index.replace('<?= initialView ?>','CRS_INITIAL_VIEW').replace('<?= initialAssetId ?>','CRS_INITIAL_ASSET');
-index=index.replace('</head>','<link rel="stylesheet" href="/crs/experience.css"><link rel="stylesheet" href="/crs/magic-ui.css"><script src="/crs/transport.js"></script></head>');
+index=index.replace('</head>','<link rel="stylesheet" href="/crs/experience.css"><link rel="stylesheet" href="/crs/magic-ui.css"><link rel="stylesheet" href="/crs/react-bits.css"><script src="/crs/transport.js"></script></head>');
 index=index.replace('</body>','<script src="/crs/migration-admin.js"></script></body>');
 const loginControls=await readFile(join(root,'web','login-controls.html'),'utf8');
 index=index.replace('<div class="startup-card access-card">','<div class="startup-card access-card text-center">');
@@ -116,13 +116,14 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/experience.js"></script></body>');
 // Remove only this retired generated asset on incremental builds as well.
 await rm(join(output,'login-scene.js'),{force:true});
 await rm(join(output,'guest-scene.js'),{force:true});
 await writeFile(join(output,'recaptcha.js'),await readFile(join(root,'web','recaptcha.js'),'utf8'));
 await writeFile(join(output,'magic-ui.js'),await readFile(join(root,'web','magic-ui.js'),'utf8'));
 await writeFile(join(output,'magic-ui.css'),await readFile(join(root,'web','magic-ui.css'),'utf8'));
+for(const name of ['react-bits.js','react-bits.css','react-bits-license.txt'])await writeFile(join(output,name),await readFile(join(root,'web',name),'utf8'));
 await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web','login-parallax.js'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));

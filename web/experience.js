@@ -9,6 +9,8 @@
   const t=key=>(text[CRS.language.effective()]||text.th)[key]||key;
   const security=(method,input)=>CRS.auth.requestSecurity(method,input);
   let guestPage=null,guestSerial=0,guestDispose=null,guestInput={},guestResult=null,notifications=[],inboxBusy=false,dialogSerial=0,entryView='guest',cardEffect=null;
+  let dashboardPage=null,dashboardDispose=null,dashboardResult=null,dashboardSerial=0;
+  const statusText=status=>global.CRSReactBits?.statusLabel(status)||CRS.statusLabel(status);
   function badge(count){document.querySelectorAll('[data-notification-count]').forEach(node=>{node.textContent=count||'';});}
   async function refreshInboxCount(){
     if(inboxBusy||document.hidden||!CRS.auth.hasSession()||CRS.state.bootstrap?.session.mustChangePassword)return;
@@ -114,6 +116,35 @@
       badge(result.unread);
     }catch(error){host.insertAdjacentHTML('beforeend','<p role="status">'+escape(error.message)+'</p>');}
   }
+  async function allEquipment(load,valid){
+    const items=new Map();let total=null,pages=1;
+    for(let page=1;page<=pages;page++){
+      const result=await load(page);if(!valid())return null;
+      if(!Array.isArray(result.items)||result.page!==page||!Number.isSafeInteger(result.total)||!Number.isSafeInteger(result.totalPages)||result.totalPages<1||result.totalPages>10000||result.total<0||(total!==null&&total!==result.total))throw new Error(CRS.language.effective()==='en'?'Catalog changed. Please refresh.':'รายการอุปกรณ์เปลี่ยนแปลง กรุณาโหลดใหม่');
+      total=result.total;pages=result.totalPages;
+      for(const item of result.items){if(!/^AST-\d{6}$/.test(item.asset_id)||items.has(item.asset_id))throw new Error('Invalid equipment catalog');items.set(item.asset_id,item);}
+    }
+    if(items.size!==total)throw new Error(CRS.language.effective()==='en'?'Catalog changed. Please refresh.':'รายการอุปกรณ์เปลี่ยนแปลง กรุณาโหลดใหม่');
+    return {items:[...items.values()],total,page:1,totalPages:1};
+  }
+  async function selectEquipment(item,node,publicView){
+    if(!item.can_borrow){
+      const popup=dialog(item.name,'<p class="mb-2">'+escape(statusText(item.status||'UNKNOWN'))+'</p><p class="text-secondary">'+escape(CRS.language.effective()==='en'?'This equipment is not available to borrow.':'อุปกรณ์นี้ยังไม่พร้อมให้ยืม')+'</p>');
+      const focusTarget=node.hasAttribute('data-wall-copy')?node.closest('.equipment-wall').querySelector('[data-wall-asset="'+item.asset_id+'"]:not([data-wall-copy])'):node;
+      popup.addEventListener('close',()=>{if(focusTarget.isConnected)focusTarget.focus({preventScroll:true});},{once:true});return;
+    }
+    if(!publicView){CRS.navigate('borrow',{id:item.asset_id});return;}
+    const confirmed=await CRS.confirm({title:t('signIn'),message:t('confirmBorrow'),confirmText:t('continue')});if(!confirmed)return;
+    if(CRS.auth.hasSession()){CRS.navigate('borrow',{id:item.asset_id});return;}
+    try{sessionStorage.setItem(handoffKey,JSON.stringify({assetId:item.asset_id,expiresAt:Date.now()+600000}));}catch{CRS.toast('ไม่สามารถจดจำอุปกรณ์ในเบราว์เซอร์นี้','danger');return;}showLogin();
+  }
+  function renderWall(content,result,publicView){
+    const select=(item,node)=>selectEquipment(item,node,publicView);
+    if(global.CRSReactBits)return global.CRSReactBits.mountWall(content,result.items,{publicView,onSelect:select});
+    // Semantic fallback when the optional presentation script is unavailable.
+    content.innerHTML='<div class="guest-grid">'+result.items.map(item=>'<article class="card guest-card h-100"><div class="card-body"><span class="guest-card-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><h3 class="h5">'+escape(item.name)+'</h3><p>'+escape(statusText(item.status||(item.can_borrow?'AVAILABLE':'UNKNOWN')))+'</p><button type="button" class="btn btn-primary" '+(publicView&&item.can_borrow?'data-guest-borrow="'+escape(item.asset_id)+'" ':'')+'data-wall-asset="'+escape(item.asset_id)+'">'+escape(item.can_borrow?t('borrow'):(CRS.language.effective()==='en'?'View status':'ดูสถานะ'))+'</button></div></article>').join('')+'</div>';
+    content.querySelectorAll('[data-wall-asset]').forEach(node=>node.onclick=()=>select(result.items.find(item=>item.asset_id===node.dataset.wallAsset),node));return ()=>content.replaceChildren();
+  }
   async function browseGuest(input={},cached=null){
     if(CRS.auth.hasSession())return;
     const serial=++guestSerial;
@@ -129,17 +160,28 @@
     translate(guestPage);
     guestPage.querySelector('form').onsubmit=event=>{event.preventDefault();browseGuest({search:guestPage.querySelector('input').value});};
     try{
-      const response=cached?{ok:true,data:cached}:await global.CRS_SERVER_RPC('listPublicEquipment',[input]);if(!response.ok)throw new CRS.ClientApiError(response.error);
+      const result=cached||await allEquipment(async page=>{const response=await global.CRS_SERVER_RPC('listPublicEquipment',[{...input,page}]);if(!response.ok)throw new CRS.ClientApiError(response.error);return response.data;},()=>serial===guestSerial&&!guestPage.hidden&&!CRS.auth.hasSession());
       if(serial!==guestSerial||guestPage.hidden||CRS.auth.hasSession())return;
-      const result=response.data,content=guestPage.querySelector('[data-guest-content]');
+      const content=guestPage.querySelector('[data-guest-content]');
       guestResult=result;content.setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=result.items.length?'':t('none');
-      content.innerHTML=result.items.length?'<div class="guest-grid">'+result.items.map(item=>'<article class="card guest-card h-100"><div class="card-body"><span class="guest-card-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><h3 class="h5">'+escape(item.name)+'</h3><p class="text-secondary">'+escape([item.category_name,item.brand,item.model].filter(Boolean).join(' · '))+'</p>'+(item.can_borrow?'<button type="button" class="btn btn-primary" data-guest-borrow="'+escape(item.asset_id)+'">'+escape(t('borrow'))+'</button>':'')+'</div></article>').join('')+'</div>':'';
-      for(const node of content.querySelectorAll('[data-guest-borrow]'))node.onclick=async()=>{
-        const confirmed=await CRS.confirm({title:t('signIn'),message:t('confirmBorrow'),confirmText:t('continue')});if(!confirmed)return;
-        try{sessionStorage.setItem(handoffKey,JSON.stringify({assetId:node.dataset.guestBorrow,expiresAt:Date.now()+600000}));}catch{CRS.toast('ไม่สามารถจดจำอุปกรณ์ในเบราว์เซอร์นี้','danger');return;}showLogin();
-      };
-      if(result.totalPages>1){const nav=document.createElement('nav');nav.setAttribute('aria-label',t('equipment'));nav.className='mt-4 d-flex gap-2';for(const [label,page]of[['before',result.page-1],['next',result.page+1]]){const node=document.createElement('button');node.type='button';node.className='btn btn-outline-secondary';node.textContent=t(label);node.disabled=page<1||page>result.totalPages;node.onclick=()=>browseGuest({...input,page});nav.append(node);}content.append(nav);}
+      if(result.items.length){const dispose=renderWall(content,result,true),previous=guestDispose;guestDispose=()=>{dispose();previous?.();};}
     }catch(error){if(serial===guestSerial&&!guestPage.hidden){guestPage.querySelector('[data-guest-content]').setAttribute('aria-busy','false');guestPage.querySelector('.guest-status').textContent=error.message;}}
+  }
+  function stopDashboard(){dashboardSerial++;dashboardDispose?.();dashboardDispose=null;dashboardPage=null;dashboardResult=null;}
+  async function mountDashboard(cached=null){
+    const page=document.querySelector('#page-dashboard');
+    if(!page||!CRS.auth.hasSession()||CRS.state.bootstrap?.session.mustChangePassword){if(dashboardPage)stopDashboard();return;}
+    if(page===dashboardPage&&!cached)return;
+    if(page!==dashboardPage)stopDashboard();dashboardPage=page;
+    const serial=++dashboardSerial;dashboardDispose?.();dashboardDispose=null;
+    let host=page.querySelector('.dashboard-equipment-wall');
+    if(!host){host=document.createElement('section');host.className='dashboard-equipment-wall';page.append(host);}
+    host.innerHTML='<h2 class="h4">'+escape(CRS.language.effective()==='en'?'All equipment':'อุปกรณ์ทั้งหมด')+'</h2><p role="status">'+escape(t('loading'))+'</p><div data-dashboard-wall aria-busy="true"></div>';
+    try{
+      const result=cached||await allEquipment(pageNumber=>CRS.api.listEquipment({page:pageNumber,pageSize:100}),()=>serial===dashboardSerial&&page.isConnected&&CRS.auth.hasSession());
+      if(serial!==dashboardSerial||!page.isConnected||!CRS.auth.hasSession())return;
+      dashboardResult=result;host.querySelector('[role="status"]').textContent=result.items.length?'':t('none');const content=host.querySelector('[data-dashboard-wall]');content.setAttribute('aria-busy','false');if(result.items.length)dashboardDispose=renderWall(content,result,false);
+    }catch(error){if(serial===dashboardSerial&&host.isConnected){host.querySelector('[role="status"]').textContent=error.message;host.querySelector('[data-dashboard-wall]').setAttribute('aria-busy','false');}}
   }
   function loginTarget(){
     if(CRS.state.bootstrap?.session.mustChangePassword)return {name:'settings',params:{section:'security'}};
@@ -191,7 +233,13 @@
     const form=document.querySelector('#password-login-form'),error=document.querySelector('#password-login-error');
     form.addEventListener('submit',async event=>{event.preventDefault();if(!form.reportValidity())return;const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;submit.disabled=true;error.hidden=true;try{await CRS.auth.passwordSignIn(form.email.value,form.password.value);}catch(problem){error.textContent=problem.message;error.hidden=false;}finally{form.password.value='';submit.disabled=false;translate();}});
     const observer=new MutationObserver(()=>translate());observer.observe(document.querySelector('#access-state-title'),{childList:true});
-    const views=new MutationObserver(()=>decorate(document.querySelector('#view-root')));views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
+    const views=new MutationObserver(()=>{decorate(document.querySelector('#view-root'));mountDashboard();});views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
+    if(global.CRSReactBits)global.CRSReactBits.mountDeletes();
+    else{
+      // Never silently restore click-to-delete when the hold adapter fails.
+      document.addEventListener('click',event=>{if(event.target.closest('button[data-action="delete-equipment"],#equipment-delete-form button[data-submit]')){event.preventDefault();event.stopImmediatePropagation();CRS.toast(CRS.language.effective()==='en'?'Delete control unavailable. Reload the page.':'ปุ่มลบไม่พร้อมใช้งาน กรุณาโหลดหน้าใหม่','danger');}},true);
+      document.addEventListener('submit',event=>{if(event.target.id==='equipment-delete-form'){event.preventDefault();event.stopImmediatePropagation();}},true);
+    }
     translate();cardEffect=global.CRSMagicUI?.mountCard(card)||null;
     global.CRSMagicUI?.mountRipple(document.querySelector('.login-art'));
     global.CRSMagicUI?.mountBlur(document.querySelector('.app-main'));
@@ -220,16 +268,18 @@
     if(key==='notifications'){const node=dialog(t('notifications'),'<div data-inbox></div>');renderNotifications(node.querySelector('[data-inbox]'));}
   });
   global.addEventListener('crs:bootstrapped',event=>{entryView='guest';stopGuest();guestResult=null;maskAll();cardEffect?.reset();badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
-  global.addEventListener('crs:authentication-required',()=>{badge(0);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);if(!CRS.auth.hasSession()){if(entryView==='login')showLogin();else showGuest();}});
+  global.addEventListener('crs:authentication-required',()=>{stopDashboard();badge(0);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);if(!CRS.auth.hasSession()){if(entryView==='login')showLogin();else showGuest();}});
   global.addEventListener('crs:rpc-completed',event=>{if(['createBorrowRequest','adminApproveBorrow','adminRejectBorrow','adminCheckoutBorrow','requestReturn','adminCompleteReturn'].includes(event.detail.method))refreshInboxCount();});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshInboxCount();});
   global.setInterval(refreshInboxCount,60000); // No polling when signed out, restricted or in a hidden tab.
   global.addEventListener('crs:language-changed',()=>{
+    if(dashboardPage?.isConnected&&dashboardResult)mountDashboard(dashboardResult);
     translate();if(guestPage&&!guestPage.hidden){
       const languageFocused=document.activeElement===guestPage.querySelector('[data-experience-action="language"]');
       browseGuest(guestInput,guestResult);
       if(languageFocused)guestPage.querySelector('[data-experience-action="language"]').focus({preventScroll:true});
     }
   });
+  document.addEventListener('click',event=>{if(event.target.closest('[data-action="refresh-dashboard"]')&&dashboardPage){dashboardPage=null;mountDashboard();}});
   CRS.features=Object.freeze({mountSettings,loginTarget});
 })(window);

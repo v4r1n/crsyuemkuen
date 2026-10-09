@@ -1,0 +1,47 @@
+/* React Bits DOM adaptations; MIT + Commons Clause: react-bits-license.txt. */
+.equipment-wall { min-width:0; }
+.drift-controls { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; }
+.drift-controls .btn { min-height:44px; }
+.drift-wall { --dw-tile-w:200px; --dw-tile-h:132px; --dw-gap:18px; --dw-radius:14px; --dw-lift:64px; position:relative; height:600px; overflow:hidden; border-radius:var(--crs-radius); background:var(--crs-surface); perspective:1200px; }
+.drift-wall__plane { position:absolute; top:0; left:50%; display:flex; transform:translate(-50%,0) scale(1.18) rotateX(0deg) rotateY(0deg) translateZ(-120px); transform-origin:top center; transform-style:preserve-3d; }
+.drift-wall__col { width:calc(var(--dw-tile-w) + var(--dw-gap)); flex:none; }
+.drift-wall__track { display:flex; flex-direction:column; transform-style:preserve-3d; }
+.drift-wall__tile { position:relative; display:block; border:0; padding:0; background:transparent; width:100%; height:calc(var(--dw-tile-h) + var(--dw-gap)); flex:none; text-align:start; color:#fff; transform-style:preserve-3d; }
+.drift-wall__tile-inner { position:absolute; inset:calc(var(--dw-gap) / 2); border-radius:var(--dw-radius); overflow:hidden; background:linear-gradient(145deg,#014d8b,#152d48); opacity:1; transform:translateZ(0); transition:transform .42s cubic-bezier(.22,1,.36,1),box-shadow .42s; }
+.drift-image-fallback { position:absolute; inset:0; display:grid; place-items:center; color:#cbdbe8; font-size:2.5rem; }
+.drift-image { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#122334; }
+.drift-wall__overlay { position:absolute; inset:0; background:#000; opacity:.42; pointer-events:none; }
+.drift-caption { position:absolute; inset:0; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-end; gap:.3rem; padding:.75rem; background:linear-gradient(transparent,rgba(0,0,0,.86)); pointer-events:none; }
+.drift-name { font-size:.95rem; line-height:1.3; font-weight:700; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.drift-status { border:1px solid rgba(255,255,255,.5); border-radius:100px; background:#3b4050; padding:.1rem .5rem; font-size:.75rem; }
+.drift-status[data-status="AVAILABLE"] { background:#09603c; }
+.drift-status:is([data-status="DAMAGED"],[data-status="LOST"]) { background:#99283c; }
+.drift-action { font-size:.75rem; color:#fff; }
+.drift-wall__tile:focus-visible { outline:3px solid var(--crs-primary); outline-offset:-3px; border-radius:var(--dw-radius); }
+.drift-wall[data-static="false"]::after { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(var(--crs-surface),transparent 16%,transparent 84%,var(--crs-surface)); }
+@supports (mask-composite:intersect) {
+ .drift-wall[data-static="false"] { mask-image:radial-gradient(ellipse 78% 82% at 50% 46%,#000 50%,transparent 100%),linear-gradient(to top,#000 50%,transparent 100%); mask-composite:intersect; }
+}
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+ .drift-wall__tile:hover .drift-wall__tile-inner { transform:translateZ(var(--dw-lift)); box-shadow:0 18px 35px #0005; }
+}
+/* Keyboard focus, pause control, touch/mobile and reduced motion expose every
+ * unique item in a static semantic list; repetitions have no tab stops. */
+.drift-wall[data-static="true"] { height:auto; overflow:visible; perspective:none; background:transparent; }
+.drift-wall[data-static="true"] .drift-wall__plane { position:static; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr)); transform:none; }
+.drift-wall[data-static="true"] .drift-wall__col,.drift-wall[data-static="true"] .drift-wall__track { display:contents; }
+.drift-wall[data-static="true"] [data-wall-copy] { display:none; }
+.dashboard-equipment-wall { margin-top:2rem; }
+/* HoldButton: destructive red fill with AA white labels; never imply backend
+ * success before its guarded transaction. Preserve native disabled state. */
+.hold-button { --hb-radius:var(--crs-control-radius); --hb-bg:#fff0f2; --hb-fill:#b4233f; --hb-text:#8e1b31; --hb-fill-text:#fff; --hb-p:0; position:relative; display:inline-grid; place-items:center; isolation:isolate; border:1px solid #b4233f; border-radius:var(--hb-radius); background:var(--hb-bg); color:var(--hb-text); min-height:44px; padding:.6rem .85rem; font:inherit; font-weight:600; line-height:1.4; cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation; transition:transform .16s,box-shadow .2s; }
+[data-bs-theme="dark"] .hold-button { --hb-bg:#371d27; --hb-text:#ffc4cf; }
+button.hold-button.btn { background:var(--hb-bg); color:var(--hb-text); border-color:var(--hb-fill); }
+.hold-button__label { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; }
+.hold-button__clip { position:absolute; inset:0; clip-path:inset(0 round var(--hb-radius)); pointer-events:none; }
+.hold-button__fill { position:absolute; inset:0; display:grid; place-items:center; background:var(--hb-fill); color:var(--hb-fill-text); clip-path:inset(0 calc((1 - var(--hb-p)) * 100%) 0 0); }
+.hold-button[data-phase="holding"] { transform:scale(.97); box-shadow:0 6px 22px #b4233f44; }
+.hold-button:focus-visible { outline:3px solid var(--crs-primary); outline-offset:3px; }
+.hold-button:disabled { opacity:.5; cursor:not-allowed; }
+@media (prefers-reduced-motion:reduce) { .drift-wall__tile-inner,.hold-button { transition:none; transform:none !important; } .hold-button__fill { clip-path:none; opacity:var(--hb-p); } }
+@media (forced-colors:active) { .hold-button { border-color:ButtonText; color:ButtonText; background:ButtonFace; } .hold-button__fill { background:Highlight; color:HighlightText; } .drift-wall__tile-inner { border:1px solid ButtonText; } }

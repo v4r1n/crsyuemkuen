@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Drift Wall and hold-to-delete (2026-10-09, source accepted before activation)
+
+- Add auto-paginated public catalog and authenticated Dashboard DriftWall with canonical statuses, existing borrow handoff and unavailable-status overlay. Preserve public visibility/private images; add only status to public DTO.
+- Adapt React Bits DriftWall/HoldButton to the DOM shell with full MIT + Commons Clause application-use attribution. Use red two-second hold controls at all delete entry/final submit points, retaining typed ID, version, pending-operation, authorization and soft-delete guards. Provide static motion/keyboard/mobile fallbacks, cancellation and fail-closed missing delete adapter.
+- Fresh isolated installation has zero dependency advisories; all 286 checks and production build pass. Repeat all 60 browser checks, then final build, 5 compiled, 7 focused migration/component and 11 focused browser checks. Eight visually reviewed synthetic captures cover themes, desktop/mobile and deletion dialogs. Preserve user-owned edits and all server authority; protected Preview activation is next, separately guarded. No Production release or writer reopening.
+
 ### Consistent search/account/sidebar corners (2026-10-09, source only)
 
 - Give My Borrow search four equal corners using the existing search token. Set account panel/profile radii to 16/12px with a border-inclusive 4px inset, retain unclipped keyboard focus, and derive sidebar header/footer/active-summary curves from shared radius/padding tokens in both expanded and collapsed states.
