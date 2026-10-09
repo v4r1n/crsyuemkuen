@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Public catalog thumbnail protected Preview activation (2026-10-09)
+
+- Deploy immutable accepted `98471cc` (0.1.12) on staging/Singapore. Nine candidate groups precede assigning only `https://crsyuemkuen-preview.vercel.app`; ten canonical groups and final guards pass. Verify the three real metadata-free thumbnails, current private originals/references, exact assets/allowlisted DTO/canonical links, cache/query/raw-ID denial, auth/proof/origin/protection/freeze and canonical OAuth start. The earlier candidate stays unpromoted.
+- Reuse 302-check isolated source/build acceptance, full final repeats and four reviewed responsive captures; all 173 uploaded blobs match the accepted snapshot. Fresh private database/seven-binary backup and durable/migration guards verify. Preserve Production/rollback, every environment/runtime/callback/protection setting, both write freezes, original bytes and durable data. No schema/Storage/business mutation, new publication, mail or visitor session; retain operator/unrelated edits and real provider/device/load/restore/font acceptance caveats.
+
 ### Bounded public thumbnail loading (2026-10-09, before Preview activation)
 
 - Reproduce the third healthy image falling back when three native image requests exceed server capacity. Match it with a shared two-load Guest queue, release slots on load/error/bounded failure, and cancel queued work/timers/listeners on remount. Keep backend quotas/capacity, private images and authoritative access checks unchanged.
