@@ -1,6 +1,7 @@
 (function(global){
   'use strict';
   async function send(method,args,token){
+    if(method==='getAppBootstrap')global.CRSSessionLoading?.start();
     const response=await fetch('/api/rpc',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{})},body:JSON.stringify({method,args})});
     if(!response.ok) throw new Error('RPC transport failed');
     const result=await response.json();

@@ -45,6 +45,122 @@ async function mock(page,{signedOut=false,restricted=false}={}){
   return {calls,record};
 }
 
+test('post-login loader covers pending bootstrap and first view without blocking sign-in or inventing requests',async({page})=>{
+  const {calls}=await mock(page,{signedOut:true});
+  let bootstrapEntered=false,viewEntered=false,catalogEntered=false,releaseBootstrap,releaseView,releaseCatalog;
+  const bootstrapGate=new Promise(resolve=>{releaseBootstrap=resolve;}),viewGate=new Promise(resolve=>{releaseView=resolve;}),catalogGate=new Promise(resolve=>{releaseCatalog=resolve;});
+  await page.route('**/api/rpc',async route=>{
+    const method=route.request().postDataJSON().method;
+    if(method==='getAppBootstrap'){bootstrapEntered=true;await bootstrapGate;}
+    if(method==='getDashboard'){viewEntered=true;await viewGate;}
+    if(method==='listEquipment'){catalogEntered=true;await catalogGate;}
+    await route.fallback();
+  });
+  try{
+    await page.goto('/');await openLogin(page);
+    const loader=page.locator('#app-splash:visible,#global-loading:visible,#session-loading:visible');
+    await expect(loader).toHaveCount(0);
+    await page.locator('#login-email').fill('admin@example.test');await page.locator('#login-password').fill('Fixture passphrase only!');
+    await page.locator('#password-login-submit').click();await expect.poll(()=>bootstrapEntered).toBe(true);
+    await expect(loader).toHaveCount(1);await expect(page.locator('#session-loading')).toContainText('ข้อมูลผู้ใช้');
+    const layers=await page.evaluate(()=>({loader:Number(getComputedStyle(document.querySelector('#session-loading')).zIndex),login:Number(getComputedStyle(document.querySelector('#access-state')).zIndex)}));
+    expect(layers.loader).toBeGreaterThan(layers.login);
+    for(const width of [390,1440])for(const theme of ['light','dark'])for(const language of ['th','en']){
+      await page.setViewportSize({width,height:844});await page.evaluate(({theme,language})=>{CRS.theme.apply(theme,true);CRS.language.set(language);},{theme,language});
+      await expect(page.locator('#session-loading')).toContainText(language==='th'?'ข้อมูลผู้ใช้':'user data');
+      await expect(page.locator('#session-loading .session-loading-card')).toBeInViewport({ratio:1});
+      expect(await page.locator('#session-loading').evaluate(node=>getComputedStyle(node).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+      await expectNoOverflow(page);await captureUi(page,'session-loading-'+width+'-'+theme+'-'+language);
+    }
+    await page.evaluate(()=>CRS.language.set('th'));
+    releaseBootstrap();await expect.poll(()=>viewEntered).toBe(true);
+    await expect(loader).toHaveCount(1);await expect(page.locator('#session-loading')).toContainText('หน้าแรก');
+    releaseView();await expect(page.locator('#dashboard-content')).toBeVisible();await expect.poll(()=>catalogEntered).toBe(true);await expect(loader).toHaveCount(1);
+    releaseCatalog();await expect(page.locator('[data-dashboard-wall] [data-wall-asset]').first()).toBeAttached();await expect(loader).toHaveCount(0);
+    expect(calls.filter(call=>call.method==='getAppBootstrap')).toHaveLength(1);expect(calls.filter(call=>call.method==='passwordSignIn')).toHaveLength(1);
+    await expect(page.locator('#login-password')).toHaveValue('');
+    expect(await page.locator('#app-shell').evaluate(node=>node.inert)).toBe(false);
+    expect(calls.filter(call=>call.method==='listEquipment')).toHaveLength(1);
+  }finally{releaseBootstrap();releaseView();releaseCatalog();}
+});
+
+for(const failure of ['bootstrap-identity','bootstrap-transport','view-domain','catalog-domain'])test('session loader releases on '+failure+' failure',async({page})=>{
+  await mock(page,{signedOut:true});let entered=false,release;const gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/rpc',async route=>{
+    const method=route.request().postDataJSON().method;
+    const failedMethod=failure==='catalog-domain'?'listEquipment':failure==='view-domain'?'getDashboard':'getAppBootstrap';
+    if(method!==failedMethod)return route.fallback();
+    entered=true;await gate;
+    if(failure==='bootstrap-transport')return route.abort();
+    await route.fulfill({json:{ok:false,error:{code:failure==='bootstrap-identity'?'UNAUTHENTICATED':'SERVICE_UNAVAILABLE',message:'Fixture unavailable'}}});
+  });
+  try{
+    await page.goto('/');await openLogin(page);await page.locator('#login-email').fill('admin@example.test');await page.locator('#login-password').fill('Fixture passphrase only!');
+    await page.locator('#password-login-submit').click();await expect.poll(()=>entered).toBe(true);
+    await expect(page.locator('#session-loading')).toBeVisible();release();await expect(page.locator('#session-loading')).toBeHidden();
+    expect(await page.locator('#app-shell').evaluate(node=>node.inert)).toBe(false);
+    if(failure==='bootstrap-identity')await expect(page.locator('#password-login-form')).toBeVisible();
+    if(failure==='bootstrap-transport')await expect(page.locator('[data-access-message]')).toContainText('เชื่อมต่อระบบไม่สำเร็จ');
+    if(failure==='view-domain')await expect(page.locator('#view-root')).toContainText('Fixture unavailable');
+    if(failure==='catalog-domain')await expect(page.locator('#dashboard-catalog-status')).toContainText('Fixture unavailable');
+  }finally{release();}
+});
+
+test('restored-session loading uses the same first-view boundary and missing decorative module leaves authentication intact',async({page})=>{
+  const {calls}=await mock(page);let entered=false,release;const gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/rpc',async route=>{if(route.request().postDataJSON().method==='getDashboard'){entered=true;await gate;}await route.fallback();});
+  try{
+    await page.goto('/');await expect.poll(()=>entered).toBe(true);await expect(page.locator('#session-loading')).toBeVisible();release();
+    await expect(page.locator('#dashboard-content')).toBeVisible();await expect(page.locator('#session-loading')).toBeHidden();
+    expect(calls.some(call=>['passwordSignIn','beginOAuthSignIn','completeOAuthSignIn'].includes(call.method))).toBe(false);
+    await page.route('**/crs/session-loading.js',route=>route.abort());await page.reload();await expect(page.locator('#dashboard-content')).toBeVisible();
+  }finally{release();}
+});
+
+test('session loading leases do not dismiss a newer cycle or change existing mutation-loading counters',async({page})=>{
+  await mock(page);await page.goto('/');await expect(page.locator('#dashboard-content')).toBeVisible();
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+    CRS.setLoading(true,'Fixture mutation');const first=CRSSessionLoading.begin();CRSSessionLoading.start();
+    const latest=CRSSessionLoading.begin();CRSSessionLoading.start();first.finish();window.fixtureLoadingLease=latest;
+  });
+  await expect(page.locator('#session-loading')).toBeVisible();await expect(page.locator('#global-loading')).toBeVisible();
+  expect(await page.locator('#session-loading .spinner-border').evaluate(node=>getComputedStyle(node).animationName)).toBe('none');
+  await page.evaluate(()=>{window.fixtureLoadingLease.finish();delete window.fixtureLoadingLease;});
+  await expect(page.locator('#session-loading')).toBeHidden();await expect(page.locator('#global-loading')).toBeVisible();
+  await page.evaluate(()=>{CRS.setLoading(false);CRSSessionLoading.begin();CRSSessionLoading.start();window.dispatchEvent(new Event('pagehide'));});
+  await expect(page.locator('#session-loading')).toBeHidden();await expect(page.locator('#global-loading')).toBeHidden();
+  expect(await page.locator('#app-shell').evaluate(node=>node.inert)).toBe(false);
+});
+
+test('inspected return keeps header/footer visible while only the long modal body scrolls',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  // Modal layout uses local fallbacks; remote font availability is not its contract.
+  await page.route('https://fonts.googleapis.com/**',route=>route.abort());
+  await page.route('https://fonts.gstatic.com/**',route=>route.abort());
+  await mock(page);await page.goto('/?view=admin');await expect(page.locator('#form-admin-borrow-filter')).toBeVisible();
+  await page.evaluate(()=>{
+    const list=document.querySelector('#admin-return-item-checklist');
+    for(let i=0;i<24;i++){
+      const card=document.createElement('article');card.className='card card-body';
+      card.innerHTML='<label class="form-label" for="scroll-fixture-'+i+'">Accessory '+(i+1)+'</label><input class="form-control" id="scroll-fixture-'+i+'" type="text">';list.append(card);
+    }
+    bootstrap.Modal.getOrCreateInstance(document.querySelector('#modal-admin-return')).show();
+  });
+  const modal=page.locator('#modal-admin-return'),body=modal.locator('.modal-body');
+  for(const viewport of [{width:1440,height:900},{width:390,height:650}])for(const theme of ['light','dark']){
+    await page.setViewportSize(viewport);await expect(modal).toBeVisible();
+    await page.evaluate(theme=>CRS.theme.apply(theme,true),theme);
+    await expect(modal.locator('.modal-header')).toBeInViewport({ratio:1});await expect(modal.locator('.modal-footer')).toBeInViewport({ratio:1});
+    const dimensions=await body.evaluate(node=>({scroll:node.scrollHeight,client:node.clientHeight,overflow:getComputedStyle(node).overflowY}));
+    expect(dimensions.scroll).toBeGreaterThan(dimensions.client);expect(dimensions.overflow).toBe('auto');
+    await body.evaluate(node=>node.scrollTop=node.scrollHeight);await expect(modal.locator('#admin-return-note')).toBeInViewport();
+    await expect(modal.locator('.modal-header')).toBeInViewport({ratio:1});await expect(modal.locator('.modal-footer')).toBeInViewport({ratio:1});
+    await expectNoOverflow(page);await captureUi(page,'inspected-return-'+viewport.width+'-'+theme,{staticView:true});
+    await body.evaluate(node=>node.scrollTop=0);
+  }
+});
+
 test('Guest wall controls live beneath the search box on the right without the obsolete instruction paragraph',async({page})=>{
   await mock(page,{signedOut:true});await page.goto('/');
   const form=page.locator('[data-guest-search]'),mode=form.locator('[data-wall-mode]');
@@ -325,15 +441,17 @@ test('private image capability loads a browser Blob and falls back when that ima
   await expect(page.locator('#equipment-detail-image-fallback')).toBeVisible();
 });
 
-async function captureUi(page, name) {
+async function captureUi(page, name, {staticView=false}={}) {
   // Opt-in local artifacts use only isolated synthetic fixtures, never live sessions.
   if (process.env.CRS_UI_CAPTURE !== '1') return;
   mkdirSync('test-results/ui', { recursive: true });
-  await page.evaluate(async()=>{
+  if(!staticView)await page.evaluate(async()=>{
     await document.fonts.ready;
     await Promise.all(document.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity&&!animation.effect.target?.closest('.magic-grid-pattern')).map(animation=>animation.finished.catch(()=>{})));
   });
-  await page.screenshot({ path: 'test-results/ui/' + name + '.png', fullPage: true });
+  // Modal layout captures freeze presentation with Playwright, without
+  // awaiting background transitions that do not own the modal's readiness.
+  await page.screenshot({ path: 'test-results/ui/' + name + '.png', fullPage: true, ...(staticView?{animations:'disabled'}:{}) });
 }
 
 async function expectNoOverflow(page) {

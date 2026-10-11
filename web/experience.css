@@ -1,4 +1,15 @@
 /* Presentation uses the established contrast-checked design tokens. */
+/* Above the 1080 Login surface, below application alerts/skip navigation. */
+.session-loading { position:fixed; inset:0; z-index:1085; display:grid; place-items:center; padding:1rem; background:var(--crs-overlay); backdrop-filter:blur(6px); }
+.session-loading-card { width:min(100%,24rem); padding:2rem 1.5rem; text-align:center; color:var(--crs-ink); background:var(--crs-glass-bg); border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius-lg); box-shadow:var(--crs-shadow); }
+.session-loading-card .spinner-border { color:var(--crs-primary); margin-bottom:1rem; }
+.session-loading-card p { color:var(--crs-muted); }
+@media (prefers-reduced-motion:reduce) { .session-loading .spinner-border { animation:none; } }
+/* Bootstrap's scrollable content contains a form here. Let that intermediate
+ * flex child shrink so only the body scrolls; do not change return validation. */
+#form-admin-return { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+#modal-admin-return .modal-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+#modal-admin-return .modal-header,#modal-admin-return .modal-footer { flex-shrink:0; }
 #access-state { display:block; }
 .access-card { position:relative; isolation:isolate; }
 .login-layout { position:relative; isolation:isolate; }

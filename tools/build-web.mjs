@@ -26,6 +26,20 @@ for(const match of includes){
     text=text.replace("? saved : 'auto';", "? saved : 'th';").replace("catch (error) { return 'auto'; }", "catch (error) { return 'th'; }");
     text=text.replace(/const base = \/\^https:[\s\S]*?\? configured : '';/,"const base = global.CRS_CANONICAL_BASE(configured) ? configured : '';");
     text=text.replace("new URLSearchParams(parts[1] || '')", "new URLSearchParams(raw ? (parts[1] || '') : global.location.search)");
+    // Presentation only: retain the session waiter/authorization, and cover
+    // bootstrap plus the awaited first route with the same UI loading lease.
+    const bootstrapStart=text.indexOf('  async function bootstrapApplication() {');
+    const bootstrapEnd=text.indexOf("\n  document.addEventListener('click'",bootstrapStart);
+    if(bootstrapStart<0||bootstrapEnd<0)throw new Error('Session loading composition seam changed');
+    let bootstrap=text.slice(bootstrapStart,bootstrapEnd);
+    for(const seam of ['    initializeDesktopSidebar();','      applyBootstrap(data);','      CRS.renderRoute(target.name, target.params);','      console.error(error);\n    }']){
+      if(bootstrap.split(seam).length!==2)throw new Error('Session loading bootstrap seam changed');
+    }
+    bootstrap=bootstrap.replace('    initializeDesktopSidebar();','    const sessionLoading = global.CRSSessionLoading && global.CRSSessionLoading.begin();\n    initializeDesktopSidebar();')
+      .replace('      applyBootstrap(data);','      if (sessionLoading) sessionLoading.view();\n      applyBootstrap(data);')
+      .replace('      CRS.renderRoute(target.name, target.params);','      await CRS.renderRoute(target.name, target.params);\n      if (CRS.features && CRS.features.awaitInitialView) await CRS.features.awaitInitialView();')
+      .replace('      console.error(error);\n    }','      console.error(error);\n    } finally {\n      if (sessionLoading) sessionLoading.finish();\n    }');
+    text=text.slice(0,bootstrapStart)+bootstrap+text.slice(bootstrapEnd);
     const toggle='if (themeToggle) cycleTheme();';
     if(!text.includes(toggle))throw new Error('Theme toggle composition seam changed');
     text=text.replace(toggle,'if (themeToggle) { if (global.CRSMagicUI) global.CRSMagicUI.toggleTheme(themeToggle, cycleTheme); else cycleTheme(); }');
@@ -116,7 +130,7 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/session-loading.js"></script><script src="/crs/experience.js"></script></body>');
 // Remove only this retired generated asset on incremental builds as well.
 await rm(join(output,'login-scene.js'),{force:true});
 await rm(join(output,'guest-scene.js'),{force:true});
@@ -125,6 +139,7 @@ await writeFile(join(output,'magic-ui.js'),await readFile(join(root,'web','magic
 await writeFile(join(output,'magic-ui.css'),await readFile(join(root,'web','magic-ui.css'),'utf8'));
 for(const name of ['react-bits.js','react-bits.css','react-bits-license.txt'])await writeFile(join(output,name),await readFile(join(root,'web',name),'utf8'));
 await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web','login-parallax.js'),'utf8'));
+await writeFile(join(output,'session-loading.js'),await readFile(join(root,'web','session-loading.js'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
 await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));
 await writeFile(join(output,'experience.js'),await readFile(join(root,'web','experience.js'),'utf8'));

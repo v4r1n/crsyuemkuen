@@ -179,8 +179,11 @@
     }
     const submit=event=>{event.preventDefault();onSearch(input.value);load();};
     input.addEventListener('input',change);input.addEventListener('search',change);input.addEventListener('compositionend',change);form.addEventListener('submit',submit);
-    if(cached){onResult(cached);draw();}else load();
-    return ()=>{disposed=true;request++;disposeWall?.();input.removeEventListener('input',change);input.removeEventListener('search',change);input.removeEventListener('compositionend',change);form.removeEventListener('submit',submit);};
+    let ready;
+    if(cached){onResult(cached);draw();ready=Promise.resolve();}else ready=load();
+    const dispose=()=>{disposed=true;request++;disposeWall?.();input.removeEventListener('input',change);input.removeEventListener('search',change);input.removeEventListener('compositionend',change);form.removeEventListener('submit',submit);};
+    // Presentation readiness only; preserve requests, permissions and disposal.
+    dispose.ready=ready;return dispose;
   }
   async function browseGuest(input={},cached=null){
     if(CRS.auth.hasSession())return;
@@ -316,5 +319,9 @@
     }
   });
   document.addEventListener('click',event=>{if(event.target.closest('[data-action="refresh-dashboard"]')&&dashboardPage)mountDashboard(null,true);});
-  CRS.features=Object.freeze({mountSettings,loginTarget});
+  async function awaitInitialView(){
+    if(CRS.state.route!=='dashboard')return;
+    await mountDashboard();await dashboardDispose?.ready;
+  }
+  CRS.features=Object.freeze({mountSettings,loginTarget,awaitInitialView});
 })(window);

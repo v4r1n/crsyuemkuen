@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Post-login readiness and return-inspection scrolling (2026-10-11, source only)
+
+- Add a Next-only loader for the existing authenticated bootstrap, first route and Dashboard catalog readiness. Preserve auth/business authority and request counts, release presentation state on success/failure/page exit, ignore stale loading leases and keep existing mutation counters independent. Use TH/EN, Light/Dark tokens, reduced motion and a layer above Login.
+- Make the intermediate inspected-return form shrink/flex so the modal body scrolls while header/footer remain visible. Keep fields, validation and authoritative inspection workflow unchanged. Add delayed-read/failure/restored-session/layer/lease/fallback and long-checklist browser regressions; fixtures contain no pasted operator loan details.
+- Preserve original 404 and inbox/dialog surfaces pending licensed React Bits Pro source/access for the requested blocks. Source-only scope excludes unrelated local edits, cloud/deploy/config/data changes and purchases; acceptance results and exact next phase are recorded in Memory.
+
 ### Frozen Production feature activation (2026-10-09)
 
 - After operator confirmation of Production CAPTCHA/callback registration, install only twelve missing Production SMTP/OTP/reCAPTCHA settings with server-only Sensitive secrets and exact target policy. Preserve core/Preview configuration. Build immutable accepted `98471cc` (0.1.12) as a domain-unassigned Production/Singapore candidate; nine candidate groups precede promotion to `https://crsyuemkuen.vercel.app`, then eleven canonical groups and final guards pass.
