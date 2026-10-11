@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Production preflight paused for writer drift (2026-10-11)
+
+- The operator requests accepted `10583b2` on Production. Fresh read-only checks find Production writable while Preview remains frozen; canonical/callback, READY source and protected Preview are intact. Pause before backup/candidate/activation and request fresh Production freeze authority. No cloud configuration/deployment/data mutation occurs; existing source/build acceptance and unrelated edits are preserved. Memory owns the next guarded steps.
+
 ### Original 404 and bell/popover (2026-10-11, source only)
 
 - Implement the operator-approved original equivalents instead of React Bits Pro, without new packages. Add a full-screen real HTTP 404 with canonical Home, existing design tokens, TH/EN, remembered theme, keyboard focus, reduced motion and usable no-JavaScript content. Existing HTML/query/API/OAuth routes remain unchanged; use a static package-version import so shared canonical configuration compiles in the page artifact.
