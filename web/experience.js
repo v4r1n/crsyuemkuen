@@ -8,16 +8,14 @@
   const inputHints={th:{email:'กรอกอีเมลของคุณ',password:'กรอกรหัสผ่านของคุณ'},en:{email:'Enter your email',password:'Enter your password'}};
   const t=key=>(text[CRS.language.effective()]||text.th)[key]||key;
   const security=(method,input)=>CRS.auth.requestSecurity(method,input);
-  let guestPage=null,guestSerial=0,guestDispose=null,guestInput={},guestResult=null,notifications=[],inboxBusy=false,dialogSerial=0,entryView='guest',cardEffect=null;
+  let guestPage=null,guestSerial=0,guestDispose=null,guestInput={},guestResult=null,dialogSerial=0,entryView='guest',cardEffect=null;
+  const inbox=global.CRSNotificationInbox?.create({CRS,t})||Object.freeze({
+    button:()=>'',badge:()=>{},refreshCount:()=>{},toggle:()=>{},reset:()=>{},sync:()=>{},
+    mount:host=>{host.textContent=CRS.language.effective()==='en'?'Notifications unavailable. Reload the page.':'การแจ้งเตือนไม่พร้อมใช้งาน กรุณาโหลดหน้าใหม่';host.setAttribute('role','status');}
+  });
   let dashboardPage=null,dashboardDispose=null,dashboardResult=null,dashboardSerial=0,dashboardSearch='';
   const statusText=status=>global.CRSReactBits?.statusLabel(status)||CRS.statusLabel(status);
-  function badge(count){document.querySelectorAll('[data-notification-count]').forEach(node=>{node.textContent=count||'';});}
-  async function refreshInboxCount(){
-    if(inboxBusy||document.hidden||!CRS.auth.hasSession()||CRS.state.bootstrap?.session.mustChangePassword)return;
-    inboxBusy=true;
-    try{const result=await security('listNotifications',{});if(CRS.auth.hasSession())badge(result.unread);}catch{/* Session/access failures do not expose inbox state. */}finally{inboxBusy=false;}
-  }
-  function notificationButton(){return '<button type="button" class="btn btn-outline-secondary" data-experience-action="notifications" aria-label="'+escape(t('notifications'))+'"><i class="bi bi-bell" aria-hidden="true"></i><span data-notification-count></span></button>';}
+  const badge=inbox.badge,refreshInboxCount=inbox.refreshCount,notificationButton=inbox.button;
   function translate(root=document){
     root.querySelectorAll('[data-experience-text]').forEach(node=>{node.textContent=t(node.dataset.experienceText);});
     root.querySelectorAll('[data-reveal-for]').forEach(node=>node.setAttribute('aria-label',t('hold')));
@@ -106,15 +104,7 @@
     translate(host);
   }
   async function renderNotifications(host){
-    try{
-      const result=await security('listNotifications',{});notifications=result.items||[];
-      host.insertAdjacentHTML('beforeend','<div class="settings-card" data-notification-list></div>');const list=host.querySelector('[data-notification-list]');
-      list.replaceChildren();
-      const labels=CRS.language.effective()==='en'?{BORROW_REQUEST:'Borrow request',APPROVE:'Approved',REJECT:'Rejected',CHECKOUT:'Checked out',REQUEST_RETURN:'Return requested',RETURN:'Returned'}:{BORROW_REQUEST:'คำขอยืม',APPROVE:'อนุมัติ',REJECT:'ไม่อนุมัติ',CHECKOUT:'จ่ายอุปกรณ์',REQUEST_RETURN:'แจ้งคืน',RETURN:'ตรวจรับคืน'};
-      for(const item of notifications){const node=document.createElement('button');node.type='button';node.className='notification-item';node.dataset.unread=String(!item.read_at);node.textContent=(labels[item.action]||item.action)+' · '+item.borrow_id;const time=document.createElement('span');time.className='notification-time';time.textContent=CRS.formatDateTime(item.created_at);node.append(time);node.onclick=async()=>{try{const result=await security('listNotifications',{readId:item.id});badge(result.unread);node.dataset.unread='false';CRS.navigate(CRS.state.bootstrap?.session.isAdmin?'admin':'my-borrow',{tab:'borrowing',highlight:item.borrow_id});const modal=host.closest('dialog');if(modal)modal.close();}catch(error){CRS.toast(error.message,'danger');}};list.append(node);}
-      if(!notifications.length)list.textContent=t('none');
-      badge(result.unread);
-    }catch(error){host.insertAdjacentHTML('beforeend','<p role="status">'+escape(error.message)+'</p>');}
+    host.insertAdjacentHTML('beforeend','<div class="settings-card notification-list" data-notification-list></div>');inbox.mount(host.querySelector('[data-notification-list]'));
   }
   async function allEquipment(load,valid){
     const items=new Map();let total=null,pages=1;
@@ -303,16 +293,16 @@
     if(key==='reset-password'){const node=dialog(t('reset'),passwordForm('RESET'));bindPasswordForm(node.querySelector('form'));}
     if((key==='privacy'||key==='terms')&&!action.href)dialog(t(key),'<p>'+escape(t('unavailable'))+'</p>');
     if(key==='guide')dialog(t('guide'),'<p>'+escape(CRS.language.effective()==='en'?'Browse equipment, sign in with an authorized account, then submit a borrow request. Only an administrator can approve and check out equipment. Request a return; the administrator inspects it before completing the return.':'ค้นหาอุปกรณ์ ลงชื่อเข้าใช้ด้วยบัญชีที่ได้รับสิทธิ์ และส่งคำขอยืม ผู้ดูแลระบบจะอนุมัติและจ่ายอุปกรณ์ เมื่อต้องการคืนให้แจ้งคืน แล้วรอผู้ดูแลตรวจรับ')+'</p>');
-    if(key==='notifications'){const node=dialog(t('notifications'),'<div data-inbox></div>');renderNotifications(node.querySelector('[data-inbox]'));}
+    if(key==='notifications')inbox.toggle(action);
   });
-  global.addEventListener('crs:bootstrapped',event=>{entryView='guest';stopGuest();guestResult=null;maskAll();cardEffect?.reset();badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
-  global.addEventListener('crs:authentication-required',()=>{stopDashboard();badge(0);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);if(!CRS.auth.hasSession()){if(entryView==='login')showLogin();else showGuest();}});
+  global.addEventListener('crs:bootstrapped',event=>{inbox.reset();entryView='guest';stopGuest();guestResult=null;maskAll();cardEffect?.reset();badge(event.detail.session.unreadNotifications);document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=true);});
+  global.addEventListener('crs:authentication-required',()=>{inbox.reset();stopDashboard();document.querySelectorAll('.topbar-actions [data-experience-action="login"]').forEach(node=>node.hidden=false);if(!CRS.auth.hasSession()){if(entryView==='login')showLogin();else showGuest();}});
   global.addEventListener('crs:rpc-completed',event=>{if(['createBorrowRequest','adminApproveBorrow','adminRejectBorrow','adminCheckoutBorrow','requestReturn','adminCompleteReturn'].includes(event.detail.method))refreshInboxCount();});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshInboxCount();});
   global.setInterval(refreshInboxCount,60000); // No polling when signed out, restricted or in a hidden tab.
   global.addEventListener('crs:language-changed',()=>{
     if(dashboardPage?.isConnected&&dashboardResult)mountDashboard(dashboardResult);
-    translate();if(guestPage&&!guestPage.hidden){
+    translate();inbox.sync();if(guestPage&&!guestPage.hidden){
       const languageFocused=document.activeElement===guestPage.querySelector('[data-experience-action="language"]');
       browseGuest(guestInput,guestResult);
       if(languageFocused)guestPage.querySelector('[data-experience-action="language"]').focus({preventScroll:true});

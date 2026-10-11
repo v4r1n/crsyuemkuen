@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Original 404 and bell/popover (2026-10-11, source only)
+
+- Implement the operator-approved original equivalents instead of React Bits Pro, without new packages. Add a full-screen real HTTP 404 with canonical Home, existing design tokens, TH/EN, remembered theme, keyboard focus, reduced motion and usable no-JavaScript content. Existing HTML/query/API/OAuth routes remain unchanged; use a static package-version import so shared canonical configuration compiles in the page artifact.
+- Replace only the notifications dialog with a single anchored non-modal bell popover and shared Settings renderer. Preserve owner-only inbox/read, latest-50 server projection, polling and existing workflow navigation. Add loading/empty/retry, safe text, exact accessible unread count, viewport scrolling and lifecycle disposal; late responses cannot restore closed/signed-out notices or undo committed read badges. Other dialogs/auth remain usable if the inbox script is blocked.
+- Extend production trace privacy coverage to the 404 and add focused browser regressions. Verification/current constraints are in Memory; no deployment, cloud configuration, data mutation, paid dependency, main merge or tag belongs to this phase.
+
 ### Post-login readiness and return-inspection scrolling (2026-10-11, source only)
 
 - Add a Next-only loader for the existing authenticated bootstrap, first route and Dashboard catalog readiness. Preserve auth/business authority and request counts, release presentation state on success/failure/page exit, ignore stale loading leases and keep existing mutation counters independent. Use TH/EN, Light/Dark tokens, reduced motion and a layer above Login.

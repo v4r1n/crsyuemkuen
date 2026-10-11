@@ -135,8 +135,31 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .guest-card .btn { margin-top:auto; }
 .guest-card .guest-card-icon { display:grid; place-items:center; width:3rem; height:3rem; background:var(--crs-primary-soft); color:var(--crs-primary); border-radius:var(--crs-radius-sm); margin-bottom:1rem; font-size:1.5rem; }
 .guest-status { color:var(--crs-muted); }
-.notification-item { display:block; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:1rem; margin-bottom:.5rem; }
-.notification-item[data-unread="true"] { border-inline-start:4px solid var(--crs-primary); }
+.notification-bell { position:relative; display:inline-grid; place-items:center; min-width:44px; min-height:44px; }
+.notification-bell [data-notification-count] { position:absolute; top:-.35rem; right:-.35rem; min-width:1.25rem; padding:.1rem .3rem; font-size:.7rem; line-height:1rem; font-weight:700; border-radius:999px; color:var(--crs-on-brand); background:var(--crs-action); border:2px solid var(--crs-surface); }
+.notification-popover { position:fixed; z-index:1055; display:flex; flex-direction:column; border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius); background:var(--crs-surface-translucent); color:var(--crs-ink); backdrop-filter:blur(20px); box-shadow:var(--crs-modal-shadow); overflow:hidden; animation:notification-enter .16s var(--crs-ease); }
+.notification-popover header { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem; border-bottom:1px solid var(--crs-border); flex-shrink:0; }
+.notification-popover h2 { font-size:1.125rem; margin:0 0 .2rem; }
+.notification-popover [data-inbox-unread] { font-size:.8rem; color:var(--crs-muted); }
+.notification-close { display:grid; place-items:center; border:0; border-radius:var(--crs-control-radius); background:var(--crs-surface-soft); color:var(--crs-ink); min-width:44px; min-height:44px; }
+.notification-popover .notification-list { overflow:auto; min-height:0; padding:.75rem; overscroll-behavior:contain; }
+.notification-popover footer { padding:.75rem; border-top:1px solid var(--crs-border); flex-shrink:0; }
+.notification-popover footer button { width:100%; }
+.notification-item { display:flex; align-items:flex-start; gap:.75rem; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:.875rem; margin-bottom:.5rem; transition:background .15s; }
+.notification-item:last-child { margin-bottom:0; }
+.notification-item:hover { background:var(--crs-surface-hover); }
+.notification-item[data-unread="true"] { border-inline-start:3px solid var(--crs-primary); background:var(--crs-primary-soft); }
+.notification-icon { flex-shrink:0; display:grid; place-items:center; width:2.25rem; height:2.25rem; border-radius:50%; background:var(--crs-surface-soft); color:var(--crs-primary); }
+.notification-copy { min-width:0; overflow-wrap:anywhere; }
+.notification-reference { display:block; font-size:.85rem; }
+.notification-read-state { margin-inline-start:auto; font-size:.7rem; flex-shrink:0; color:var(--crs-muted); }
+.notification-empty { text-align:center; padding:2rem 1rem; color:var(--crs-muted); }
+.notification-empty i { display:block; font-size:2rem; margin-bottom:.75rem; color:var(--crs-primary); }
+.notification-empty p { margin:0 0 .5rem; color:var(--crs-ink); font-weight:600; }
+.notification-empty span,.notification-status { font-size:.875rem; }
+.notification-close:focus-visible,.notification-item:focus-visible { outline:3px solid var(--crs-focus-outline); outline-offset:-3px; }
+@keyframes notification-enter { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce) { .notification-popover { animation:none; } .notification-item { transition:none; } }
 .notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
 @media (max-width:767px) { .login-art-stage { display:none; } }
 @media (max-width:767px) { .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }

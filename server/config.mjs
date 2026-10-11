@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import packageInfo from '../package.json' with {type:'json'};
 
-export const release = JSON.parse(readFileSync(new URL('../package.json', import.meta.url))).version;
+export const release = packageInfo.version;
 export const deploymentOrigins = Object.freeze({production:'https://crsyuemkuen.vercel.app',preview:'https://crsyuemkuen-preview.vercel.app'});
 export function config(env = process.env) {
   if(env.NODE_ENV==='production' && !env.WEB_APP_URL) throw new Error('Production WEB_APP_URL is required');

@@ -943,7 +943,7 @@ test('new actions translate TH/EN; quick theme has two states and System remains
   await page.locator('[data-settings-theme="system"]').click();await expect(page.locator('html')).toHaveAttribute('data-theme-preference','system');
   await page.locator('.settings-global-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
   await page.locator('.settings-global-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
-  await page.goto('/?view=dashboard');await page.locator('[data-experience-action="notifications"]').click();await expect(page.locator('dialog .notification-item')).toContainText('อนุมัติ');
+  await page.goto('/?view=dashboard');await page.locator('[data-experience-action="notifications"]').click();await expect(page.locator('.notification-popover .notification-item')).toContainText('อนุมัติ');
 });
 
 test('Login effects and icon/search geometry respect reduced motion, touch, theme and viewport',async({page})=>{
