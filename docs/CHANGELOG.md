@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Settings Production activation (2026-10-14)
+
+- Activate accepted `89c6559` on canonical Production after seven-binary online backup, guarded additive migration/repeat verification, READY Singapore candidate and 19 candidate / 20 canonical smoke groups. User explicitly preserves writable Production and frozen Preview; all environment/callback/protection values and Preview source/alias remain unchanged.
+- Reuse the 373-check source acceptance; no new runtime edits, real sign-in/mail/business mutation, import/restore or paid resource occurs. Online snapshot does not include later writes and is not a cutover restore guarantee. Memory records rollback, residual provider/device/concurrency/restore acceptance and pre-existing advisor warnings separately.
+
 ### Settings security phase 1 (2026-10-14, source only)
 
 - Add owner-valid real session overview/list/revocation, authoritative security activity, coarse server-observed UA hints and unchanged expiry. Preserve command IDs across lost-response retries, current-session safety and replay protection for later-created sessions; report no-op audit accurately.

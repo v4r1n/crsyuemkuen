@@ -6,9 +6,11 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
-### Settings phase 1 — source contract, not activated (2026-10-14)
+### Settings phase 1 — contract and activation (2026-10-14)
 
 The operator approved additive design after the capability-gap report. The [current Memory validation checkpoint](MEMORY.md) records offline source acceptance and outstanding manual/cloud gates. This paragraph supplements existing invariants, not migration/deployment authority.
+
+Later the same day, the user authorizes Production and explicitly preserves its writable mode while Preview stays frozen. `89c6559` is active after a verified bounded online snapshot, advisory-locked additive migration and staged/canonical smoke checks. This is a narrow operational exception to the freeze preflight below, not restore/cutover acceptance or permission to overwrite later writes. Memory owns fresh evidence, rollback and remaining real-provider/device gates; all canonical/callback/protection/environment values remain intact.
 
 `getSettingsSecurity`, `listActiveSessions`, `revokeOtherSessions`, `listSecurityActivity`, `getNotificationPreferences`, and `saveNotificationPreference` resolve the current server-authenticated User under the existing transaction lock. Session public UUID handles select only owned rows and never authorize requests. HTTP User-Agent yields bounded allowlisted browser/OS hints, not verified device identity; raw UA/IP/location are neither retained nor projected. New sessions record genuine creation/use instants, old metadata stays unknown, and observed activity never extends absolute expiry. Revocation preserves current session and deduplicates commands before deleting later-created sessions. History projects only allowlisted owner security actions, with no bearer/hash/device metadata.
 
