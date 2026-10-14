@@ -32,7 +32,7 @@
       for(const item of view.items){
         const node=document.createElement('button');node.type='button';node.className='notification-item';node.dataset.unread=String(!item.read_at);node.dataset.noticeId=item.id;
         node.innerHTML='<span class="notification-icon" aria-hidden="true"><i class="bi '+(icons[item.action]||'bi-bell')+'"></i></span><span class="notification-copy"><strong></strong><span class="notification-reference"></span><span class="notification-time"></span></span><span class="notification-read-state"></span>';
-        node.querySelector('strong').textContent=labels()[item.action]||t('notifications');node.querySelector('.notification-reference').textContent=item.borrow_id;
+        node.querySelector('strong').textContent=labels()[item.action]||t('notifications');node.querySelector('.notification-reference').textContent=[item.borrow_id,item.asset_id].filter(Boolean).join(' · ');
         node.querySelector('.notification-time').textContent=CRS.formatDateTime(item.created_at);node.querySelector('.notification-read-state').textContent=item.read_at?copy().read:copy().fresh;
         node.onclick=async()=>{
           if(node.disabled||view.reading||!current(view.epoch)||!node.isConnected)return;
@@ -54,18 +54,27 @@
     }
     async function load(view){
       if(!current(view.epoch)||!view.host.isConnected||view.busy)return;
-      view.busy=true;view.items=null;view.host.replaceChildren();view.host.setAttribute('aria-busy','true');
+      view.busy=true;view.items=null;view.host.replaceChildren();view.host.setAttribute('aria-busy','true');let stale=false;
       const status=document.createElement('p');status.className='notification-status';status.role='status';status.textContent=t('loading');view.host.append(status);
       const requestedRevision=revision;
       try{
         const result=await CRS.auth.requestSecurity('listNotifications',{});
         if(!current(view.epoch)||!view.host.isConnected||!views.has(view))return;
+        if(requestedRevision!==revision){stale=true;return;}
         view.items=result.items||[];draw(view);if(requestedRevision===revision)badge(result.unread);
       }catch(error){
         if(!current(view.epoch)||!view.host.isConnected||!views.has(view))return;
         view.host.setAttribute('aria-busy','false');status.textContent=error.message;
         const retry=document.createElement('button');retry.type='button';retry.className='btn btn-outline-secondary';retry.dataset.inboxRetry='';retry.textContent=copy().retry;retry.onclick=()=>load(view);view.host.append(retry);
-      }finally{view.busy=false;}
+      }finally{view.busy=false;if(stale&&current(view.epoch)&&view.host.isConnected)load(view);}
+    }
+    async function markAllRead(){
+      if(!eligible())return;
+      const ownerEpoch=epoch;revision++;
+      const result=await CRS.auth.requestSecurity('listNotifications',{markAllRead:true});
+      if(!current(ownerEpoch))return;
+      revision++;badge(result.unread);
+      for(const view of views)if(view.host.isConnected&&!view.busy&&!view.reading){view.items=result.items||[];draw(view);}
     }
     function mount(host){
       for(const view of views)if(!view.host.isConnected)views.delete(view);
@@ -118,7 +127,7 @@
       for(const view of views){if(view.items)draw(view);else{const status=view.host.querySelector('[role="status"]');if(view.busy&&status)status.textContent=t('loading');const retry=view.host.querySelector('[data-inbox-retry]');if(retry)retry.textContent=copy().retry;}}
     }
     global.addEventListener('pagehide',reset);
-    return Object.freeze({button,badge,mount,toggle,refreshCount,reset,sync});
+    return Object.freeze({button,badge,mount,toggle,refreshCount,markAllRead,reset,sync});
   }
   global.CRSNotificationInbox=Object.freeze({create});
 })(window);

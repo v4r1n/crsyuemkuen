@@ -162,5 +162,17 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 @keyframes notification-enter { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion:reduce) { .notification-popover { animation:none; } .notification-item { transition:none; } }
 .notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
+.settings-security-root { display:grid; gap:1rem; min-width:0; }
+.settings-security-root .btn,.settings-channel-picker summary,.settings-channel-picker label,.settings-remember { min-height:44px; }
+.settings-account-fields { display:grid; grid-template-columns:minmax(5rem,1fr) minmax(0,2fr); gap:.75rem; }
+.settings-account-fields dd,.settings-session-row p { margin:0; overflow-wrap:anywhere; }
+.settings-session-row,.settings-preference-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; padding:1rem 0; border-bottom:1px solid var(--crs-border); }
+.settings-session-row>div { min-width:0; flex:1 1 12rem; }
+.settings-channel-picker { position:relative; max-width:100%; }
+.settings-channel-picker summary { display:flex; align-items:center; padding:.5rem 1rem; border:1px solid var(--crs-border); border-radius:999px; cursor:pointer; }
+.settings-channel-picker>div { display:grid; padding:.5rem; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); }
+.settings-channel-picker label,.settings-remember { display:flex; align-items:center; gap:.75rem; padding:.5rem; }
+.settings-channel-picker summary:focus-visible { outline:3px solid var(--crs-focus-outline); outline-offset:2px; }
+@media (max-width:389px) { .settings-account-fields { grid-template-columns:1fr; } .settings-account-fields dd { margin-bottom:.5rem; } }
 @media (max-width:767px) { .login-art-stage { display:none; } }
 @media (max-width:767px) { .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }

@@ -9,6 +9,8 @@ import { passwordAuth, authorizedUser } from './password-auth.mjs';
 import { publicEquipment, notificationInbox, unreadNotifications, setVisibility } from './experience.mjs';
 import { rateLimit } from './auth.mjs';
 import { digest } from './domain.mjs';
+import { settingsOverview,listSessions,revokeSessions,securityActivity,notificationPreferences } from './settings-security.mjs';
+import { touchSession } from './session-metadata.mjs';
 const passwords=passwordAuth();
 
 export const endpoints = Object.freeze([
@@ -23,18 +25,30 @@ export const endpoints = Object.freeze([
 const readOnly = new Set(['getAppBootstrap','getDashboard','listEquipment','getEquipmentDetail','listCategories','listMyBorrowing','getBorrowDetail','listMyHistory',
   'adminGetDashboard','adminListBorrowing','adminListUsers','adminAuditLegacyUsers','adminListCategories','adminListHistory','adminRunIntegrityAudit',
   'adminPreviewImageIntegrity','adminListOperations','adminGetOperationDetail','adminListArchive','adminGetImageResource']);
-export async function rpc(method,args,token,requestKey='') {
+export async function rpc(method,args,token,requestKey='',requestContext={}) {
   return envelope(async()=>{
     if(!Array.isArray(args) || args.length>5) fail('VALIDATION_FAILED','รูปแบบคำขอไม่ถูกต้อง');
     if(method==='beginOAuthSignIn') return beginSignIn(args[0],requestKey);
-    if(method==='completeOAuthSignIn') return completeSignIn(...args);
+    if(method==='completeOAuthSignIn') return completeSignIn(args[0],args[1],args[2],args[3],requestContext.userAgent);
     if(method==='logoutSession') return logout(args[0]);
     if(method==='acknowledgeOAuthCopy') return acknowledgeCopy(...args);
-    if(method==='passwordSignIn') return passwords.signIn(args[0],requestKey);
+    if(method==='passwordSignIn') return passwords.signIn(args[0],requestKey,requestContext.userAgent);
     if(method==='requestPasswordOtp') return passwords.requestOtp(args[0],token,requestKey);
     if(method==='verifyPasswordOtp') return passwords.verifyOtp(args[0],token);
     if(method==='changePassword') return passwords.changePassword(args[0],token,requestKey);
     if(method==='adminIssueTemporaryPassword') return passwords.issueTemporary(args[0],token);
+    if(['getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference'].includes(method)) {
+      return transaction(async db=>{
+        const {user,domain}=await authorizedUser(db,token);
+        if(method==='getSettingsSecurity') return settingsOverview(db,user,token,domain);
+        if(method==='listActiveSessions') return listSessions(db,user,token);
+        if(method==='revokeOtherSessions') return revokeSessions(db,user,token,args[0]);
+        if(method==='listSecurityActivity') return securityActivity(db,user);
+        if(method==='getNotificationPreferences') return notificationPreferences(db,user);
+        if(args[0]===undefined)fail('VALIDATION_FAILED');
+        return notificationPreferences(db,user,args[0]);
+      });
+    }
     if(method==='listPublicEquipment') {
       const result=await transaction(async db=>{
         if(!await rateLimit(db,'guest:'+digest(requestKey),120,60)) return {limited:true};
@@ -90,6 +104,7 @@ export async function rpc(method,args,token,requestKey='') {
       if(!result.ok) {
         const error=result.error; fail(error.code,error.message,error.retryable,error.fieldErrors);
       }
+      await touchSession(db,digest(token),session);
       await saveDomain(db,domain);
       // Reconciliation commits READY in the same transaction as the reference.
       for(const id of verified) await db.query("UPDATE crs.image_resources SET state='READY',verified_at=now() WHERE id=$1 AND state='STAGED'",[id]);

@@ -2,6 +2,12 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-034 — Owner security state and notification delivery preferences
+
+Status: user-approved additive phase — 2026-10-14; source verification and cloud activation recorded separately in Memory.
+
+[Decision](adr/0004-owner-security-and-delivery-preferences.md): retain current User/session authority, keep public session handles separate from credentials, deduplicate revocation before deletion, and store delivery preferences separately from workflow/History. Current role and Borrow access constrain old inbox entries. Durable preferences enter format-3 backups; transient proofs remain excluded. Push, business email and reminders remain unavailable pending their separate infrastructure decisions.
+
 ## ADR-033 — Explicit catalog thumbnail publication keeps originals private
 
 Status: user-approved implementation — 2026-10-09; protected Preview activation recorded separately in Memory.

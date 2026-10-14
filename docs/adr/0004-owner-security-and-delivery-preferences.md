@@ -1,0 +1,9 @@
+# Separate owner security state and delivery preferences from workflow authority
+
+The approved Settings extension needs real sessions and configurable notifications without replacing the imported User or custody workflow. Keep sessions in the existing private store, expose random owner-scoped public handles rather than bearer hashes, and record command-deduplicated revocations in append-only History under the existing transaction lock. Replay is checked before deletion so retrying a lost response cannot revoke sessions created after the original command; legacy device/creation metadata remains unknown instead of being invented.
+
+Persist notification preferences in a separate private additive table and filter owner inbox delivery, not authoritative event creation or History. Recheck current User/Borrow access when reading old notices, including Admin demotion. This retains audit evidence when delivery is disabled, at the cost of keeping unread rows that may reappear when delivery is enabled; unsupported push, business email and reminders remain unavailable rather than simulated. Format-3 backups preserve preferences but exclude all transient identity/session proofs; formats 1/2 normalize without inventing preferences.
+
+## Activation boundary
+
+Source acceptance is not cloud activation. Apply the reviewed additive migration only after separately authorized target/freeze/verified-backup preflight, before deploying source that queries preferences. Real-provider, native PostgreSQL concurrency, restore and assistive-technology acceptance remain separate from offline fixture tests; see [the Settings contract](../IDENTITY_EXPERIENCE.md#settings-phase-1--source-contract-not-activated-2026-10-14).

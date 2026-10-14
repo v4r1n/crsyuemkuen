@@ -92,9 +92,12 @@
     });
     if(form.dataset.passwordFlow==='CHANGE'&&CRS.state.bootstrap?.session.mustChangePassword) form.querySelector('[data-password-required]').hidden=false;
   }
-  function mountSettings(key,host){
+  function mountSettings(key,host,params){
     if(!host) return;
     refreshInboxCount();
+    if(['security','account','notifications'].includes(key)&&global.CRSSettingsSecurity) {
+      global.CRSSettingsSecurity.mount(key,host,params||{},{CRS,passwordForm,bindPasswordForm,inbox});return;
+    }
     if(key==='security'){host.querySelector('.settings-placeholder')?.remove();host.insertAdjacentHTML('beforeend','<div class="settings-card"><h3 class="h5" data-experience-text="change">'+t('change')+'</h3>'+passwordForm('CHANGE')+'</div>');bindPasswordForm(host.querySelector('[data-password-flow]'));}
     if(key==='profile'){host.insertAdjacentHTML('beforeend','<div class="settings-card mt-3"><h3 class="h5" data-experience-text="security">'+t('security')+'</h3>'+button('change','profile-security')+'</div>');}
     if(key==='notifications'){host.querySelector('.settings-placeholder')?.remove();renderNotifications(host);}

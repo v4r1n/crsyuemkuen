@@ -1,8 +1,82 @@
 const {test,expect}=require('@playwright/test');
 const {mkdirSync}=require('node:fs');
+const {installOfflineAssets}=require('./offline-assets.cjs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
+
+test('session revoke retry retains its command after a lost response and prevents duplicate confirmation',async({page})=>{
+  await mock(page);
+  const commands=[];
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();
+    if(input.method!=='revokeOtherSessions'){await route.fallback();return;}
+    commands.push(input.args[0].commandId);
+    if(commands.length===1){await route.abort('failed');return;}
+    await route.fulfill({json:{ok:true,data:{revoked:0,alreadyRevoked:true}}});
+  });
+  await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>CRS.navigate('settings',{section:'security',subview:'sessions'}));
+  const all=page.locator('[data-security-revoke-all]');await all.click();
+  await expect(all).toBeDisabled();await expect(page.locator('#confirm-modal')).toBeVisible();
+  await page.locator('[data-confirm-accept]').click();await expect(all).toBeEnabled();
+  expect(commands).toHaveLength(1);
+  await all.click();await page.locator('[data-confirm-accept]').click();
+  await expect.poll(()=>commands.length).toBe(2);expect(commands[1]).toBe(commands[0]);
+});
+test('Settings Remember moves the existing session without changing expiry or starting another login',async({page})=>{
+  const {calls}=await mock(page);await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();
+  const original=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('crs.auth.session.v1')));
+  await page.evaluate(()=>CRS.navigate('settings',{section:'security'}));
+  const remember=page.locator('[data-settings-remember]');await remember.check();
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('crs.auth.session.v1')))).toEqual(original);
+  await remember.uncheck();expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('crs.auth.session.v1')))).toEqual(original);
+  expect(await page.evaluate(()=>localStorage.getItem('crs.auth.session.v1'))).toBeNull();
+  expect(calls.some(call=>['passwordSignIn','beginOAuthSignIn','completeOAuthSignIn','logoutSession'].includes(call.method))).toBe(false);
+});
+test('stale notification preference refreshes its owner-scoped version without an optimistic overwrite',async({page})=>{
+  await mock(page);let reads=0;const versions=[];
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();
+    if(input.method==='getNotificationPreferences') {
+      reads++;await route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:reads===1,version:reads===1?0:2}],channels:{inApp:true,push:false,email:false}}}});return;
+    }
+    if(input.method==='saveNotificationPreference') {
+      versions.push(input.args[0].expectedVersion);
+      await route.fulfill({json:versions.length===1?{ok:false,error:{code:'STATE_CONFLICT',message:'Fixture state changed'}}:{ok:true,data:{items:[{event:'APPROVE',inApp:true,version:3}]}}});return;
+    }
+    await route.fallback();
+  });
+  await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
+  const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
+  const control=picker.locator('[data-in-app]');await control.uncheck();await expect(control).toBeEnabled();
+  await expect(picker.locator('summary')).toContainText('ปิด');expect(reads).toBe(2);
+  await control.check();await expect(control).toBeEnabled();expect(versions).toEqual([0,2]);
+});
+
+for(const width of [320,390,768,1440])for(const language of ['th','en'])for(const theme of ['light','dark']) {
+  test('Settings security '+width+' '+language+' '+theme,async({page})=>{
+    await page.setViewportSize({width,height:850});await mock(page);
+    await page.addInitScript(({language,theme})=>{localStorage.setItem('crs-ui-language',language);localStorage.setItem('crs-theme',theme);},{language,theme});
+    await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();
+    await page.evaluate(()=>CRS.navigate('settings',{section:'security'}));
+    const sessions=page.locator('[data-security-sessions]');await expect(sessions).toContainText('2');await sessions.click();
+    await expect(page.locator('.settings-session-row')).toHaveCount(2);
+    await expect(page.locator('.settings-session-row').first()).toContainText('Microsoft Edge');
+    await expect(page.locator('.settings-session-row').last()).toContainText(language==='en'?'Unknown browser':'ไม่ทราบเบราว์เซอร์');
+    await page.locator('[data-security-back]').click();await expect(page.locator('[data-security-sessions]')).toBeVisible();
+    await page.goBack();await expect(page.locator('.settings-session-row')).toHaveCount(2);
+    await page.evaluate(()=>CRS.navigate('settings',{section:'account'}));
+    await expect(page.locator('.settings-account-fields')).toBeVisible();await expect(page.locator('.settings-account-fields input')).toHaveCount(0);
+    await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
+    const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
+    await expect(picker.locator('input:disabled')).toHaveCount(2);await picker.locator('[data-in-app]').uncheck();await expect(picker).toHaveAttribute('open','');
+    await expect(picker.locator('summary')).toContainText(language==='en'?'Off':'ปิด');
+    await picker.locator('summary').focus();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  });
+}
 test.beforeEach(async({page})=>{
+  await installOfflineAssets(page);
   // No Google requests/real CAPTCHA solving in deterministic UI tests.
   await page.route('**/api/auth/recaptcha',route=>route.fulfill({json:{siteKey:'fixture-public-site-key-000000',actions:{login:'password_login',reset:'password_reset'}}}));
   await page.addInitScript(()=>{let serial=0;window.fixtureCaptchaActions=[];window.grecaptcha={ready:callback=>callback(),execute:async(_key,{action})=>{window.fixtureCaptchaActions.push(action);return 'fixture-fresh-proof-'+(++serial);}};});
@@ -27,6 +101,11 @@ async function mock(page,{signedOut=false,restricted=false,preserveSession=false
     else if(input.method==='adminSetEquipmentPublic') response={ok:true,data:{updated:true}};
     else if(input.method==='adminIssueTemporaryPassword') response={ok:true,data:{deliveryStatus:'SENT',activated:true,mustChangePassword:true}};
     else if(input.method==='listNotifications') response={ok:true,data:{items:[{id:'n'.repeat(43),borrow_id:'BR-000001',action:'APPROVE',created_at:new Date().toISOString(),read_at:null}],unread:1}};
+    else if(input.method==='getSettingsSecurity') response={ok:true,data:{email:session.email,name:session.name,department:session.department,role:session.role,googleAvailable:true,passwordConfigured:true,activeSessionCount:2,sessionTtlSeconds:21600}};
+    else if(input.method==='listActiveSessions') response={ok:true,data:{count:2,items:[{publicId:'11111111-1111-4111-8111-111111111111',current:true,browser:'Microsoft Edge',os:'Windows',lastActiveAt:new Date().toISOString()},{publicId:'22222222-2222-4222-8222-222222222222',current:false,browser:null,os:null,lastActiveAt:null}]}};
+    else if(input.method==='listSecurityActivity') response={ok:true,data:{items:[]}};
+    else if(input.method==='getNotificationPreferences'||input.method==='saveNotificationPreference') response={ok:true,data:{items:['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN'].map(event=>({event,inApp:input.method==='saveNotificationPreference'&&event===input.args[0].event?input.args[0].inApp:true,version:input.method==='saveNotificationPreference'?1:0})),channels:{inApp:true,push:false,email:false},securityEmailRequired:true,dueRemindersAvailable:false}};
+    else if(input.method==='revokeOtherSessions') response={ok:true,data:{revoked:1,alreadyRevoked:false}};
     else if(input.method==='requestPasswordOtp') response={ok:true,data:{challenge:'password1_'+'c'.repeat(43),expiresAt:Math.floor(Date.now()/1000)+300,resendAfter:60}};
     else if(input.method==='verifyPasswordOtp') response={ok:true,data:{verified:true,expiresAt:Math.floor(Date.now()/1000)+300}};
     else if(input.method==='changePassword') response={ok:true,data:{changed:true,signedOut:true}};

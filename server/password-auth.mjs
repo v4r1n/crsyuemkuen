@@ -7,6 +7,8 @@ import { fail } from './errors.mjs';
 import { assertPassword, hashPassword, verifyPassword, temporaryPassword, emailOtpHash, safeEqual } from './password-crypto.mjs';
 import { mailOptions, sendSecurityEmail } from './mail.mjs';
 import { verifyRecaptcha } from './recaptcha.mjs';
+import { newSessionMetadata,touchSession } from './session-metadata.mjs';
+import { appendSecurityHistory } from './settings-security.mjs';
 const tokenPattern = /^session1_[A-Za-z0-9_-]{43}$/;
 const challengePattern = /^password1_[A-Za-z0-9_-]{43}$/;
 const normalizedEmail = value => typeof value === 'string' && value.trim().length<=254 ? value.trim().toLowerCase() : '';
@@ -17,7 +19,9 @@ const rejection = result => { if (result?.error) fail(result.error, result.error
 export async function authorizedUser(db, token, restricted = false) {
   const session = await sessionFor(db, token, { allowRestricted: restricted });
   const domain = await loadDomain(db, { session });
-  return { session, domain, user: domain.context.requireUser_(token) };
+  const user=domain.context.requireUser_(token);
+  await touchSession(db,digest(token),session);
+  return { session, domain, user };
 }
 async function userForEmail(db, email) {
   email=normalizedEmail(email);
@@ -31,7 +35,7 @@ const generation = credential => Number(credential?.generation || 0);
 
 export function passwordAuth({ transact = transaction, send = sendSecurityEmail, hash = hashPassword,
   verify = verifyPassword, mailReady = mailOptions, clock = () => Date.now(), checkAbuse = verifyRecaptcha } = {}) {
-  async function signIn(input, requestKey) {
+  async function signIn(input, requestKey, userAgent='') {
     const email = normalizedEmail(input?.email), password = input?.password;
     if (typeof password !== 'string' || password.length > 512 || !/^[A-Za-z0-9_-]{43}$/.test(input?.sessionTokenHash || '')) invalid();
     const snapshot = await transact(async db => {
@@ -65,12 +69,13 @@ export function passwordAuth({ transact = transaction, send = sendSecurityEmail,
       }
       const expiresAt = Math.floor(clock()/1000) + config().AUTH_SESSION_TTL_SECONDS;
       const session = { userId:user.user_id,email,subject:'local:' + user.user_id,
-        clientId:config().GOOGLE_OAUTH_CLIENT_ID,method:'PASSWORD',credentialGeneration:generation(credential),expiresAt };
+        clientId:config().GOOGLE_OAUTH_CLIENT_ID,method:'PASSWORD',credentialGeneration:generation(credential),expiresAt,...newSessionMetadata(userAgent) };
       await db.query('INSERT INTO crs.sessions(id,data,expires_at) VALUES($1,$2,to_timestamp($3))',[input.sessionTokenHash,JSON.stringify(session),expiresAt]);
       await db.query('UPDATE crs.password_credentials SET failed_attempts=0,locked_until=NULL WHERE user_id=$1',[user.user_id]);
       const domain = await loadDomain(db);
       domain.context.updateRecordById_('Users','user_id',user.user_id,{last_login_at:new Date(clock()).toISOString()});
       await saveDomain(db,domain);
+      await appendSecurityHistory(db,user,'LOGIN_PASSWORD','security:'+digest('login:'+input.sessionTokenHash));
       return {status:'COMPLETE',expiresAt,mustChangePassword:credential.must_change};
     });
     if (result.invalid) invalid();

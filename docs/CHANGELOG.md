@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Settings security phase 1 (2026-10-14, source only)
+
+- Add owner-valid real session overview/list/revocation, authoritative security activity, coarse server-observed UA hints and unchanged expiry. Preserve command IDs across lost-response retries, current-session safety and replay protection for later-created sessions; report no-op audit accurately.
+- Add readonly Account details from the existing Users DTO, route/Back subviews, existing OTP/password/Remember integration, private versioned in-app delivery preferences and owner mark-all-read. Recheck current Borrow access after Admin demotion; retain workflow History, event creation and notice deduplication regardless of preference.
+- Add private additive migration and format-3 backup/restore compatibility, excluding transient proofs. Push, borrowing email, due-date reminders and a general security-alert producer remain deferred/unavailable.
+- Resolve the isolated-runner blocker with operator-approved credential-free Docker preparation and offline bounded execution. Full tests pass 373 checks including production build; syntax/diff/privacy gates and zero-advisory audit pass. No cloud schema/writer/deployment changes; actual-provider/device/screen-reader/native-concurrency/restore acceptance remains distinct from synthetic checks. Memory and ADR-034 own activation order and remaining gates.
+
 ### Settings alignment and explicit Thai/English (2026-10-14, source only)
 
 - Align the Settings sidebar toggle left when expanded and centered when collapsed; remove the duplicated Settings global-actions row and its unused styling.

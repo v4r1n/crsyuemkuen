@@ -1,5 +1,7 @@
 const {test,expect}=require('@playwright/test');
 const {mkdirSync}=require('node:fs');
+const {installOfflineAssets}=require('./offline-assets.cjs');
+test.beforeEach(async({page})=>installOfflineAssets(page));
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const notice={id:'n'.repeat(43),borrow_id:'BR-000001',action:'APPROVE',created_at:'2026-10-11T04:00:00Z',read_at:null};
 async function fixture(page,{restricted=false,admin=true,inbox}={}){
@@ -8,6 +10,7 @@ async function fixture(page,{restricted=false,admin=true,inbox}={}){
   await page.route('**/api/rpc',async route=>{
     const input=route.request().postDataJSON();calls.push(input);
     if(input.method==='listPublicEquipment')return route.fulfill({json:{ok:true,data:{items:[],page:1,total:0,totalPages:1}}});
+    if(input.method==='getNotificationPreferences')return route.fulfill({json:{ok:true,data:{items:[],channels:{inApp:true,push:false,email:false},securityEmailRequired:true}}});
     if(input.method==='listNotifications'){
       const value=inbox?await inbox(input.args[0]||{}):{items:[notice],unread:1};
       if(value.status)return route.fulfill({status:value.status,json:{}});

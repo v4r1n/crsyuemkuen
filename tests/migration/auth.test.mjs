@@ -11,6 +11,7 @@ process.env.ALLOWED_DOMAINS='gmail.com';
 const migration=readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8')+readFileSync(new URL('../../supabase/migrations/202610070002_identity_experience.sql',import.meta.url),'utf8');
 async function setup(){
   const db=new PGlite();await db.exec(migration);
+  await db.query('INSERT INTO crs.sequences(data) VALUES($1)',[JSON.stringify({sequence_name:'LOG',prefix:'LOG-',padding:6,next_value:1,updated_at:new Date().toISOString()})]);
   await db.query('INSERT INTO crs.users(data) VALUES($1)',[JSON.stringify({user_id:'USR-000001',email:'test@gmail.com',name:'Test',role:'ADMIN',status:'ACTIVE',row_version:1})]);
   const flow=secret('flow1_'),poll=secret('poll1_'),token=secret('session1_'),otp='123456';
   const data={clientId:process.env.GOOGLE_OAUTH_CLIENT_ID,expiresAt:Math.floor(Date.now()/1000)+600,otpExpiresAt:Math.floor(Date.now()/1000)+300,

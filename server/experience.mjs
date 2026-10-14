@@ -3,13 +3,22 @@ import { createHash } from 'node:crypto';
 import { fail } from './errors.mjs';
 const actions = new Set(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN']);
 const digest=value=>createHash('sha256').update(value).digest('base64url');
+// Preferences filter delivery/display, never transaction History or event creation.
+const visibleNotice=`EXISTS (SELECT 1 FROM crs.users u JOIN crs.borrow b ON b.id=n.borrow_id
+  WHERE u.id=n.user_id AND u.status='ACTIVE' AND (u.data->>'role'='ADMIN' OR b.data->>'user_id'=u.id))
+  AND NOT EXISTS (SELECT 1 FROM crs.notification_preferences p
+  JOIN crs.borrow b ON b.id=n.borrow_id
+  WHERE p.user_id=n.user_id AND p.in_app=false AND p.event=CASE
+    WHEN n.action='BORROW_REQUEST' AND b.data->>'user_id'<>n.user_id THEN 'ADMIN_BORROW_REQUEST'
+    WHEN n.action='REQUEST_RETURN' AND b.data->>'user_id'<>n.user_id THEN 'ADMIN_REQUEST_RETURN'
+    ELSE n.action END)`;
 
 export function publicLinks() {
   // Deliberate two-field allowlist; never serialize config/environment wholesale.
   return {privacyUrl:'https://policies.google.com/privacy',termsUrl:'https://policies.google.com/terms'};
 }
 export async function unreadNotifications(db,userId) {
-  return (await db.query('SELECT count(*)::integer AS count FROM crs.notifications WHERE user_id=$1 AND read_at IS NULL',[userId])).rows[0].count;
+  return (await db.query(`SELECT count(*)::integer AS count FROM crs.notifications n WHERE user_id=$1 AND read_at IS NULL AND ${visibleNotice}`,[userId])).rows[0].count;
 }
 
 // New History only; event and recipient keys make projection retry/replay safe.
@@ -27,12 +36,15 @@ export async function projectNotifications(db, domain, changes) {
   }
 }
 export async function notificationInbox(db,user,input = {}) {
+  if(!input || typeof input!=='object' || Array.isArray(input) || (input.markAllRead!==undefined && typeof input.markAllRead!=='boolean')) fail('VALIDATION_FAILED');
+  if(input.markAllRead===true) await db.query('UPDATE crs.notifications SET read_at=COALESCE(read_at,now()) WHERE user_id=$1 AND read_at IS NULL',[user.user_id]);
   if (input.readId !== undefined) {
     if (!/^[A-Za-z0-9_-]{43}$/.test(input.readId)) fail('VALIDATION_FAILED');
     await db.query('UPDATE crs.notifications SET read_at=COALESCE(read_at,now()) WHERE id=$1 AND user_id=$2',[input.readId,user.user_id]);
   }
-  const rows = await db.query(`SELECT n.id,n.borrow_id,n.action,n.created_at,n.read_at FROM crs.notifications n
-    WHERE n.user_id=$1 ORDER BY n.created_at DESC,n.id LIMIT 50`,[user.user_id]);
+  const rows = await db.query(`SELECT n.id,n.borrow_id,b.data->>'asset_id' AS asset_id,n.action,n.created_at,n.read_at FROM crs.notifications n
+    JOIN crs.borrow b ON b.id=n.borrow_id
+    WHERE n.user_id=$1 AND ${visibleNotice} ORDER BY n.created_at DESC,n.id LIMIT 50`,[user.user_id]);
   const unread = await unreadNotifications(db,user.user_id);
   return {items:rows.rows,unread};
 }

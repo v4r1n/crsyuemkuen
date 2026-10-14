@@ -4,6 +4,8 @@ import { transaction } from './db.mjs';
 import { config } from './config.mjs';
 import { digest, secret, loadDomain, saveDomain } from './domain.mjs';
 import { fail } from './errors.mjs';
+import { newSessionMetadata } from './session-metadata.mjs';
+import { appendSecurityHistory } from './settings-security.mjs';
 const googleKeys = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const now = () => Math.floor(Date.now()/1000);
 const equal = (left,right) => typeof left==='string' && typeof right==='string' && Buffer.byteLength(left)===Buffer.byteLength(right) && timingSafeEqual(Buffer.from(left),Buffer.from(right));
@@ -112,13 +114,13 @@ export async function oauthCallback(parameters) {
     throw error;
   }
 }
-export async function completeSignIn(flowId,pollToken,otp,token) {
+export async function completeSignIn(flowId,pollToken,otp,token,userAgent='') {
   if(!/^flow1_[A-Za-z0-9_-]{43}$/.test(flowId||'') || !/^poll1_[A-Za-z0-9_-]{43}$/.test(pollToken||'')) rejectAuth();
-  const result=await transaction(client=>completeInTransaction(client,flowId,pollToken,otp,token));
+  const result=await transaction(client=>completeInTransaction(client,flowId,pollToken,otp,token,userAgent));
   if(result.error) fail(result.error,result.error==='OTP_INVALID'?'รหัสยืนยันไม่ถูกต้อง กรุณาลองอีกครั้ง':'คำขอลงชื่อเข้าใช้หมดอายุ กรุณาเริ่มใหม่');
   return result;
 }
-export async function completeInTransaction(client,flowId,pollToken,otp,token) {
+export async function completeInTransaction(client,flowId,pollToken,otp,token,userAgent='') {
     const found=await client.query('SELECT * FROM crs.auth_flows WHERE id=$1 AND expires_at>now() FOR UPDATE',[digest(flowId)]);
     const flow=found.rows[0];
     if(!flow || !equal(flow.poll_hash,digest(pollToken))) rejectAuth();
@@ -141,9 +143,10 @@ export async function completeInTransaction(client,flowId,pollToken,otp,token) {
     if(user.user_id!==data.candidate.userId || data.candidate.expiresAt<=now() ||
        data.clientId!==cfg.GOOGLE_OAUTH_CLIENT_ID || !cfg.ALLOWED_DOMAINS.includes(data.candidate.email.split('@')[1])) rejectAuth();
     await client.query("UPDATE crs.auth_flows SET status='CONSUMED',data='{}' WHERE id=$1",[flow.id]);
-    await client.query('INSERT INTO crs.sessions(id,data,expires_at) VALUES($1,$2,to_timestamp($3))',[flow.session_hash,JSON.stringify(data.candidate),data.candidate.expiresAt]);
+    await client.query('INSERT INTO crs.sessions(id,data,expires_at) VALUES($1,$2,to_timestamp($3))',[flow.session_hash,JSON.stringify({...data.candidate,method:'GOOGLE',...newSessionMetadata(userAgent)}),data.candidate.expiresAt]);
     domain.context.updateRecordById_('Users','user_id',user.user_id,{last_login_at:new Date().toISOString()});
     await saveDomain(client,domain);
+    await appendSecurityHistory(client,user,'LOGIN_GOOGLE','security:'+digest('login:'+flow.session_hash));
     return {status:'COMPLETE',expiresAt:data.candidate.expiresAt};
 }
 export async function acknowledgeCopy(flowHash,copyToken) {
@@ -156,6 +159,12 @@ export async function acknowledgeCopy(flowHash,copyToken) {
   return {copied:true};
 }
 export async function logout(token) {
-  if(tokenPattern.test(token||'')) await transaction(client=>client.query('DELETE FROM crs.sessions WHERE id=$1',[digest(token)]));
+  if(tokenPattern.test(token||'')) await transaction(async client=>{
+    const removed=(await client.query('DELETE FROM crs.sessions WHERE id=$1 RETURNING data',[digest(token)])).rows[0];
+    if(!removed)return;
+    const domain=await loadDomain(client);
+    const user=domain.records.Users.find(row=>row.user_id===removed.data.userId && row.email===removed.data.email);
+    if(user)await appendSecurityHistory(client,user,'LOGOUT','security:'+digest('logout:'+digest(token)));
+  });
   return {signedOut:true};
 }

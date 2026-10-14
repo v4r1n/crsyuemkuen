@@ -2,11 +2,14 @@ import { isDeepStrictEqual } from 'node:util';
 import { tables } from '../server/schema.mjs';
 
 const legacySnapshotTables=[...Object.values(tables),'archive','migration_runs','image_resources','cleanup_jobs'];
-export const snapshotTables=[...legacySnapshotTables,'password_credentials','security_mail','equipment_visibility','notifications'];
+const format2Tables=[...legacySnapshotTables,'password_credentials','security_mail','equipment_visibility','notifications'];
+export const snapshotTables=[...format2Tables,'notification_preferences'];
 export function normalizeSnapshot(snapshot){
   if(snapshot.format===1 && snapshot.tables && Object.keys(snapshot.tables).sort().join()===legacySnapshotTables.slice().sort().join()) {
-    return {...snapshot,format:2,tables:{...snapshot.tables,...Object.fromEntries(snapshotTables.filter(name=>!legacySnapshotTables.includes(name)).map(name=>[name,[]]))}};
+    return {...snapshot,format:3,tables:{...snapshot.tables,...Object.fromEntries(snapshotTables.filter(name=>!legacySnapshotTables.includes(name)).map(name=>[name,[]]))}};
   }
+  if(snapshot.format===2 && snapshot.tables && Object.keys(snapshot.tables).sort().join()===format2Tables.slice().sort().join())
+    return {...snapshot,format:3,tables:{...snapshot.tables,notification_preferences:[]}};
   return snapshot;
 }
 const identityFields=['id','object_key','operation_id','asset_id','mime_type','byte_length','digest','name','folder_id','owner_user_id','original'];
@@ -15,7 +18,7 @@ function sameReservation(found,expected) {
   return found.state===reservedState(expected) && identityFields.every(key=>isDeepStrictEqual(found[key],expected[key]));
 }
 function validateSnapshot(snapshot) {
-  if(snapshot.format!==2 || !snapshot.tables || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join() ||
+  if(snapshot.format!==3 || !snapshot.tables || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join() ||
     snapshotTables.some(name=>!Array.isArray(snapshot.tables[name]))) throw new Error('Unknown backup format');
 }
 async function requireEmptyRecords(db) {

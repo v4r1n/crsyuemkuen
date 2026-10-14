@@ -7,6 +7,7 @@ import { fields,tables } from '../../server/schema.mjs';
 import { loadDomain,saveDomain } from '../../server/domain.mjs';
 import { publicEquipment,setVisibility,notificationInbox,publicLinks } from '../../server/experience.mjs';
 import { applyAdditiveMigrations } from '../../server/migrations.mjs';
+import {notificationPreferences} from '../../server/settings-security.mjs';
 import {createPublicThumbnailHandler} from '../../server/public-thumbnail.mjs';
 import {digest} from '../../server/domain.mjs';
 import sharp from 'sharp';
@@ -32,11 +33,42 @@ async function setup(){
 test('additive schema is idempotent/checksummed and private with no client policies',async()=>{
   const f=await setup();try{
     await applyAdditiveMigrations(f.transact);
-    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.runtime_migrations')).rows[0].n,1);
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.runtime_migrations')).rows[0].n,2);
     const result=await f.db.query("SELECT relname,relrowsecurity FROM pg_class JOIN pg_namespace n ON n.oid=relnamespace WHERE n.nspname='crs' AND relname IN ('password_credentials','password_challenges','security_mail','notifications','equipment_visibility')");
     assert.equal(result.rows.length,5);assert.ok(result.rows.every(row=>row.relrowsecurity));
     assert.equal((await f.db.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='crs'")).rows[0].n,0);
     await f.db.query("UPDATE crs.runtime_migrations SET sha256='changed'");await assert.rejects(applyAdditiveMigrations(f.transact),/source changed/);
+  }finally{await f.db.close();}
+});
+test('preferences hide delivery only; History/notice persists and mark-all-read cannot affect another owner',async()=>{
+  const f=await setup();try{
+    await f.transact(async db=>{
+      const domain=await loadDomain(db,{session:{...f.session,userId:f.borrower.user_id,email:f.borrower.email}});
+      const response=domain.invoke('createBorrowRequest',['fixture-session',{asset_id:f.asset.asset_id,purpose:'Delivery fixture',borrow_date:'2026-10-07',due_date:'2026-10-08',command_id:'settings-notice-fixture'}]);
+      assert.equal(response.ok,true,JSON.stringify(response.error));await saveDomain(db,domain);
+    });
+    const before=(await f.db.query('SELECT count(*)::int AS n FROM crs.history')).rows[0].n;
+    await notificationPreferences(f.db,f.borrower,{event:'BORROW_REQUEST',inApp:false,expectedVersion:0});
+    assert.equal((await notificationInbox(f.db,f.borrower)).items.length,0);
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.history')).rows[0].n,before);
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.notifications WHERE user_id=$1',[f.borrower.user_id])).rows[0].n,1);
+    await notificationInbox(f.db,f.borrower,{markAllRead:true,user_id:f.admin.user_id});
+    assert.equal((await notificationInbox(f.db,f.admin)).unread,1);
+    assert.equal((await f.db.query('SELECT read_at FROM crs.notifications WHERE user_id=$1',[f.borrower.user_id])).rows[0].read_at!==null,true);
+  }finally{await f.db.close();}
+});
+test('demoted Admin inbox rechecks current Borrow access instead of exposing another user reference',async()=>{
+  const f=await setup();try{
+    await f.transact(async db=>{
+      const domain=await loadDomain(db,{session:{...f.session,userId:f.borrower.user_id,email:f.borrower.email}});
+      const result=domain.invoke('createBorrowRequest',['fixture-session',{asset_id:f.asset.asset_id,purpose:'Access fixture',borrow_date:'2026-10-07',due_date:'2026-10-08',command_id:'access-notice-fixture'}]);
+      assert.equal(result.ok,true);await saveDomain(db,domain);
+    });
+    assert.equal((await notificationInbox(f.db,f.admin)).items.length,1);
+    assert.equal((await notificationInbox(f.db,f.admin)).items[0].asset_id,f.asset.asset_id);
+    await f.db.query("UPDATE crs.users SET data=jsonb_set(data,'{role}','\"USER\"') WHERE id=$1",[f.admin.user_id]);
+    assert.equal((await notificationInbox(f.db,{...f.admin,role:'USER'})).items.length,0);
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.notifications WHERE user_id=$1',[f.admin.user_id])).rows[0].n,1);
   }finally{await f.db.close();}
 });
 test('Guest sees no assets by default; explicit publication projects allowlisted fields and current deletion removes it',async()=>{

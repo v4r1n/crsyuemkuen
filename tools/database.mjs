@@ -16,7 +16,7 @@ try{
     if(existing.rows[0].name) {
       // Existence checks detect incomplete installs, not constraint drift.
       // A manually changed schema requires operator review, never a reset.
-      for(const table of snapshotTables.filter(name=>!['password_credentials','security_mail','equipment_visibility','notifications'].includes(name))) if(!(await pool.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name) throw new Error('Existing schema is incomplete');
+      for(const table of snapshotTables.filter(name=>!['password_credentials','security_mail','equipment_visibility','notifications','notification_preferences'].includes(name))) if(!(await pool.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name) throw new Error('Existing schema is incomplete');
       console.log('Schema already exists; not overwritten.');
     }else{await pool.query(sql);console.log('Transactional database schema installed.');}
     await applyAdditiveMigrations(transaction);
@@ -33,7 +33,7 @@ try{
     const destination=resolve(process.argv[3]||join('.migration','backup-'+new Date().toISOString().replace(/[:.]/g,'-')));
     const storage=await privateStorage(); await mkdir(join(destination,'objects'),{recursive:true});
     const snapshot=await transaction(async db=>{
-      const result={format:2,created_at:new Date().toISOString(),tables:{},objects:[]};
+      const result={format:3,created_at:new Date().toISOString(),tables:{},objects:[]};
       for(const table of snapshotTables) result.tables[table]=(await db.query(`SELECT * FROM crs.${table} ORDER BY 1`)).rows;
       return result;
     });
@@ -57,7 +57,7 @@ try{
     const directory=resolve(process.argv[3]||''),bytes=await readFile(join(directory,'database.json'));
     if(sha(bytes)!==(await readFile(join(directory,'sha256.txt'),'utf8')).trim()) throw new Error('Backup manifest checksum mismatch');
     const snapshot=normalizeSnapshot(JSON.parse(bytes));
-    if(snapshot.format!==2 || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join()) throw new Error('Unknown backup format');
+    if(snapshot.format!==3 || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join()) throw new Error('Unknown backup format');
     const ids=snapshot.objects.map(item=>item.id);
     if(new Set(ids).size!==ids.length || snapshot.tables.image_resources.some(row=>row.state==='READY'&&!ids.includes(row.id))) throw new Error('Backup omits a READY image');
     // Reserve tracked objects before external writes; protect an interrupted

@@ -24,5 +24,5 @@ export async function POST(request) {
   if(!input || typeof input.method!=='string') return new Response('{}',{status:400,headers});
   const token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
   const key=request.headers.get('x-vercel-forwarded-for')||request.headers.get('x-forwarded-for')||'local';
-  return new Response(JSON.stringify(await rpc(input.method,input.args,token,key)),{headers});
+  return new Response(JSON.stringify(await rpc(input.method,input.args,token,key,{userAgent:request.headers.get('user-agent')||''})),{headers});
 }

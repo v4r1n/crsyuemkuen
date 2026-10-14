@@ -14,6 +14,21 @@ await writeFile(join(output,'i18n.js'),'window.CRS_UI_COPY='+JSON.stringify(uiCo
 const includes=[...index.matchAll(/<\?!= include_\('([^']+)'\); \?>/g)];
 for(const match of includes){
   const name=match[1]; let text=await read(name);
+  if(name==='scripts-api') {
+    if(!text.includes("'adminGetEquipmentVisibility'].indexOf(method)") || !text.includes('    requestSecurity: function (method,input) {'))throw new Error('Settings security auth composition seam changed');
+    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference'].indexOf(method)");
+    text=text.replace('    requestSecurity: function (method,input) {', `    rememberSession: function () { return Boolean(storageGet(global.localStorage, AUTH_SESSION_STORAGE_KEY)); },
+    setRememberSession: function (remember) {
+      if (typeof remember !== 'boolean' || !authState.sessionToken) throw new ClientApiError({code:'UNAUTHENTICATED'});
+      const record=parseStoredSession(JSON.stringify({version:1,token:authState.sessionToken,expiresAt:authState.sessionExpiresAt}));
+      const target=remember ? global.localStorage : global.sessionStorage;
+      if(!record || !storageSet(target,AUTH_SESSION_STORAGE_KEY,JSON.stringify(record))) throw new ClientApiError({code:'CLIENT_STORAGE_UNAVAILABLE'});
+      storageRemove(remember ? global.sessionStorage : global.localStorage,AUTH_SESSION_STORAGE_KEY);
+      storageSet(global.localStorage,AUTH_REMEMBER_STORAGE_KEY,remember ? 'true' : 'false');
+      const checkbox=document.querySelector('#remember-session');if(checkbox)checkbox.checked=remember;
+    },
+    requestSecurity: function (method,input) {`);
+  }
   if(name==='styles')text=text.replace(/\s*\.login-orbit \{[^}]*\}/,'');
   if(name==='scripts-api') text=text.replace(/  function serverRpc\(method, args\) \{[\s\S]*?\n  function randomBrowserSecret/,`  function serverRpc(method, args) {
     return global.CRS_SERVER_RPC(method, args || []).then(function(response) {
@@ -29,6 +44,8 @@ for(const match of includes){
     'var match = global.CRS_CANONICAL_BASE(configured);\n      if (match) global.location.assign(configured');
   if(name==='scripts-qr') text=text.replace(/var match = \^?\/\^https:[\s\S]*?return match \? new URL\([\s\S]*? : null;/, 'return global.CRS_CANONICAL_BASE(configured);');
   if(name==='scripts-core') {
+    if(!text.includes("CRS.features.mountSettings(sectionKey,root.querySelector('.settings-content'))"))throw new Error('Settings security subview composition seam changed');
+    text=text.replace('CRS.features.mountSettings(sectionKey,root.querySelector(\'.settings-content\'))','CRS.features.mountSettings(sectionKey,root.querySelector(\'.settings-content\'),params)');
     // Next supports only explicit Thai/English, defaulting old/unknown choices to Thai.
     text=text.replace(/const LANGUAGES = Object\.freeze\(\[[\s\S]*?\]\);/, "const LANGUAGES = Object.freeze([{code:'th',name:'ไทย'},{code:'en',name:'English'}]);");
     text=text.replace(/  function languagePreference\(\) \{[\s\S]*?\n  function applyLanguage/, "  function languagePreference() { return global.CRSI18n.read(); }\n  function effectiveLanguage(preference) { return preference === 'en' ? 'en' : 'th'; }\n  function applyLanguage");
@@ -142,7 +159,7 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/session-loading.js"></script><script src="/crs/notification-inbox.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/session-loading.js"></script><script src="/crs/notification-inbox.js"></script><script src="/crs/settings-security.js"></script><script src="/crs/experience.js"></script></body>');
 // Remove only this retired generated asset on incremental builds as well.
 await rm(join(output,'login-scene.js'),{force:true});
 await rm(join(output,'guest-scene.js'),{force:true});
@@ -153,6 +170,7 @@ for(const name of ['react-bits.js','react-bits.css','react-bits-license.txt'])aw
 await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web','login-parallax.js'),'utf8'));
 await writeFile(join(output,'session-loading.js'),await readFile(join(root,'web','session-loading.js'),'utf8'));
 await writeFile(join(output,'notification-inbox.js'),await readFile(join(root,'web','notification-inbox.js'),'utf8'));
+await writeFile(join(output,'settings-security.js'),await readFile(join(root,'web','settings-security.js'),'utf8'));
 const styleSource=await read('styles');
 const tokens=[styleSource.match(/  :root \{[^}]*\}/)?.[0],styleSource.match(/  \[data-bs-theme="dark"\] \{[^}]*\}/)?.[0]];
 if(tokens.some(value=>!value))throw new Error('404 design token seam changed');
