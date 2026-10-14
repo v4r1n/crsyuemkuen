@@ -13,11 +13,11 @@ test.beforeEach(async({page})=>{
     else await route.fallback();
   });
 });
-async function mock(page,{signedOut=false,restricted=false}={}){
+async function mock(page,{signedOut=false,restricted=false,preserveSession=false}={}){
   const harness=bootstrappedHarness();const record=createEquipment(harness);
   const session=harness.records('Users').find(row=>row.role==='ADMIN');
   const calls=[];
-  if(!signedOut)await page.addInitScript(()=>sessionStorage.setItem('crs.auth.session.v1',JSON.stringify({version:1,token:'session1_'+'a'.repeat(43),expiresAt:Math.floor(Date.now()/1000)+600})));
+  if(!signedOut)await page.addInitScript(preserve=>{if(preserve&&sessionStorage.getItem('crs.auth.session.v1'))return;sessionStorage.setItem('crs.auth.session.v1',JSON.stringify({version:1,token:'session1_'+'a'.repeat(43),expiresAt:Math.floor(Date.now()/1000)+600}));},preserveSession);
   await page.route('**/api/rpc',async route=>{
     const input=route.request().postDataJSON();calls.push(input);
     let response;
@@ -938,12 +938,96 @@ test('forced password change routes to Security instead of the requested busines
 
 test('new actions translate TH/EN; quick theme has two states and System remains in Appearance',async({page})=>{
   await mock(page);await page.goto('/?view=settings&section=appearance');
-  await page.locator('.settings-global-actions [data-experience-action="language"]').click();await expect(page.locator('.settings-global-actions [data-experience-action="guide"]')).toHaveText('Guide');
-  await page.locator('.settings-global-actions [data-experience-action="language"]').click();await expect(page.locator('.settings-global-actions [data-experience-action="guide"]')).toHaveText('คู่มือ');
+  await expect(page.locator('.settings-global-actions')).toHaveCount(0);
   await page.locator('[data-settings-theme="system"]').click();await expect(page.locator('html')).toHaveAttribute('data-theme-preference','system');
-  await page.locator('.settings-global-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
-  await page.locator('.settings-global-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
+  await page.goto('/?view=equipment');
+  await page.locator('.topbar-actions [data-experience-action="language"]').click();await expect(page.locator('.topbar-actions [data-experience-action="guide"]')).toHaveText('Guide');
+  await page.locator('.topbar-actions [data-experience-action="language"]').click();await expect(page.locator('.topbar-actions [data-experience-action="guide"]')).toHaveText('คู่มือ');
+  await page.locator('.topbar-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
+  await page.locator('.topbar-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
   await page.goto('/?view=dashboard');await page.locator('[data-experience-action="notifications"]').click();await expect(page.locator('.notification-popover .notification-item')).toContainText('อนุมัติ');
+});
+
+test('Settings has only Thai/English and selecting a language reloads the same route and session',async({page})=>{
+  const {calls}=await mock(page,{preserveSession:true});await page.goto('/?view=settings');
+  await expect(page.locator('.settings-global-actions')).toHaveCount(0);
+  await page.locator('#language-trigger').click();
+  await expect(page.locator('#language-list [data-language-code]')).toHaveCount(2);
+  await expect(page.locator('#language-list [data-language-code="auto"]')).toHaveCount(0);
+  const token=await page.evaluate(()=>sessionStorage.getItem('crs.auth.session.v1'));
+  await page.evaluate(()=>window.fixtureDocumentMarker='before-language-selection');
+  await page.locator('#language-list [data-language-code="en"]').click();
+  await expect.poll(()=>page.evaluate(()=>window.fixtureDocumentMarker||null)).toBeNull();
+  await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await expect(page.locator('#language-trigger')).toContainText('English');
+  await expect(page.locator('#settings-heading')).toHaveText('General');
+  await expect(page.locator('.settings-nav-heading').first()).toHaveText('Personal');
+  await expect(page.locator('.settings-workspace h2')).toHaveText('General');
+  expect(await page.evaluate(()=>sessionStorage.getItem('crs.auth.session.v1'))).toBe(token);
+  expect(calls.filter(call=>call.method==='passwordSignIn'||call.method==='beginOAuthSignIn')).toHaveLength(0);
+  await page.goto('/?view=equipment');await expect(page.locator('#equipment-title')).toHaveText('Choose the right equipment');
+  await page.goto('/?view=settings');await page.locator('#language-trigger').click();
+  await page.locator('[data-language-code="th"]').click();await expect(page.locator('html')).toHaveAttribute('lang','th');
+  await expect(page.locator('#settings-heading')).toHaveText('ทั่วไป');
+  await expect(page.locator('.settings-nav-heading').first()).toHaveText('ส่วนตัว');
+  await page.goto('/?view=equipment');await expect(page.locator('#equipment-title')).toHaveText('เลือกอุปกรณ์ที่ใช่');
+});
+
+for(const preference of ['auto','de','zh','invalid'])test('obsolete language '+preference+' safely falls back to Thai',async({page})=>{
+  await page.addInitScript(saved=>localStorage.setItem('crs-ui-language',saved),preference);
+  await mock(page);await page.goto('/?view=settings');
+  await expect(page.locator('html')).toHaveAttribute('lang','th');
+  expect(await page.evaluate(()=>CRS.language.options.map(item=>item.code))).toEqual(['th','en']);
+  await expect(page.locator('#language-trigger')).toContainText('ไทย');
+});
+
+for(const width of [390,1440])test('Settings toggle alignment and action removal at '+width,async({page})=>{
+  await mock(page);await page.setViewportSize({width,height:844});await page.goto('/?view=settings&section=appearance');
+  if(width<768)await page.locator('#settings-mobile-toggle').click();
+  await expect(page.locator('#settings-sidebar-toggle')).toHaveAttribute('aria-expanded','true');
+  const expanded=await page.locator('#settings-sidebar-toggle').evaluate(node=>{
+    const button=node.getBoundingClientRect(),header=node.parentElement.getBoundingClientRect();return {offset:button.left-header.left,justify:getComputedStyle(node.parentElement).justifyContent};
+  });expect(expanded.justify).toBe('flex-start');expect(expanded.offset).toBeLessThan(20);
+  await expect(page.locator('.settings-workspace .settings-global-actions')).toHaveCount(0);
+  if(width>=768){await page.locator('#settings-sidebar-toggle').click();await expect(page.locator('#settings-sidebar-toggle')).toHaveAttribute('aria-expanded','false');
+    const centered=await page.locator('#settings-sidebar-toggle').evaluate(node=>{const a=node.getBoundingClientRect(),b=node.parentElement.getBoundingClientRect();return Math.abs((a.left+a.width/2)-(b.left+b.width/2));});expect(centered).toBeLessThan(1);
+  }
+  if(process.env.CRS_UI_CAPTURE==='1'){
+    mkdirSync('test-results/ui',{recursive:true});
+    for(const [theme,language] of [['light','th'],['dark','en']]){
+      await page.evaluate(([theme,language])=>{CRS.theme.apply(theme,true);CRS.language.set(language);},[theme,language]);await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('lang',language);
+      if(width<768)await page.locator('#settings-mobile-toggle').click();
+      await page.screenshot({path:'test-results/ui/settings-'+width+'-'+theme+'-'+language+'.png',animations:'disabled'});
+    }
+  }
+});
+
+test('English localizes source UI but never equipment record text or stored enums',async({page})=>{
+  const {record}=await mock(page);await page.addInitScript(()=>localStorage.setItem('crs-ui-language','en'));
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='listEquipment')return route.fallback();await route.fulfill({json:{ok:true,data:{items:[{...record,name:'ชื่ออุปกรณ์',description:'รายละเอียด อุปกรณ์',status:'AVAILABLE'}],page:1,total:1,totalPages:1}}});});
+  await page.goto('/?view=equipment');await expect(page.locator('#equipment-title')).toHaveText('Choose the right equipment');
+  await expect(page.locator('#equipment-results')).toContainText('ชื่ออุปกรณ์');
+  await expect(page.locator('#equipment-results')).toContainText('Available');
+  expect(record.status).toBe('AVAILABLE');
+});
+
+test('Settings language reload uses a tab-local fallback when persistent writes fail',async({page})=>{
+  await mock(page,{preserveSession:true});await page.addInitScript(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(this===window.localStorage)throw new DOMException('Fixture quota exceeded','QuotaExceededError');return original.call(this,key,value);};});
+  await page.goto('/?view=settings');await page.locator('#language-trigger').click();await page.locator('[data-language-code="en"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await expect(page.locator('#settings-heading')).toHaveText('General');
+  expect(await page.evaluate(()=>sessionStorage.getItem('crs-ui-language-fallback'))).toBe('en');
+  await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','en');
+});
+
+test('blocked localization asset preserves the original guarded bootstrap and Settings',async({page})=>{
+  await mock(page);await page.route('**/crs/i18n.js',route=>route.abort());
+  await page.goto('/?view=equipment');await expect(page.locator('#equipment-results')).toBeVisible();
+  expect(await page.evaluate(()=>CRS.auth.hasSession())).toBe(true);
+  await page.goto('/?view=settings');await page.locator('#language-trigger').click();
+  await expect(page.locator('[data-language-code]')).toHaveCount(2);
+  await expect(page.locator('.settings-global-actions')).toHaveCount(0);
 });
 
 test('Login effects and icon/search geometry respect reduced motion, touch, theme and viewport',async({page})=>{

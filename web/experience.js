@@ -94,9 +94,6 @@
   }
   function mountSettings(key,host){
     if(!host) return;
-    const controls=document.createElement('div');controls.className='settings-global-actions mb-3';
-    controls.innerHTML=(!CRS.state.bootstrap?.session.mustChangePassword?notificationButton():'')+actions()+'<button type="button" class="theme-toggle" data-action="theme-toggle"><i class="bi bi-sun-fill" data-theme-icon aria-hidden="true"></i><span class="visually-hidden" data-theme-label></span></button>';
-    host.querySelector('h2').after(controls);CRS.theme.apply(CRS.theme.current(),false);
     refreshInboxCount();
     if(key==='security'){host.querySelector('.settings-placeholder')?.remove();host.insertAdjacentHTML('beforeend','<div class="settings-card"><h3 class="h5" data-experience-text="change">'+t('change')+'</h3>'+passwordForm('CHANGE')+'</div>');bindPasswordForm(host.querySelector('[data-password-flow]'));}
     if(key==='profile'){host.insertAdjacentHTML('beforeend','<div class="settings-card mt-3"><h3 class="h5" data-experience-text="security">'+t('security')+'</h3>'+button('change','profile-security')+'</div>');}

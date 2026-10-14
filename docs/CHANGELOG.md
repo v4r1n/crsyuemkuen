@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Settings alignment and explicit Thai/English (2026-10-14, source only)
+
+- Align the Settings sidebar toggle left when expanded and centered when collapsed; remove the duplicated Settings global-actions row and its unused styling.
+- Restrict Next language options to Thai/English and reload the same route after Settings selection, retaining the guarded session. Normalize obsolete choices to Thai; support preference write-failure fallback without changing authentication storage. Localize authored UI/templates and display dates through a source-only compiler/copy resource, preserving record text, enums and backend authority. Keep original auth/UI usable if the copy asset is blocked.
+- Add compiled-emission, bilingual-source and actual Next/browser regressions. No server/domain/schema/credential/cloud/writer-mode change or deployment; Memory records final acceptance and remaining gates.
+
 ### Production preflight paused for writer drift (2026-10-11)
 
 - The operator requests accepted `10583b2` on Production. Fresh read-only checks find Production writable while Preview remains frozen; canonical/callback, READY source and protected Preview are intact. Pause before backup/candidate/activation and request fresh Production freeze authority. No cloud configuration/deployment/data mutation occurs; existing source/build acceptance and unrelated edits are preserved. Memory owns the next guarded steps.

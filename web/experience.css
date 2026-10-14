@@ -95,7 +95,8 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .experience-actions .btn { font-size:.875rem; padding:.4rem .65rem; }
 .experience-actions { margin-inline-start:auto; justify-content:flex-end; }
 .experience-actions button { white-space:nowrap; }
-.settings-global-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem; }
+.settings-sidebar-header { justify-content:flex-start; }
+.settings-sidebar-header:has(#settings-sidebar-toggle[aria-expanded="false"]) { justify-content:center; }
 .theme-toggle i,.sidebar-toggle i,.brand-mark i,.settings-icon-button i { display:inline-flex; align-items:center; justify-content:center; line-height:1; }
 .theme-toggle i::before,.sidebar-toggle i::before,.brand-mark i::before,.settings-icon-button i::before { display:block; line-height:1; }
 .card { --bs-card-inner-border-radius:calc(var(--crs-radius) - 1px); }

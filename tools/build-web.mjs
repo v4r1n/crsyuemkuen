@@ -1,9 +1,16 @@
 import { readFile, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import {localizeScript} from './localize-ui.mjs';
 const root=process.cwd(),output=join(root,'public','crs');
 await mkdir(output,{recursive:true});
 const read=name=>readFile(join(root,'src',name+'.html'),'utf8');
 let index=await read('index');
+index=index.replace('</head>',`<script src="/crs/i18n.js"></script><script>
+// A blocked optional copy asset must not break the original auth/bootstrap.
+window.CRSI18n = window.CRSI18n || Object.freeze({text:function(value){return value;},read:function(){try{return localStorage.getItem('crs-ui-language')==='en'?'en':'th';}catch{return 'th';}},staticUI:function(){},reload:function(){window.location.reload();}});
+</script></head>`);
+const uiCopy=JSON.parse(await readFile(join(root,'web','ui-copy.json'),'utf8'));
+await writeFile(join(output,'i18n.js'),'window.CRS_UI_COPY='+JSON.stringify(uiCopy)+';\n'+await readFile(join(root,'web','i18n.js'),'utf8'));
 const includes=[...index.matchAll(/<\?!= include_\('([^']+)'\); \?>/g)];
 for(const match of includes){
   const name=match[1]; let text=await read(name);
@@ -22,8 +29,13 @@ for(const match of includes){
     'var match = global.CRS_CANONICAL_BASE(configured);\n      if (match) global.location.assign(configured');
   if(name==='scripts-qr') text=text.replace(/var match = \^?\/\^https:[\s\S]*?return match \? new URL\([\s\S]*? : null;/, 'return global.CRS_CANONICAL_BASE(configured);');
   if(name==='scripts-core') {
-    // Thai is the Next default; retain a user's saved selection (including auto).
-    text=text.replace("? saved : 'auto';", "? saved : 'th';").replace("catch (error) { return 'auto'; }", "catch (error) { return 'th'; }");
+    // Next supports only explicit Thai/English, defaulting old/unknown choices to Thai.
+    text=text.replace(/const LANGUAGES = Object\.freeze\(\[[\s\S]*?\]\);/, "const LANGUAGES = Object.freeze([{code:'th',name:'ไทย'},{code:'en',name:'English'}]);");
+    text=text.replace(/  function languagePreference\(\) \{[\s\S]*?\n  function applyLanguage/, "  function languagePreference() { return global.CRSI18n.read(); }\n  function effectiveLanguage(preference) { return preference === 'en' ? 'en' : 'th'; }\n  function applyLanguage");
+    text=text.replace("? preference : 'auto';", "? preference : 'th';");
+    text=text.replaceAll("'th-TH'", "(global.CRS.language.effective() === 'en' ? 'en-GB' : 'th-TH')");
+    text=text.replace('  applyLanguage(languagePreference(), false);','  applyLanguage(languagePreference(), false);\n  global.CRSI18n.staticUI(document);');
+    text=text.replace('      closeDropdown(true);\n    });', '      closeDropdown(true);\n      global.CRSI18n.reload();\n    });');
     text=text.replace(/const base = \/\^https:[\s\S]*?\? configured : '';/,"const base = global.CRS_CANONICAL_BASE(configured) ? configured : '';");
     text=text.replace("new URLSearchParams(parts[1] || '')", "new URLSearchParams(raw ? (parts[1] || '') : global.location.search)");
     // Presentation only: retain the session waiter/authorization, and cover
@@ -75,7 +87,7 @@ for(const match of includes){
     </details><div class="tab-content">`);
   if(name.startsWith('scripts-') || name.startsWith('vendor-')) {
     const code=text.replace(/^\s*<script[^>]*>/,'').replace(/<\/script>\s*$/,'');
-    await writeFile(join(output,name+'.js'),code); text=`<script src="/crs/${name}.js"></script>`;
+    await writeFile(join(output,name+'.js'),name.startsWith('scripts-')?localizeScript(code):code); text=`<script src="/crs/${name}.js"></script>`;
   }
   index=index.replace(match[0],text);
 }
@@ -146,7 +158,7 @@ const tokens=[styleSource.match(/  :root \{[^}]*\}/)?.[0],styleSource.match(/  \
 if(tokens.some(value=>!value))throw new Error('404 design token seam changed');
 await writeFile(join(output,'not-found.css'),tokens.join('\n')+'\n'+await readFile(join(root,'web','not-found.css'),'utf8'));
 await writeFile(join(output,'transport.js'),await readFile(join(root,'web','transport.js'),'utf8'));
-await writeFile(join(output,'migration-admin.js'),await readFile(join(root,'web','migration-admin.js'),'utf8'));
+await writeFile(join(output,'migration-admin.js'),localizeScript(await readFile(join(root,'web','migration-admin.js'),'utf8')));
 await writeFile(join(output,'experience.js'),await readFile(join(root,'web','experience.js'),'utf8'));
 await writeFile(join(output,'experience.css'),await readFile(join(root,'web','experience.css'),'utf8'));
 if(index.includes('<?')) throw new Error('Unresolved Apps Script template');
