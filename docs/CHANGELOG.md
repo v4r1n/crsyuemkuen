@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Admin integrity/profile Production activation (2026-10-15)
+
+- Deploy accepted `3855a5e` through a tested unassigned Production candidate and same-artifact promotion. Preserve canonical domains/callbacks, protection, writable Production and frozen unchanged Preview. No migration or real image cleanup is run; Memory records canonical checks, rollback and monitoring/manual-acceptance limits.
+
 ### Admin integrity and profile presentation (2026-10-15, source only)
 
 - Remove four redundant Next page eyebrows, center accessory notes, add keyboard/ARIA audit-result toggles, and align owner name/Save controls without the duplicate visible name caption or loss of accessible naming.
