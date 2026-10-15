@@ -223,13 +223,20 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
   .settings-page.is-sidebar-collapsed .settings-profile-arrow { display: none; }
 }
 .profile-account-copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.profile-name-editor { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; max-width: 100%; }
-.profile-name-editor label { min-width: 0; flex: 1 1 12rem; font-size: .875rem; color: var(--crs-muted); }
-.profile-name-input { display: block; width: 100%; min-width: 0; padding: .35rem .5rem; color: var(--crs-ink); background: transparent; border: 1px solid transparent; border-radius: var(--crs-radius-sm); font: inherit; font-size: 1rem; }
+.profile-name-editor { --profile-control-height: 2.75rem; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: .5rem; margin: 0; max-width: 100%; }
+.profile-name-editor label { display: block; min-width: 0; margin: 0; }
+.profile-name-editor > button { height: var(--profile-control-height); white-space: nowrap; }
+.profile-name-input { display: block; width: 100%; min-width: 0; height: var(--profile-control-height); padding: .35rem .5rem; color: var(--crs-ink); background: transparent; border: 1px solid transparent; border-radius: var(--crs-radius-sm); font: inherit; font-size: 1rem; }
 .profile-name-input:hover { background: var(--crs-surface-hover); }
 .profile-name-input:focus { outline: 2px solid var(--crs-input-focus); outline-offset: 1px; border-color: var(--crs-input-focus); }
 .profile-name-input[aria-invalid="true"] { border-color: var(--bs-danger); }
-.profile-save-status { flex-basis: 100%; font-size: .875rem; margin: 0; }
+.profile-save-status { grid-column: 1 / -1; font-size: .875rem; margin: 0; }
+.admin-audit-toggle { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; }
+.admin-audit-toggle:enabled { cursor: pointer; }
+.admin-audit-toggle:enabled:hover { color: var(--crs-blue); }
+.admin-audit-toggle:focus-visible { outline: 2px solid var(--crs-focus-outline); outline-offset: 4px; border-radius: var(--crs-radius-sm); }
+.admin-audit-toggle i { flex-shrink: 0; }
+.admin-audit-toggle[aria-expanded="true"] i { transform: rotate(180deg); }
 .profile-save-status:empty { display: none; }
 .profile-avatar { position: relative; border: 2px solid transparent; padding: 0; flex-shrink: 0; cursor: pointer; overflow: visible; }
 .profile-avatar [data-avatar-content] { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }

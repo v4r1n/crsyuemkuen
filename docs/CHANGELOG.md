@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Admin integrity and profile presentation (2026-10-15, source only)
+
+- Remove four redundant Next page eyebrows, center accessory notes, add keyboard/ARIA audit-result toggles, and align owner name/Save controls without the duplicate visible name caption or loss of accessible naming.
+- Fix orphan repair reporting: reload durable cleanup jobs as queued/non-repairable candidates instead of offering repair again or claiming a recoverable Trash move. Keep existing delayed, reference/pin-aware explicit cleanup; no live file is removed. Make confirmation wait for modal readiness and restore focus after dismissal. Add persistence/reload, compiled-output and responsive bilingual/theme regressions; Memory records final acceptance separately from deployment.
+
 ### Owner profile Production activation (2026-10-15)
 
 - Activate accepted `3d92732` after an explicitly approved verified online format-3 backup (seven binaries), additive private profile schema, matching three-entry migration ledger and repeat/no-data-change checks. Preserve writable Production, frozen Preview, canonical callbacks, protection and private originals.

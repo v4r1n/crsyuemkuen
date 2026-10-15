@@ -8,9 +8,9 @@
     const target=nameOnly?host.querySelector('[data-profile-name-host]'):host.querySelector('#account-heading');
     if(!target)return;
     const editor=document.createElement('form');editor.className='profile-name-editor';
-    const label=document.createElement('label');label.textContent=t('ชื่อที่แสดง','Name');
+    const label=document.createElement('label');
     const field=document.createElement('input');field.type='text';field.name='name';field.autocomplete='off';field.spellcheck=false;field.className='profile-name-input';field.readOnly=true;
-    field.maxLength=64;field.setAttribute('aria-label',label.textContent);field.value=session.name||'';
+    field.maxLength=64;field.setAttribute('aria-label',t('ชื่อที่แสดง','Name'));field.value=session.name||'';
     const save=document.createElement('button');save.type='submit';save.className='btn btn-outline-secondary';save.textContent=t('บันทึก','Save');save.disabled=true;
     const status=document.createElement('p');status.className='profile-save-status';status.role='status';status.setAttribute('aria-live','polite');status.id='profile-save-'+view;field.setAttribute('aria-describedby',status.id);
     label.append(field);editor.append(label,save,status);

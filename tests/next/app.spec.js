@@ -4,6 +4,40 @@ const {installOfflineAssets}=require('./offline-assets.cjs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
 
+for(const theme of ['light','dark'])for(const language of ['th','en'])test('Admin refinement disclosures, queue refresh and profile symmetry '+theme+' '+language,async({page})=>{
+  const {calls}=await mock(page);let queued=false;
+  await page.addInitScript(({theme,language})=>{localStorage.setItem('crs-theme',theme);localStorage.setItem('crs-ui-language',language);},{theme,language});
+  await page.route('**/api/rpc',async route=>{
+    const {method}=route.request().postDataJSON();
+    if(method==='adminRepairImageIntegrity'){queued=true;return route.fulfill({json:{ok:true,data:{status:'CLEANUP_QUEUED'}}});}
+    if(method!=='adminPreviewImageIntegrity')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{generated_at:'2026-10-15T00:00:00Z',summary:{total_issues:1,counts:{orphan_files:queued?0:1,cleanup_queued:queued?1:0}},issues:[{kind:queued?'CLEANUP_QUEUED':'ORPHAN_FILE',file_id:'synthetic-orphan',file_name:'Synthetic old image.png',can_repair:!queued}]}}});
+  });
+  for(const width of [320,1440]){
+    await page.setViewportSize({width,height:1000});
+    for(const view of ['dashboard','equipment','scan','admin']){
+      await page.goto('/?view='+view);await expect(page.locator('#app-shell')).toBeVisible();
+      await expect(page.locator('#view-root .eyebrow')).toHaveCount(0);
+    }
+    await page.locator('#admin-system-tab').click();await page.locator('#admin-run-integrity').click();
+    const toggle=page.locator('[data-audit-result="admin-integrity-result"]');
+    await expect(toggle).toHaveAttribute('aria-expanded','true');await expect(page.locator('#admin-integrity-result')).toBeVisible();
+    const reads=calls.filter(call=>call.method==='adminRunIntegrityAudit').length;
+    await toggle.focus();await page.keyboard.press('Enter');await expect(page.locator('#admin-integrity-result')).toBeHidden();await page.keyboard.press('Space');await expect(page.locator('#admin-integrity-result')).toBeVisible();
+    expect(calls.filter(call=>call.method==='adminRunIntegrityAudit')).toHaveLength(reads);
+    await page.locator('#admin-preview-image-integrity').click();
+    if(!queued){await page.locator('[data-action="repair-image-integrity"]').click();await expect(page.locator('#confirm-modal')).toContainText(language==='en'?'safety delay':'ผ่านช่วงรอ');await page.locator('[data-confirm-accept]').click();}
+    const result=page.locator('#admin-image-integrity-result');await expect(result).toContainText(language==='en'?'Cleanup queued':'เข้าคิวล้างแล้ว');await expect(result.locator('[data-action="repair-image-integrity"]')).toHaveCount(0);
+    await page.reload();await page.locator('#admin-system-tab').click();await page.locator('#admin-preview-image-integrity').click();await expect(result).toContainText(language==='en'?'Cleanup queued':'เข้าคิวล้างแล้ว');
+    const imageToggle=page.locator('[data-audit-result="admin-image-integrity-result"]');await imageToggle.click();await expect(result).toBeHidden();await imageToggle.click();await expect(result).toBeVisible();await expectNoOverflow(page);
+    await page.goto('/?view=account');const field=page.locator('.profile-name-input'),save=page.locator('.profile-name-editor button');await expect(field).toBeEditable();
+    expect(await page.locator('.profile-name-editor label').evaluate(node=>node.textContent)).toBe('');await expect(field).toHaveAccessibleName(language==='en'?'Name':'ชื่อที่แสดง');
+    async function symmetric(){const boxes=await page.locator('.profile-name-editor').evaluate(form=>{const a=form.querySelector('input').getBoundingClientRect(),b=form.querySelector('button').getBoundingClientRect();return {height:Math.abs(a.height-b.height),y:Math.abs(a.y-b.y)};});expect(boxes.height).toBeLessThan(1);expect(boxes.y).toBeLessThan(1);await expectNoOverflow(page);}
+    await symmetric();await captureUi(page,'refinement-profile-'+width+'-'+theme+'-'+language,{staticView:true});
+    await page.evaluate(()=>CRS.navigate('settings',{section:'account'}));await expect(field).toBeEditable();await symmetric();
+  }
+});
+
 for(const width of [320,1440])for(const language of ['th','en'])for(const theme of ['light','dark'])test('Profile presentation '+width+' '+language+' '+theme,async({page})=>{
   await page.setViewportSize({width,height:900});await mock(page);await page.addInitScript(({language,theme})=>{localStorage.setItem('crs-ui-language',language);localStorage.setItem('crs-theme',theme);},{language,theme});
   await page.goto('/?view=account');const field=page.locator('.profile-name-input');await expect(field).toBeEditable();await field.focus();await expect(field).toBeFocused();

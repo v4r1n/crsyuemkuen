@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fields } from '../../server/schema.mjs';
-import { createDomain,digest } from '../../server/domain.mjs';
+import { createDomain,digest,saveDomain } from '../../server/domain.mjs';
 import { installImageRecovery } from '../../server/image-recovery.mjs';
 import { cleanupImages } from '../../server/images.mjs';
 import { PGlite } from '@electric-sql/pglite';
@@ -100,6 +100,29 @@ test('Admin orphan repair confirms managed evidence and protects references/STAR
   assert.equal(repair(first.resourceId).status,'CLEANUP_QUEUED');
   state.images[first.resourceId].owner_user_id='USR-999999';
   assert.throws(()=>repair(first.resourceId),error=>error.code==='STATE_CONFLICT');
+});
+
+test('Admin repaired orphan stays visibly queued after a new request instead of offering repair again',async()=>{
+  const state=setup(),first=stage(state,'migration-queued-first');upload(state,first);
+  upload(state,stage(state,'migration-queued-second',2,'storage-file-002'));
+  const repairDomain=createDomain(JSON.parse(JSON.stringify(state.domain.records)),{images:state.images,runtimeConfig});
+  installImageRecovery(repairDomain,state.images);
+  const result=repairDomain.context.repairImageIntegrity_({kind:'ORPHAN_FILE',file_id:first.resourceId,confirm:true},state.actor);
+  assert.equal(result.status,'CLEANUP_QUEUED');
+  const db=new PGlite();try {
+  await db.exec(readFileSync(new URL('../../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8'));
+  const resource=state.images[first.resourceId];
+  await db.query(`INSERT INTO crs.image_resources(id,object_key,operation_id,asset_id,mime_type,byte_length,digest,name,folder_id,owner_user_id,state)
+    VALUES($1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[resource.id,resource.operation_id,resource.asset_id,resource.mime_type,resource.byte_length,resource.digest,resource.name,resource.folder_id,resource.owner_user_id,resource.state]);
+  await saveDomain(db,repairDomain);await saveDomain(db,repairDomain);
+  const jobs=(await db.query('SELECT id FROM crs.cleanup_jobs')).rows;assert.equal(jobs.length,1,'Replay must not duplicate cleanup jobs');
+  const fresh=createDomain(JSON.parse(JSON.stringify(repairDomain.records)),{images:state.images,runtimeConfig});
+  installImageRecovery(fresh,state.images,{cleanupJobs:jobs});
+  const audit=fresh.context.previewImageIntegrity_(state.actor),issue=audit.issues.find(item=>item.file_id===first.resourceId);
+  assert.equal(issue.kind,'CLEANUP_QUEUED');assert.equal(issue.can_repair,false);
+  assert.equal(audit.summary.counts.orphan_files,0);assert.equal(audit.summary.counts.cleanup_queued,1);
+  assert.equal(state.images[first.resourceId].state,'STAGED','Queue presentation must not trash Storage');
+  }finally{await db.close();}
 });
 
 test('queued Storage cleanup is delayed, retryable, and never removes referenced/pinned files',async()=>{

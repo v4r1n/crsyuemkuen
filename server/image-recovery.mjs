@@ -1,7 +1,18 @@
 import { fail } from './errors.mjs';
 
-export function installImageRecovery(domain,images) {
+export function installImageRecovery(domain,images,{cleanupJobs=[]}={}) {
   const c=domain.context,verified=new Set();
+  const preview=c.previewImageIntegrity_,queued=new Set(cleanupJobs.map(job=>job.id));
+  c.previewImageIntegrity_=actor=>{
+    const audit=preview(actor);let count=0;
+    audit.issues=audit.issues.map(issue=>{
+      if(issue.kind!=='ORPHAN_FILE'||!queued.has(issue.file_id))return issue;
+      count++;return {...issue,kind:'CLEANUP_QUEUED',can_repair:false,suggested_action:'WAIT_FOR_CLEANUP'};
+    });
+    audit.summary.counts.orphan_files-=count;
+    audit.summary.counts.cleanup_queued=count;
+    return audit;
+  };
   c.reconcileImageOperationForAdmin_=(id,actor)=>{
     c.assertAdminActor_(actor);
     const op=c.findRecordById_('Operations','operation_id',id);

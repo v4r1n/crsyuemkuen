@@ -7,6 +7,16 @@ import {resolve,relative} from 'node:path';
 // Exercise Next's real production artifact, not the unbundled Node module.
 // Only generated module IDs are discovered; fixture data never reaches cloud.
 const require=createRequire(import.meta.url);
+test('Next Admin notes align centrally and audit controls use guarded queued-cleanup copy',()=>{
+  const code=readFileSync('public/crs/scripts-admin.js','utf8');
+  assert.match(code,/<th class="text-center">หมายเหตุ<\/th>/);
+  assert.match(code,/returned \+ '<\/td><td class="text-break text-center">'/);
+  assert.match(code,/CLEANUP_QUEUED/);assert.match(code,/toggle-audit-results/);
+  assert.doesNotMatch(code,/ย้ายไฟล์กำพร้าไปถังขยะแล้ว/);
+  assert.doesNotMatch(code,/ไฟล์ถูกจัดคิวล้างไฟล์/);assert.match(code,/ไฟล์ถูกล้างจาก Storage/);
+  const rpc=readFileSync('server/rpc.mjs','utf8');
+  assert.match(rpc,/if\(method==='adminPreviewImageIntegrity'\)\s*\{\s*c.requireAdmin_\(token\);\s*cleanupJobs=\(await db.query\('SELECT id FROM crs.cleanup_jobs'\)\).rows;/);
+});
 const entryPath='server/app/auth/callback/route.js';
 const entry=readFileSync(resolve('.next',entryPath),'utf8');
 const runtime=require(resolve('.next/server/chunks/[turbopack]_runtime.js'))(entryPath);

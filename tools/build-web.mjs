@@ -14,6 +14,12 @@ await writeFile(join(output,'i18n.js'),'window.CRS_UI_COPY='+JSON.stringify(uiCo
 const includes=[...index.matchAll(/<\?!= include_\('([^']+)'\); \?>/g)];
 for(const match of includes){
   const name=match[1]; let text=await read(name);
+  const removedEyebrows={dashboard:'พื้นที่ทำงานของคุณ',equipment:'ค้นหาอุปกรณ์สำหรับงานของคุณ',scan:'ค้นหาอุปกรณ์จากสติกเกอร์',admin:'จัดการทุกอย่างได้ในที่เดียว'};
+  if(Object.hasOwn(removedEyebrows,name)) {
+    const paragraph=new RegExp('\\s*<p class="eyebrow [^"]*">'+removedEyebrows[name]+'<\\/p>');
+    if(!paragraph.test(text))throw new Error('Page eyebrow composition seam changed: '+name);
+    text=text.replace(paragraph,'');
+  }
   if(name==='scripts-api') {
     if(!text.includes("'adminGetEquipmentVisibility'].indexOf(method)") || !text.includes('    requestSecurity: function (method,input) {'))throw new Error('Settings security auth composition seam changed');
     text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference','getOwnProfile','saveOwnName','prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].indexOf(method)");
@@ -69,6 +75,20 @@ for(const match of includes){
     'var match = global.CRS_CANONICAL_BASE(configured);\n      if (match) global.location.assign(configured');
   if(name==='scripts-qr') text=text.replace(/var match = \^?\/\^https:[\s\S]*?return match \? new URL\([\s\S]*? : null;/, 'return global.CRS_CANONICAL_BASE(configured);');
   if(name==='scripts-core') {
+    const confirmLabel="    confirmButton.textContent = settings.confirmText || 'ยืนยัน';";
+    if(text.split(confirmLabel).length!==2)throw new Error('Confirmation readiness composition seam changed');
+    text=text.replace(confirmLabel,confirmLabel+`
+    const confirmTrigger=document.activeElement;
+    // Bootstrap ignores hide() during its entrance transition. Keep the
+    // confirmation pending until shown, then allow the ordinary accept path.
+    confirmButton.disabled=true;
+    modalElement.addEventListener('shown.bs.modal',function(){confirmButton.disabled=false;},{once:true});
+    modalElement.addEventListener('hide.bs.modal',function(){
+      if(modalElement.contains(document.activeElement))document.activeElement.blur();
+    },{once:true});`);
+    const confirmFinish="        modalElement.removeEventListener('hidden.bs.modal', finish);";
+    if(text.split(confirmFinish).length!==2)throw new Error('Confirmation focus composition seam changed');
+    text=text.replace(confirmFinish,confirmFinish+"\n        if(confirmTrigger && confirmTrigger.isConnected && !confirmTrigger.disabled)confirmTrigger.focus({preventScroll:true});");
     const storageSection="    { key: 'storage', label: 'Storage', icon: 'bi-folder' },";
     const profileNav="    const navItem = function (item) {";
     const accountEnd="  CRS.registerRoute('account', renderAccount);";
@@ -133,11 +153,46 @@ for(const match of includes){
     text=text.replace(/return \/\^https:\\\/\\\/drive[\s\S]*?\? url : '';/,"return url === '/api/image-placeholder' ? url : '';");
   }
   if(name==='scripts-admin') {
+    text=text.replace('<th>หมายเหตุ</th>','<th class="text-center">หมายเหตุ</th>')
+      .replace("returned + '</td><td class=\"text-break\">'","returned + '</td><td class=\"text-break text-center\">'");
+    text=text.replace("ORPHAN_FILE: 'ไฟล์กำพร้าในโฟลเดอร์ภาพ',","ORPHAN_FILE: 'ไฟล์กำพร้าในโฟลเดอร์ภาพ',\n      CLEANUP_QUEUED: 'เข้าคิวล้างแล้ว — ยังไม่ได้ลบไฟล์',")
+      .replace("['orphan_files', 'ไฟล์กำพร้า'],","['orphan_files', 'ไฟล์กำพร้า'],\n      ['cleanup_queued', 'รอล้างไฟล์'],");
+    for(const [from,to] of [
+      ['ย้ายไฟล์กำพร้าไปถังขยะแล้ว','จัดคิวล้างไฟล์กำพร้าแล้ว ยังไม่ได้ลบไฟล์'],
+      ['ย้ายไฟล์กำพร้าไปถังขยะ','จัดคิวล้างไฟล์กำพร้า'],
+      ['ก่อนย้ายไฟล์ไปถังขยะ: ','ก่อนจัดคิวล้างไฟล์: '],
+      ['กำลังตรวจและย้ายไฟล์…','กำลังตรวจและจัดคิวล้างไฟล์…'],
+      ['ไฟล์ถูกย้ายไปถังขยะ','ไฟล์ถูกล้างจาก Storage'],
+      ['ย้ายไปถังขยะ','จัดคิวล้างไฟล์']
+    ])text=text.replaceAll(from,to);
+    const confirmationSuffix=" + identifier,\n      confirmText:";
+    if(!text.includes(confirmationSuffix))throw new Error('Cleanup confirmation composition seam changed');
+    text=text.replace(confirmationSuffix," + identifier + (isOrphan ? ' การล้างจริงต้องผ่านช่วงรอและสั่งประมวลผลคิว ระบบจะตรวจการอ้างอิงซ้ำก่อนล้าง และไม่ใช่การย้ายลงถังขยะ' : ''),\n      confirmText:");
+    for(const functionName of ['renderIntegrity','renderImageIntegrity']) {
+      const start=text.indexOf('  function '+functionName+'('),stop=text.indexOf('\n  async function ',start);
+      let body=text.slice(start,stop);
+      const seam='    setVisible(host, true);';
+      if(body.split(seam).length!==2)throw new Error('Audit disclosure composition seam changed');
+      body=body.replace(seam,seam+`\n    var toggle=context.page.querySelector('[data-audit-result="'+host.id+'"]');
+    if(toggle){toggle.disabled=false;toggle.setAttribute('aria-expanded','true');}`);
+      text=text.slice(0,start)+body+text.slice(stop);
+    }
+    text=text.replace("      var action = target.dataset.action;",`      var action = target.dataset.action;
+      if(action==='toggle-audit-results') {
+        var auditHost=CRS.$('#'+target.dataset.auditResult,context.page);
+        var expanded=target.getAttribute('aria-expanded')!=='true';
+        if(auditHost){setVisible(auditHost,expanded);target.setAttribute('aria-expanded',String(expanded));}
+        return;
+      }`);
     text=text.replace(/actions.push\('<a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer" ' \+[\s\S]*?\/view">ตรวจสอบ<\/a>'\);/,
       `actions.push('<button type="button" class="btn btn-sm btn-outline-secondary" data-action="inspect-storage-resource" data-file-id="' + escape(issue.file_id) + '">ตรวจสอบ</button>');`);
     text=text.replace(/actions.push\('<a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer" ' \+[\s\S]*?ตรวจสอบโฟลเดอร์<\/a>'\);/,
       `actions.push('<span class="text-secondary">ตรวจผ่าน private Storage</span>');`);
-    text=text.replace('ย้ายไปถังขยะ','จัดคิวล้างไฟล์');
+  }
+  if(name==='admin')for(const id of ['admin-integrity','admin-image-integrity']) {
+    const heading=new RegExp('<h3 id="'+id+'-title" class="h5">([^<]+)<\\/h3>');
+    if(!heading.test(text))throw new Error('Audit heading composition seam changed');
+    text=text.replace(heading,`<h3 id="${id}-title" class="h5"><button type="button" class="admin-audit-toggle" data-action="toggle-audit-results" data-audit-result="${id}-result" aria-controls="${id}-result" aria-expanded="false" disabled><span>$1</span><i class="bi bi-chevron-down" aria-hidden="true"></i></button></h3>`);
   }
   if(name==='admin') text=text.replace('<div class="tab-content">',`<details class="card p-3 mb-3" data-migration-archive><summary>คลังข้อมูลต้นฉบับก่อนย้ายระบบ (อ่านอย่างเดียว)</summary>
     <p class="text-secondary mt-2">เก็บข้อมูลเดิมและแถวผิดรูปแบบ โดยไม่ให้สิทธิ์ใช้งานจาก archive</p>

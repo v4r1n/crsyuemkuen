@@ -6,6 +6,12 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+### Admin integrity and profile presentation (2026-10-15)
+
+Next removes only the requested Dashboard/Equipment/Scan/Admin eyebrow copy and centers accessory-note cells. Data/Image audit headings toggle their existing result regions after a successful scan, with keyboard/ARIA state and no new read on toggle; a fresh scan opens its latest result. The owner editor retains accessible naming, autosave/retry/version and required controls while removing the duplicate visible caption and matching Save/input heights. The shared confirmation waits for Bootstrap's shown event before accepting, preserves hidden-event completion and restores focus on dismissal.
+
+An orphan repair's `CLEANUP_QUEUED` means durable pending cleanup, not deletion or recoverable Trash. Admin preview reads existing queue IDs under current authorization and the workflow lock, then marks returned queued orphan candidates non-repairable; references/STARTED pins remain authoritative. Copy states that actual removal needs the existing explicit queue processor and safety delay. No cleanup policy, scheduler, schema, Storage permission or original-image deletion is added by this presentation correction. Source tests and mocked browser reloads are not live repair/cleanup acceptance; [Memory](MEMORY.md) owns validation and deployment status.
+
 ### Owner profile editing (2026-10-15, source preparation)
 
 The confirmed Settings phase adds hover/focus feedback, a canonical Profile → Account link with arrow, removes the Storage menu only, localizes Restore defaults, and renames Thai General/Security headings. Email remains readonly without the redundant label suffix. Only the Profile menu entry navigates; the workspace/content remains an ordinary container.

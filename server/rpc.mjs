@@ -103,7 +103,12 @@ export async function rpc(method,args,token,requestKey='',requestContext={}) {
       if(method==='adminCleanupImages') {
         c.requireAdmin_(token); await cleanupImages(db,storage); return {processed:true};
       }
-      const verified=installImageRecovery(domain,images);
+      let cleanupJobs=[];
+      if(method==='adminPreviewImageIntegrity') {
+        c.requireAdmin_(token);
+        cleanupJobs=(await db.query('SELECT id FROM crs.cleanup_jobs')).rows;
+      }
+      const verified=installImageRecovery(domain,images,{cleanupJobs});
       const result=domain.invoke(method,[token,...args]);
       if(!result.ok) {
         const error=result.error; fail(error.code,error.message,error.retryable,error.fieldErrors);
