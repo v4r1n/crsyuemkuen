@@ -6,6 +6,7 @@ import { snapshotTables,reserveRestore,commitRestore,normalizeSnapshot } from '.
 import { supabase,privateStorage,validateImage,storageMissing } from '../server/storage.mjs';
 import { config } from '../server/config.mjs';
 import { applyAdditiveMigrations } from '../server/migrations.mjs';
+import {validateAvatar} from '../server/profile.mjs';
 try{process.loadEnvFile('.env.local');}catch{}
 const action=process.argv[2],pool=database();
 const sql=await readFile(new URL('../supabase/migrations/202610050001_crs.sql',import.meta.url),'utf8');
@@ -16,7 +17,7 @@ try{
     if(existing.rows[0].name) {
       // Existence checks detect incomplete installs, not constraint drift.
       // A manually changed schema requires operator review, never a reset.
-      for(const table of snapshotTables.filter(name=>!['password_credentials','security_mail','equipment_visibility','notifications','notification_preferences'].includes(name))) if(!(await pool.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name) throw new Error('Existing schema is incomplete');
+      for(const table of snapshotTables.filter(name=>!['password_credentials','security_mail','equipment_visibility','notifications','notification_preferences','profile_resources'].includes(name))) if(!(await pool.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name) throw new Error('Existing schema is incomplete');
       console.log('Schema already exists; not overwritten.');
     }else{await pool.query(sql);console.log('Transactional database schema installed.');}
     await applyAdditiveMigrations(transaction);
@@ -33,7 +34,7 @@ try{
     const destination=resolve(process.argv[3]||join('.migration','backup-'+new Date().toISOString().replace(/[:.]/g,'-')));
     const storage=await privateStorage(); await mkdir(join(destination,'objects'),{recursive:true});
     const snapshot=await transaction(async db=>{
-      const result={format:3,created_at:new Date().toISOString(),tables:{},objects:[]};
+      const result={format:4,created_at:new Date().toISOString(),tables:{},objects:[]};
       for(const table of snapshotTables) result.tables[table]=(await db.query(`SELECT * FROM crs.${table} ORDER BY 1`)).rows;
       return result;
     });
@@ -48,6 +49,16 @@ try{
       await writeFile(join(destination,'objects',filename),bytes);
       snapshot.objects.push({id:resource.id,filename,sha256:sha(bytes)});
     }
+    for(const resource of snapshot.tables.profile_resources){
+      const downloaded=await storage.download(resource.object_key);
+      if(resource.state==='STAGED'&&storageMissing(downloaded.error))continue;
+      if(downloaded.error||!downloaded.data)throw new Error('Profile backup incomplete');
+      const bytes=Buffer.from(await downloaded.data.arrayBuffer());
+      if(bytes.length>10485760)throw new Error('Profile object exceeds bucket bound');
+      if(resource.state!=='STAGED'&&(bytes.length!==resource.byte_length||downloaded.data.type!==resource.mime_type||await validateAvatar(bytes,resource.mime_type)!==resource.digest))throw new Error('Profile backup hash mismatch');
+      const filename=sha(Buffer.from('profile:'+resource.id))+'.bin';await writeFile(join(destination,'objects',filename),bytes);
+      snapshot.objects.push({kind:'profile',id:resource.id,filename,sha256:sha(bytes),mimeType:downloaded.data.type});
+    }
     const bytes=Buffer.from(JSON.stringify(snapshot,null,2));
     await writeFile(join(destination,'database.json'),bytes);
     await writeFile(join(destination,'sha256.txt'),sha(bytes)+'\n');
@@ -57,9 +68,9 @@ try{
     const directory=resolve(process.argv[3]||''),bytes=await readFile(join(directory,'database.json'));
     if(sha(bytes)!==(await readFile(join(directory,'sha256.txt'),'utf8')).trim()) throw new Error('Backup manifest checksum mismatch');
     const snapshot=normalizeSnapshot(JSON.parse(bytes));
-    if(snapshot.format!==3 || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join()) throw new Error('Unknown backup format');
-    const ids=snapshot.objects.map(item=>item.id);
-    if(new Set(ids).size!==ids.length || snapshot.tables.image_resources.some(row=>row.state==='READY'&&!ids.includes(row.id))) throw new Error('Backup omits a READY image');
+    if(snapshot.format!==4 || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join()) throw new Error('Unknown backup format');
+    const ids=snapshot.objects.map(item=>(item.kind||'equipment')+':'+item.id);
+    if(new Set(ids).size!==ids.length || snapshot.objects.some(item=>item.kind&&item.kind!=='profile') || snapshot.tables.image_resources.some(row=>row.state==='READY'&&!ids.includes('equipment:'+row.id)) || snapshot.tables.profile_resources.some(row=>row.state!=='STAGED'&&!ids.includes('profile:'+row.id))) throw new Error('Backup omits a committed image');
     // Reserve tracked objects before external writes; protect an interrupted
     // restore from untracked orphan creation just like the importer.
     await reserveRestore(snapshot,transaction);
@@ -68,15 +79,19 @@ try{
       if(!/^[a-f0-9]{64}\.bin$/.test(item.filename)) throw new Error('Invalid backup path');
       const content=await readFile(join(directory,'objects',item.filename));
       if(sha(content)!==item.sha256) throw new Error('Backup object checksum mismatch');
-      const row=snapshot.tables.image_resources.find(resource=>resource.id===item.id);
-      if(!row || row.state==='TRASHED' || content.length!==row.byte_length || validateImage(content,row.mime_type,10485760)!==row.digest) throw new Error('Backup resource mismatch');
+      const row=(item.kind==='profile'?snapshot.tables.profile_resources:snapshot.tables.image_resources).find(resource=>resource.id===item.id);
+      const stagedProfile=item.kind==='profile'&&row?.state==='STAGED';
+      if(!row || row.state==='TRASHED' || content.length>10485760 || (!stagedProfile&&(content.length!==row.byte_length || validateImage(content,row.mime_type,10485760)!==row.digest))) throw new Error('Backup resource mismatch');
+      if(item.kind==='profile'&&row.state!=='STAGED')await validateAvatar(content,row.mime_type);
+      const contentType=stagedProfile?item.mimeType:row.mime_type;
+      if(!['image/jpeg','image/png','image/webp','image/gif'].includes(contentType))throw new Error('Unsupported object type');
       const info=await storage.info(row.object_key);
       if(info.error) {
         if(!storageMissing(info.error)) throw new Error('Storage state uncertain; restore stopped');
-        if((await storage.upload(row.object_key,content,{contentType:row.mime_type,upsert:false})).error) throw new Error('Restore upload failed');
+        if((await storage.upload(row.object_key,content,{contentType,upsert:false})).error) throw new Error('Restore upload failed');
       }
       const downloaded=await storage.download(row.object_key);
-      if(downloaded.error || !downloaded.data || downloaded.data.type!==row.mime_type || sha(Buffer.from(await downloaded.data.arrayBuffer()))!==item.sha256) throw new Error('Restore image verification failed');
+      if(downloaded.error || !downloaded.data || downloaded.data.type!==contentType || sha(Buffer.from(await downloaded.data.arrayBuffer()))!==item.sha256) throw new Error('Restore image verification failed');
     }
     await commitRestore(snapshot,transaction);
     console.log('Restore committed to empty destination; all image hashes verified; new sign-in required.');

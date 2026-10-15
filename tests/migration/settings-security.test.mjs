@@ -13,7 +13,7 @@ process.env.GOOGLE_OAUTH_CLIENT_ID='settings-fixture.apps.googleusercontent.com'
 process.env.ALLOWED_DOMAINS='example.test';
 async function fixture() {
   const db=new PGlite();
-  for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security'])await db.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
+  for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile'])await db.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
   await db.query('INSERT INTO crs.sequences(data) VALUES($1)',[JSON.stringify({sequence_name:'LOG',prefix:'LOG-',padding:6,next_value:1,updated_at:new Date().toISOString()})]);
   const user={user_id:'USR-000001',email:'owner@example.test',name:'Owner',department:'Source department',role:'USER',status:'ACTIVE',row_version:1};
   const other={...user,user_id:'USR-000002',email:'other@example.test',role:'ADMIN'};
@@ -93,11 +93,11 @@ test('session counts exclude obsolete client/email/generation and Account uses t
 test('restore format 3 retains preferences and never restores session/device proofs; format 2 upgrades empty',async()=>{
   const f=await fixture();try{
     await notificationPreferences(f.db,f.user,{event:'RETURN',inApp:false,expectedVersion:0});
-    const snapshot={format:3,tables:{}};for(const table of snapshotTables)snapshot.tables[table]=(await f.db.query('SELECT * FROM crs.'+table)).rows;
-    const old={format:2,tables:{...snapshot.tables}};delete old.tables.notification_preferences;assert.deepEqual(normalizeSnapshot(old).tables.notification_preferences,[]);
+    const snapshot={format:4,tables:{}};for(const table of snapshotTables)snapshot.tables[table]=(await f.db.query('SELECT * FROM crs.'+table)).rows;
+    const old={format:2,tables:{...snapshot.tables}};delete old.tables.notification_preferences;delete old.tables.profile_resources;assert.deepEqual(normalizeSnapshot(old).tables.notification_preferences,[]);
       // Use a new empty database, not deletion of protected canonical records.
       const clean=new PGlite();try{
-        for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security'])await clean.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
+        for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile'])await clean.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
         const transact=async work=>{await clean.exec('BEGIN');try{const result=await work(clean);await clean.exec('COMMIT');return result;}catch(error){await clean.exec('ROLLBACK');throw error;}};
         await reserveRestore(snapshot,transact);await commitRestore(snapshot,transact);
         assert.equal((await clean.query('SELECT in_app FROM crs.notification_preferences')).rows[0].in_app,false);

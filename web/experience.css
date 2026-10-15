@@ -206,3 +206,43 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 @media (max-width:389px) { .settings-account-fields { grid-template-columns:1fr; } .settings-account-fields dd { margin-bottom:.5rem; } }
 @media (max-width:767px) { .login-art-stage { display:none; } }
 @media (max-width:767px) { .guest-equipment {padding:1rem;} .experience-actions {gap:.25rem;} .topbar-actions {gap:.25rem;} .experience-actions .btn {font-size:.8rem;padding:.35rem .4rem;} }
+/* Explicit feedback preserves selected states and excludes unavailable controls. */
+.settings-card .settings-channel-picker summary,
+.settings-card .settings-theme-option { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease; cursor: pointer; }
+.settings-card .settings-channel-picker summary:focus-visible,
+.settings-card .settings-theme-option:focus-visible { outline: 2px solid var(--crs-input-focus); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .settings-card .settings-channel-picker summary:hover,
+  .settings-card .settings-theme-option:not(:disabled):hover { border-color: var(--crs-input-focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--crs-input-focus) 16%, transparent); background-color: var(--crs-surface-hover); }
+  .settings-card .settings-theme-option[aria-pressed="true"]:hover { background-color: var(--crs-primary-soft); }
+  .settings-channel-picker label:has(input:not(:disabled)):hover { background: var(--crs-surface-hover); cursor: pointer; }
+}
+.settings-profile-link { text-decoration: none; }
+.settings-profile-arrow { margin-inline-start: auto; }
+@media (min-width: 768px) {
+  .settings-page.is-sidebar-collapsed .settings-profile-arrow { display: none; }
+}
+.profile-account-copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.profile-name-editor { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; max-width: 100%; }
+.profile-name-editor label { min-width: 0; flex: 1 1 12rem; font-size: .875rem; color: var(--crs-muted); }
+.profile-name-input { display: block; width: 100%; min-width: 0; padding: .35rem .5rem; color: var(--crs-ink); background: transparent; border: 1px solid transparent; border-radius: var(--crs-radius-sm); font: inherit; font-size: 1rem; }
+.profile-name-input:hover { background: var(--crs-surface-hover); }
+.profile-name-input:focus { outline: 2px solid var(--crs-input-focus); outline-offset: 1px; border-color: var(--crs-input-focus); }
+.profile-name-input[aria-invalid="true"] { border-color: var(--bs-danger); }
+.profile-save-status { flex-basis: 100%; font-size: .875rem; margin: 0; }
+.profile-save-status:empty { display: none; }
+.profile-avatar { position: relative; border: 2px solid transparent; padding: 0; flex-shrink: 0; cursor: pointer; overflow: visible; }
+.profile-avatar [data-avatar-content] { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar-edit { position: absolute; right: -.25rem; top: -.25rem; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; background: var(--crs-surface); color: var(--crs-ink); border: 1px solid var(--crs-border-strong); border-radius: 50%; }
+.profile-avatar:focus-visible { outline: 2px solid var(--crs-focus-outline); outline-offset: 4px; }
+.profile-avatar.is-profile-saved { border-color: var(--crs-blue); animation: profile-saved 650ms ease 1; }
+@keyframes profile-saved { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--crs-blue) 25%, transparent); } }
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+  .profile-avatar-edit { opacity: 0; transition: opacity 160ms ease; }
+  .profile-avatar:hover .profile-avatar-edit,.profile-avatar:focus-visible .profile-avatar-edit { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-card .settings-channel-picker summary,.settings-card .settings-theme-option,.profile-avatar-edit { transition: none; }
+  .profile-avatar.is-profile-saved { animation: none; }
+}

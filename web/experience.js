@@ -99,7 +99,6 @@
       global.CRSSettingsSecurity.mount(key,host,params||{},{CRS,passwordForm,bindPasswordForm,inbox});return;
     }
     if(key==='security'){host.querySelector('.settings-placeholder')?.remove();host.insertAdjacentHTML('beforeend','<div class="settings-card"><h3 class="h5" data-experience-text="change">'+t('change')+'</h3>'+passwordForm('CHANGE')+'</div>');bindPasswordForm(host.querySelector('[data-password-flow]'));}
-    if(key==='profile'){host.insertAdjacentHTML('beforeend','<div class="settings-card mt-3"><h3 class="h5" data-experience-text="security">'+t('security')+'</h3>'+button('change','profile-security')+'</div>');}
     if(key==='notifications'){host.querySelector('.settings-placeholder')?.remove();renderNotifications(host);}
     translate(host);
   }
@@ -304,7 +303,6 @@
     if(key==='language')CRS.language.set(CRS.language.effective()==='th'?'en':'th');
     if(key==='login')showLogin();
     if(key==='home'&&!document.querySelector('#google-signin-button').disabled&&!document.querySelector('#password-login-submit').disabled){showGuest();guestPage.querySelector('[data-experience-action="login"]').focus();}
-    if(key==='profile-security')CRS.navigate('settings',{section:'security'});
     if(key==='reset-password'){const node=dialog(t('reset'),passwordForm('RESET'));bindPasswordForm(node.querySelector('form'));}
     if((key==='privacy'||key==='terms')&&!action.href)dialog(t(key),'<p>'+escape(t('unavailable'))+'</p>');
     if(key==='guide')dialog(t('guide'),'<p>'+escape(CRS.language.effective()==='en'?'Browse equipment, sign in with an authorized account, then submit a borrow request. Only an administrator can approve and check out equipment. Request a return; the administrator inspects it before completing the return.':'ค้นหาอุปกรณ์ ลงชื่อเข้าใช้ด้วยบัญชีที่ได้รับสิทธิ์ และส่งคำขอยืม ผู้ดูแลระบบจะอนุมัติและจ่ายอุปกรณ์ เมื่อต้องการคืนให้แจ้งคืน แล้วรอผู้ดูแลตรวจรับ')+'</p>');

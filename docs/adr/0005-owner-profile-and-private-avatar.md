@@ -1,0 +1,9 @@
+# Owner profile and private avatar resources
+
+Keep the self-edited name in the existing Users.name rather than introducing a competing display identity. A narrow owner-only command changes only name/audit/version, using the existing locked Operation/History transaction; historical snapshots stay unchanged. New edits allow 1–64 characters, while old longer names remain readable without truncation.
+
+Avatars use separate private profile_resources rather than pretending a User photo is an Equipment asset. Immutable reservations precede direct uploads; full hash/MIME/size/decode and square ≤512 px validation precede a reauthorized atomic reference/History commit. Like the existing create-User journal, a staged avatar binds actor/resource first and binds its User entity only at commit: an interrupted/invalid upload cannot lock the User or block a name/Admin edit. Completed commands and History retain the existing USER entity and status-evidence contracts. Reads issue a 60-second capability only to the current owner after verifying the current reference and bytes. Existing auth, roles, TTL and Guest/catalog policies are unchanged.
+
+Format-4 backups include all avatar reservations and binaries, normalize formats 1–3 with no invented avatars, and reserve metadata before restoring bytes. Resource reservations deliberately have no FK to not-yet-restored Users/Operations, matching the existing Equipment image restore pattern; runtime authorization binds both before insertion. Previous references are deferred self-FKs. Old committed images become RETIRED and remain private, tracked and backed up; automatic retention/deletion is not part of this phase. Invalid/unverified STAGED bytes are preserved as bounded, hashed evidence, never marked READY by restore or exposed as an avatar.
+
+Status: confirmed implementation; source verification and live additive-schema/backup/deployment authority are separate gates recorded in Memory.

@@ -2,6 +2,10 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-035 — Owner profile and private avatar resources
+
+[Decision](adr/0005-owner-profile-and-private-avatar.md): retain Users.name and historical snapshots, use owner-only versioned commands, and keep private avatars separate from Equipment. Format-4 backups retain immutable staged/current/retired resources. Live additive activation is a separate gate; Memory owns current verification and deployment evidence.
+
 ## ADR-034 — Owner security state and notification delivery preferences
 
 Status: user-approved additive phase — 2026-10-14; source verification and cloud activation recorded separately in Memory.

@@ -6,6 +6,20 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+### Owner profile editing (2026-10-15, source preparation)
+
+The confirmed Settings phase adds hover/focus feedback, a canonical Profile → Account link with arrow, removes the Storage menu only, localizes Restore defaults, and renames Thai General/Security headings. Email remains readonly without the redundant label suffix. Only the Profile menu entry navigates; the workspace/content remains an ordinary container.
+
+`getOwnProfile`, `saveOwnName`, `prepareOwnAvatar`, `finalizeOwnAvatar`, and `getOwnAvatar` accept no owner/email/role selector. Existing current-session/domain/status/generation/required-change checks remain authoritative, under the normal advisory lock. Mutations honor WRITE_FREEZE; persistent owner quotas bound name/upload/finalization/capability requests. Name commands enforce version and exact replay payload, escape text at rest, and commit Users/Operation/History together. New edits are 1–64 characters; existing longer names are not truncated. No historical Borrow/History snapshot is rewritten.
+
+Both Account and Settings Account share the inline name adapter: 800 ms debounce, Enter/blur flush, IME composition, pending-command retry, saving/saved/error status and cancellation of unsent work on navigation. It refreshes current session presentation without extending/reissuing a session. A stale version reloads the current owner projection rather than overwriting a concurrent edit. Email/role/status/department remain outside this self-service endpoint.
+
+JPEG/PNG/WebP files must be ≤1 MiB, square 1:1, ≤512×512 and single-frame. Reject rather than crop. Client checks are advisory; the backend checks MIME signature, exact digest/length and full sharp decode. Upload paths are immutable and tracked before upload, Storage remains private, and bytes are verified outside the DB lock then current ownership/reference rechecked before commit. Success triggers one blue pulse; reduced motion uses a static border. The browser uses a transient blob URL and revokes it on replacement/route cleanup. No signed URL, bearer or byte payload enters History.
+
+Private additive `20261015064806_owner_profile.sql` and format-4 backup tooling must be installed/accepted BEFORE deploying the new profile source. Older backup formats normalize with empty profile resources; restore consumes old auth proofs. READY/RETIRED binaries must match all original evidence. Unverified STAGED objects may contain invalid uploads: preserve their actual bounded bytes/type/hash separately from requested metadata, keep them STAGED, and never expose them. RETIRED resources are retained private; no new cleanup/retention policy is assumed. [ADR-035](adr/0005-owner-profile-and-private-avatar.md) records this boundary.
+
+Activation requires a fresh target/writer check, a verified private backup made using the prior accepted backup format, explicit approval of additive schema and any required freeze (or a separately approved online snapshot plan), idempotent checksum-ledger application and private-table advisors, then staged/canonical smoke. Preserve Production/Preview origins, callback, protection and writer modes unless separately authorized. Source tests are not actual-provider, real-device, concurrent-Postgres or cloud restore acceptance.
+
 ### Catalog and Settings presentation refinement (2026-10-15)
 
 The operator confirms eight visible wrapped lines for Specifications, selected-language check-only styling and full-width one-column Security cards. These are reversible Next-only presentation choices, not changes to ADR-030's navigation authority or ADR-034's owner/session model. Validation and actual activation belong in [Memory](MEMORY.md).

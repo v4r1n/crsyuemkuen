@@ -8,7 +8,7 @@
     const en=()=>CRS.language.effective()==='en';
     const t=(th,english)=>en()?english:th;
     const request=(method,input)=>CRS.auth.requestSecurity(method,input);
-    const title=section==='security'?t('ความปลอดภัยและการเข้าสู่ระบบ','Security and login'):section==='account'?t('บัญชี','Account'):t('การแจ้งเตือน','Notifications');
+    const title=section==='security'?t('ความปลอดภัยและการลงชื่อเข้าใช้','Security and login'):section==='account'?t('บัญชี','Account'):t('การแจ้งเตือน','Notifications');
     const card=html=>'<section class="settings-card settings-security-card">'+html+'</section>';
     const heading=value=>'<h3 class="h5">'+escape(value)+'</h3>';
     const action=(label,attribute='',style='btn-outline-secondary')=>'<button type="button" class="btn '+style+'" '+attribute+'>'+escape(label)+'</button>';
@@ -39,7 +39,8 @@
         status.textContent='';
         const role=data.role==='ADMIN'?t('ผู้ดูแลระบบ','Administrator'):t('ผู้ใช้งาน','User');
         if(section==='account') {
-          root.insertAdjacentHTML('beforeend',card(heading(title)+'<dl class="settings-account-fields"><dt>'+t('ชื่อ','Name')+'</dt><dd>'+escape(data.name)+'</dd><dt>'+t('อีเมล (อ่านอย่างเดียว)','Email (read-only)')+'</dt><dd>'+escape(data.email)+'</dd><dt>'+t('หน่วยงาน','Department')+'</dt><dd>'+escape(data.department||t('ไม่ระบุ','Not provided'))+'</dd><dt>'+t('สถานะ','Status')+'</dt><dd>'+escape(role)+'</dd></dl>'));return;
+          root.insertAdjacentHTML('beforeend',card(heading(title)+'<dl class="settings-account-fields"><dt>'+t('ชื่อ','Name')+'</dt><dd data-profile-name-host>'+escape(data.name)+'</dd><dt>'+t('อีเมล','Email')+'</dt><dd>'+escape(data.email)+'</dd><dt>'+t('หน่วยงาน','Department')+'</dt><dd>'+escape(data.department||t('ไม่ระบุ','Not provided'))+'</dd><dt>'+t('สถานะ','Status')+'</dt><dd>'+escape(role)+'</dd></dl>'));
+          global.CRSProfile?.mount(root,{CRS,nameOnly:true});return;
         }
         root.insertAdjacentHTML('beforeend',card(heading(t('วิธีการลงชื่อเข้าใช้','Sign-in methods'))+
           '<p>'+escape(data.email)+'</p><p>Google · '+escape(data.googleAvailable?t('ใช้บัญชี Google ที่ได้รับสิทธิ์','Authorized Google account'):t('ไม่พร้อมใช้งาน','Unavailable'))+'</p><p>Local Password · '+escape(data.passwordConfigured?t('ตั้งค่าแล้ว','Configured'):t('ยังไม่ได้ตั้งค่า','Not configured'))+'</p><label class="settings-remember"><input type="checkbox" data-settings-remember> '+t('จดจำเซสชันบนอุปกรณ์นี้','Remember session on this device')+'</label><p class="form-text">'+t('ไม่ต่ออายุเซสชัน อีเมลเปลี่ยนได้ผ่านผู้ดูแลระบบเท่านั้น','Does not extend expiry. Only an administrator can change your email.')+'</p>')+

@@ -3,13 +3,16 @@ import { tables } from '../server/schema.mjs';
 
 const legacySnapshotTables=[...Object.values(tables),'archive','migration_runs','image_resources','cleanup_jobs'];
 const format2Tables=[...legacySnapshotTables,'password_credentials','security_mail','equipment_visibility','notifications'];
-export const snapshotTables=[...format2Tables,'notification_preferences'];
+const format3Tables=[...format2Tables,'notification_preferences'];
+export const snapshotTables=[...format3Tables,'profile_resources'];
 export function normalizeSnapshot(snapshot){
   if(snapshot.format===1 && snapshot.tables && Object.keys(snapshot.tables).sort().join()===legacySnapshotTables.slice().sort().join()) {
-    return {...snapshot,format:3,tables:{...snapshot.tables,...Object.fromEntries(snapshotTables.filter(name=>!legacySnapshotTables.includes(name)).map(name=>[name,[]]))}};
+    return {...snapshot,format:4,tables:{...snapshot.tables,...Object.fromEntries(snapshotTables.filter(name=>!legacySnapshotTables.includes(name)).map(name=>[name,[]]))}};
   }
   if(snapshot.format===2 && snapshot.tables && Object.keys(snapshot.tables).sort().join()===format2Tables.slice().sort().join())
-    return {...snapshot,format:3,tables:{...snapshot.tables,notification_preferences:[]}};
+    return {...snapshot,format:4,tables:{...snapshot.tables,notification_preferences:[],profile_resources:[]}};
+  if(snapshot.format===3 && snapshot.tables && Object.keys(snapshot.tables).sort().join()===format3Tables.slice().sort().join())
+    return {...snapshot,format:4,tables:{...snapshot.tables,profile_resources:[]}};
   return snapshot;
 }
 const identityFields=['id','object_key','operation_id','asset_id','mime_type','byte_length','digest','name','folder_id','owner_user_id','original'];
@@ -18,11 +21,11 @@ function sameReservation(found,expected) {
   return found.state===reservedState(expected) && identityFields.every(key=>isDeepStrictEqual(found[key],expected[key]));
 }
 function validateSnapshot(snapshot) {
-  if(snapshot.format!==3 || !snapshot.tables || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join() ||
+  if(snapshot.format!==4 || !snapshot.tables || Object.keys(snapshot.tables).sort().join()!==snapshotTables.slice().sort().join() ||
     snapshotTables.some(name=>!Array.isArray(snapshot.tables[name]))) throw new Error('Unknown backup format');
 }
 async function requireEmptyRecords(db) {
-  for(const table of snapshotTables.filter(name=>name!=='image_resources')) {
+  for(const table of snapshotTables.filter(name=>!['image_resources','profile_resources'].includes(name))) {
     if((await db.query(`SELECT count(*)::integer AS count FROM crs.${table}`)).rows[0].count) throw new Error('Destination is not empty; restore refused');
   }
 }
@@ -30,6 +33,16 @@ async function requireReservations(db,snapshot,complete=false) {
   const found=(await db.query('SELECT * FROM crs.image_resources')).rows;
   if(found.some(row=>!snapshot.tables.image_resources.some(expected=>expected.id===row.id && sameReservation(row,expected))) ||
     (complete && found.length!==snapshot.tables.image_resources.length)) throw new Error('Unexpected or changed restore resource reservation');
+  const profiles=(await db.query('SELECT * FROM crs.profile_resources')).rows;
+  for(const row of profiles) {
+    const expected=snapshot.tables.profile_resources.find(item=>item.id===row.id);
+    if(!expected || Object.keys(expected).some(key=>{
+      if(key==='state')return false;
+      if(['created_at','verified_at'].includes(key)&&row[key]&&expected[key])return new Date(row[key]).getTime()!==new Date(expected[key]).getTime();
+      return !isDeepStrictEqual(row[key],expected[key]);
+    }) || row.state!=='STAGED')throw new Error('Unexpected profile restore reservation');
+  }
+  if(complete && profiles.length!==snapshot.tables.profile_resources.length)throw new Error('Incomplete profile restore reservations');
 }
 export async function reserveRestore(snapshot,transaction) {
   snapshot=normalizeSnapshot(snapshot);
@@ -39,6 +52,9 @@ export async function reserveRestore(snapshot,transaction) {
     await requireReservations(db,snapshot);
     for(const row of snapshot.tables.image_resources) {
       if(!(await db.query('SELECT id FROM crs.image_resources WHERE id=$1',[row.id])).rows.length) await insertPlain(db,'image_resources',{...row,state:reservedState(row)});
+    }
+    for(const row of snapshot.tables.profile_resources) {
+      if(!(await db.query('SELECT id FROM crs.profile_resources WHERE id=$1',[row.id])).rows.length)await insertPlain(db,'profile_resources',{...row,state:'STAGED'});
     }
   });
 }
@@ -50,11 +66,12 @@ export async function commitRestore(snapshot,transaction) {
   return transaction(async db=>{
     await requireEmptyRecords(db);
     await requireReservations(db,snapshot,true);
-    for(const table of snapshotTables.filter(name=>name!=='image_resources')) for(const row of snapshot.tables[table]) {
+    for(const table of snapshotTables.filter(name=>!['image_resources','profile_resources'].includes(name))) for(const row of snapshot.tables[table]) {
       if(Object.values(tables).includes(table)) await db.query(`INSERT INTO crs.${table}(data) VALUES($1)`,[JSON.stringify(row.data)]);
       else await insertPlain(db,table,row);
     }
     for(const row of snapshot.tables.image_resources) await db.query('UPDATE crs.image_resources SET state=$2,verified_at=$3 WHERE id=$1',[row.id,row.state,row.verified_at]);
+    for(const row of snapshot.tables.profile_resources)await db.query('UPDATE crs.profile_resources SET state=$2 WHERE id=$1',[row.id,row.state]);
     // Ephemeral identity/proof data is never restored or allowed to authorize
     // the restored Users. Fresh linked Google or password sign-in is mandatory.
     for(const table of ['sessions','auth_flows','proofs','rate_limits','password_challenges']) await db.query(`DELETE FROM crs.${table}`);

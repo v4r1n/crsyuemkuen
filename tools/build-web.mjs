@@ -16,7 +16,7 @@ for(const match of includes){
   const name=match[1]; let text=await read(name);
   if(name==='scripts-api') {
     if(!text.includes("'adminGetEquipmentVisibility'].indexOf(method)") || !text.includes('    requestSecurity: function (method,input) {'))throw new Error('Settings security auth composition seam changed');
-    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference'].indexOf(method)");
+    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference','getOwnProfile','saveOwnName','prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].indexOf(method)");
     text=text.replace('    requestSecurity: function (method,input) {', `    rememberSession: function () { return Boolean(storageGet(global.localStorage, AUTH_SESSION_STORAGE_KEY)); },
     setRememberSession: function (remember) {
       if (typeof remember !== 'boolean' || !authState.sessionToken) throw new ClientApiError({code:'UNAUTHENTICATED'});
@@ -69,6 +69,25 @@ for(const match of includes){
     'var match = global.CRS_CANONICAL_BASE(configured);\n      if (match) global.location.assign(configured');
   if(name==='scripts-qr') text=text.replace(/var match = \^?\/\^https:[\s\S]*?return match \? new URL\([\s\S]*? : null;/, 'return global.CRS_CANONICAL_BASE(configured);');
   if(name==='scripts-core') {
+    const storageSection="    { key: 'storage', label: 'Storage', icon: 'bi-folder' },";
+    const profileNav="    const navItem = function (item) {";
+    const accountEnd="  CRS.registerRoute('account', renderAccount);";
+    if(!text.includes(storageSection)||!text.includes(profileNav)||!text.includes(accountEnd))throw new Error('Profile navigation composition seam changed');
+    text=text.replace(storageSection,'').replace(profileNav,profileNav+`
+      if(item.key==='profile') return '<a class="settings-nav-item settings-profile-link" data-route="account" title="Profile"><i class="bi bi-person" aria-hidden="true"></i><span>Profile</span><i class="bi bi-arrow-up-right settings-profile-arrow" aria-hidden="true"></i></a>';`);
+    text=text.replace('  function renderSettings(params) {',`  function renderSettings(params) {
+    if(params && params.section==='profile') { CRS.navigate('account'); return; }`);
+    text=text.replace("section.querySelectorAll('[data-settings-section]').forEach(function (item)","section.querySelectorAll('.settings-nav-item').forEach(function (item)");
+    text=text.replace("link.href = base + '?view=' + encodeURIComponent(link.dataset.route);","link.href = link.classList.contains('settings-profile-link') ? base.replace(/\\/$/,'') + '/#account?view=account' : base + '?view=' + encodeURIComponent(link.dataset.route);");
+    text=text.replace("{ key: 'general', label: 'General'", "{ key: 'general', label: 'การตั้งค่าทั่วไป'")
+      .replace("{ key: 'security', label: 'Security and login'", "{ key: 'security', label: 'ความปลอดภัยและการลงชื่อเข้าใช้'")
+      .replace('data-settings-shortcut-restore>คืนค่าเริ่มต้น / Restore defaults','data-settings-shortcut-restore>คืนค่าเริ่มต้น');
+    const accountStart=text.indexOf('  function renderAccount() {'),accountStop=text.indexOf(accountEnd,accountStart);
+    let account=text.slice(accountStart,accountStop);
+    const accountClose="      '</button></div></div></div></section>';";
+    if(account.split(accountClose).length!==2)throw new Error('Account editor composition seam changed');
+    account=account.replace(accountClose,accountClose+"\n    if(global.CRSProfile) global.CRSProfile.mount(root,{CRS});");
+    text=text.slice(0,accountStart)+account+text.slice(accountStop);
     if(!text.includes("CRS.features.mountSettings(sectionKey,root.querySelector('.settings-content'))"))throw new Error('Settings security subview composition seam changed');
     text=text.replace('CRS.features.mountSettings(sectionKey,root.querySelector(\'.settings-content\'))','CRS.features.mountSettings(sectionKey,root.querySelector(\'.settings-content\'),params)');
     // Next supports only explicit Thai/English, defaulting old/unknown choices to Thai.
@@ -196,6 +215,8 @@ await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web',
 await writeFile(join(output,'session-loading.js'),await readFile(join(root,'web','session-loading.js'),'utf8'));
 await writeFile(join(output,'notification-inbox.js'),await readFile(join(root,'web','notification-inbox.js'),'utf8'));
 await writeFile(join(output,'settings-security.js'),await readFile(join(root,'web','settings-security.js'),'utf8'));
+await writeFile(join(output,'profile.js'),await readFile(join(root,'web','profile.js'),'utf8'));
+index=index.replace('<script src="/crs/settings-security.js">','<script src="/crs/profile.js"></script><script src="/crs/settings-security.js">');
 await writeFile(join(output,'oauth-handoff.js'),await readFile(join(root,'web','oauth-handoff.js'),'utf8'));
 const styleSource=await read('styles');
 const tokens=[styleSource.match(/  :root \{[^}]*\}/)?.[0],styleSource.match(/  \[data-bs-theme="dark"\] \{[^}]*\}/)?.[0]];

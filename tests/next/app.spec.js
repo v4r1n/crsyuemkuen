@@ -4,6 +4,70 @@ const {installOfflineAssets}=require('./offline-assets.cjs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
 
+for(const width of [320,1440])for(const language of ['th','en'])for(const theme of ['light','dark'])test('Profile presentation '+width+' '+language+' '+theme,async({page})=>{
+  await page.setViewportSize({width,height:900});await mock(page);await page.addInitScript(({language,theme})=>{localStorage.setItem('crs-ui-language',language);localStorage.setItem('crs-theme',theme);},{language,theme});
+  await page.goto('/?view=account');const field=page.locator('.profile-name-input');await expect(field).toBeEditable();await field.focus();await expect(field).toBeFocused();
+  await expect(page.locator('.profile-avatar')).toHaveAccessibleName(language==='en'?'Change profile photo':'เปลี่ยนรูปโปรไฟล์');
+  await expectNoOverflow(page);await captureUi(page,'profile-'+width+'-'+language+'-'+theme,{staticView:true});
+  await page.evaluate(()=>CRS.navigate('settings',{section:'appearance'}));const option=page.locator('[data-settings-theme="dark"]');await option.focus();await expect(option).toBeFocused();await option.click();await expect(option).toHaveAttribute('aria-pressed','true');await expectNoOverflow(page);
+  await page.evaluate(()=>CRS.navigate('settings',{section:'security'}));await expect(page.locator('#settings-heading')).toHaveText(language==='en'?'Security and login':'ความปลอดภัยและการลงชื่อเข้าใช้');
+});
+
+test('Profile navigation opens Account only; Storage disappears, legacy link falls back and Restore follows TH/EN',async({page})=>{
+  await mock(page);await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>CRS.navigate('settings'));
+  const link=page.locator('.settings-profile-link');await expect(link).toHaveAttribute('href',canonical+'/#account?view=account');await expect(link.locator('.bi-arrow-up-right')).toHaveCount(1);
+  await expect(page.locator('[data-settings-section="storage"]')).toHaveCount(0);
+  await page.locator('#settings-nav-search').fill('ไม่พบอะไร');await expect(link).toBeHidden();await page.locator('#settings-nav-search').fill('');await link.click();
+  await expect(page.locator('#account-heading')).toBeVisible();await expect(page.locator('.profile-name-input')).toBeEditable();
+  await page.evaluate(()=>CRS.navigate('settings',{section:'storage'}));await expect(page.locator('#settings-heading')).toHaveText('การตั้งค่าทั่วไป');
+  await page.evaluate(()=>CRS.navigate('settings',{section:'keyboard'}));await expect(page.locator('[data-settings-shortcut-restore]')).toHaveText('คืนค่าเริ่มต้น');
+  await page.evaluate(()=>CRS.language.set('en'));await page.reload();await expect(page.locator('[data-settings-shortcut-restore]')).toHaveText('Restore defaults');
+});
+test('Profile inline name autosaves latest draft, updates current UI and Settings but leaves email/role readonly',async({page})=>{
+  const {calls}=await mock(page);await page.goto('/?view=account');const input=page.locator('.profile-name-input');await expect(input).toBeEditable();
+  await input.fill('Draft');await input.fill('New fixture name');await expect(page.locator('.profile-save-status')).toHaveText('บันทึกแล้ว');
+  expect(calls.filter(call=>call.method==='saveOwnName')).toHaveLength(1);await expect(page.locator('[data-session-name]').first()).toHaveText('New fixture name');
+  await input.fill('Cancelled draft');await input.press('Escape');await expect(input).toHaveValue('New fixture name');
+  await page.evaluate(()=>CRS.navigate('settings',{section:'account'}));await expect(page.locator('.profile-name-input')).toHaveValue('New fixture name');
+  await expect(page.locator('.settings-account-fields input')).toHaveCount(1);await expect(page.locator('.settings-account-fields dt').nth(1)).toHaveText('อีเมล');
+  await input.fill('Enter saved');await input.press('Enter');await expect(page.locator('.profile-save-status')).toHaveText('บันทึกแล้ว');
+  expect(calls.filter(call=>call.method==='saveOwnName')).toHaveLength(2);
+});
+test('Profile name save retains command on lost response, and pending debounce is disposed on navigation',async({page})=>{
+  await mock(page);const commands=[];
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='saveOwnName')return route.fallback();commands.push(input.args[0]);if(commands.length===1)return route.abort('failed');await route.fulfill({json:{ok:true,data:{name:input.args[0].name,nameVersion:2,avatarId:null}}});});
+  await page.goto('/?view=account');const field=page.locator('.profile-name-input');await expect(field).toBeEditable();await field.fill('Retried name');await field.press('Enter');
+  await expect(page.locator('.profile-name-editor button')).toBeEnabled();await expect.poll(()=>commands.length).toBe(1);
+  await page.locator('.profile-name-editor button').click();await expect(page.locator('.profile-save-status')).toHaveText('บันทึกแล้ว');expect(commands[1]).toEqual(commands[0]);
+  await field.fill('Never sent draft');await page.evaluate(()=>CRS.navigate('dashboard'));await expect(page.locator('.dashboard-equipment-wall')).toBeVisible();
+  await page.evaluate(()=>CRS.navigate('account'));await expect(page.locator('.profile-name-input')).toBeEditable();expect(commands).toHaveLength(2);
+});
+test('Profile load failure offers retry, keeps edits disabled and preserves old names over the new edit limit',async({page})=>{
+  await mock(page);let attempts=0;
+  const oldName='Legacy name '.repeat(8);
+  await page.route('**/api/rpc',async route=>{const input=route.request().postDataJSON();if(input.method!=='getOwnProfile')return route.fallback();attempts++;await route.fulfill({json:attempts===1?{ok:false,error:{code:'RESOURCE_UNAVAILABLE',message:'Fixture unavailable'}}:{ok:true,data:{name:oldName,nameVersion:1,avatarId:null}}});});
+  await page.goto('/?view=account');await expect(page.locator('.profile-name-editor button')).toHaveText('ลองอีกครั้ง');await expect(page.locator('.profile-name-input')).not.toBeEditable();await expect(page.locator('.profile-avatar')).toBeDisabled();
+  await page.locator('.profile-name-editor button').click();await expect(page.locator('.profile-name-input')).toBeEditable();await expect(page.locator('.profile-name-input')).toHaveValue(oldName);await expect(page.locator('.profile-avatar')).toBeEnabled();
+});
+test('Profile avatar rejects non-square/oversize before upload and successful commit pulses once with private bytes',async({page})=>{
+  await mock(page);const seen=[];
+  await page.addInitScript(()=>{window.createImageBitmap=async file=>({width:file.name==='wide.png'?32:16,height:16,close(){}});});
+  const image=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2l8AAAAASUVORK5CYII=','base64');
+  await page.route('https://avatar.supabase.co/**',route=>route.fulfill({status:200,contentType:'image/png',body:image}));
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();if(!['prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].includes(input.method))return route.fallback();seen.push(input);
+    const data=input.method==='prepareOwnAvatar'?{resourceId:input.args[0].commandId,uploadUrl:'https://avatar.supabase.co/storage/v1/object/upload/sign/private/avatar'}:input.method==='finalizeOwnAvatar'?{name:'Fixture',nameVersion:1,avatarId:input.args[0].resourceId}:{signedUrl:seen.some(item=>item.method==='finalizeOwnAvatar')?'https://avatar.supabase.co/storage/v1/object/sign/private/avatar':null,mimeType:'image/png',byteLength:image.length};await route.fulfill({json:{ok:true,data}});
+  });
+  await page.goto('/?view=account');await expect(page.locator('.profile-name-input')).toBeEditable();
+  const picker=page.locator('#view-root input[type="file"]');
+  await picker.setInputFiles({name:'wide.png',mimeType:'image/png',buffer:image});await expect(page.locator('.profile-save-status')).toContainText('1:1');expect(seen.some(item=>item.method==='prepareOwnAvatar')).toBe(false);
+  await picker.setInputFiles({name:'large.png',mimeType:'image/png',buffer:Buffer.alloc(1048577)});await expect(page.locator('.profile-save-status')).toContainText('1 MiB');
+  await picker.setInputFiles({name:'square.png',mimeType:'image/png',buffer:image});await expect(page.locator('.profile-avatar')).toHaveClass(/is-profile-saved/);await expect(page.locator('.profile-avatar img')).toHaveAttribute('src',/^blob:/);
+  expect(seen.filter(item=>item.method==='finalizeOwnAvatar')).toHaveLength(1);expect(await page.locator('.profile-avatar').evaluate(node=>getComputedStyle(node).animationIterationCount)).toBe('1');
+  await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('.profile-avatar').evaluate(node=>getComputedStyle(node).animationName)).toBe('none');
+});
+
 test('session revoke retry retains its command after a lost response and prevents duplicate confirmation',async({page})=>{
   await mock(page);
   const commands=[];
@@ -66,7 +130,7 @@ for(const width of [320,390,768,1440])for(const language of ['th','en'])for(cons
     await page.locator('[data-security-back]').click();await expect(page.locator('[data-security-sessions]')).toBeVisible();
     await page.goBack();await expect(page.locator('.settings-session-row')).toHaveCount(2);
     await page.evaluate(()=>CRS.navigate('settings',{section:'account'}));
-    await expect(page.locator('.settings-account-fields')).toBeVisible();await expect(page.locator('.settings-account-fields input')).toHaveCount(0);
+    await expect(page.locator('.settings-account-fields')).toBeVisible();await expect(page.locator('.settings-account-fields input')).toHaveCount(1);await expect(page.locator('.settings-account-fields [name="name"]')).toBeEditable();await expect(page.locator('.settings-account-fields [type="email"]')).toHaveCount(0);
     await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
     const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
     await expect(picker.locator('input:disabled')).toHaveCount(2);await picker.locator('[data-in-app]').uncheck();await expect(picker).toHaveAttribute('open','');
@@ -167,6 +231,9 @@ async function mock(page,{signedOut=false,restricted=false,preserveSession=false
     else if(input.method==='adminIssueTemporaryPassword') response={ok:true,data:{deliveryStatus:'SENT',activated:true,mustChangePassword:true}};
     else if(input.method==='listNotifications') response={ok:true,data:{items:[{id:'n'.repeat(43),borrow_id:'BR-000001',action:'APPROVE',created_at:new Date().toISOString(),read_at:null}],unread:1}};
     else if(input.method==='getSettingsSecurity') response={ok:true,data:{email:session.email,name:session.name,department:session.department,role:session.role,googleAvailable:true,passwordConfigured:true,activeSessionCount:2,sessionTtlSeconds:21600}};
+    else if(input.method==='getOwnProfile')response={ok:true,data:{name:session.name,nameVersion:Number(session.row_version),avatarId:null}};
+    else if(input.method==='saveOwnName'){session.name=input.args[0].name;session.row_version=Number(session.row_version)+1;response={ok:true,data:{name:session.name,nameVersion:session.row_version,avatarId:null}};}
+    else if(input.method==='getOwnAvatar')response={ok:true,data:{signedUrl:null}};
     else if(input.method==='listActiveSessions') response={ok:true,data:{count:2,items:[{publicId:'11111111-1111-4111-8111-111111111111',current:true,browser:'Microsoft Edge',os:'Windows',lastActiveAt:new Date().toISOString()},{publicId:'22222222-2222-4222-8222-222222222222',current:false,browser:null,os:null,lastActiveAt:null}]}};
     else if(input.method==='listSecurityActivity') response={ok:true,data:{items:[]}};
     else if(input.method==='getNotificationPreferences'||input.method==='saveNotificationPreference') response={ok:true,data:{items:['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN'].map(event=>({event,inApp:input.method==='saveNotificationPreference'&&event===input.args[0].event?input.args[0].inApp:true,version:input.method==='saveNotificationPreference'?1:0})),channels:{inApp:true,push:false,email:false},securityEmailRequired:true,dueRemindersAvailable:false}};
@@ -1148,7 +1215,7 @@ test('Guest confirmation hands off only an asset intent and opens the unchanged 
 
 test('security settings verify email OTP before revealing matching-policy password controls',async({page})=>{
   const {calls}=await mock(page);await page.goto('/?view=settings&section=profile');
-  await page.locator('[data-experience-action="profile-security"]').click();
+  await expect(page.locator('#account-heading')).toBeVisible();await page.locator('#view-root [data-route="settings"]').click();await page.locator('[data-settings-section="security"]').click();
   await page.locator('[data-experience-action="request-password-otp"]').click();
   await expect(page.locator('[data-password-new-step]')).toBeHidden();
   const verify=page.locator('[data-experience-action="verify-password-otp"]');await expect(verify).toBeDisabled();
@@ -1197,15 +1264,15 @@ test('Settings has only Thai/English and selecting a language reloads the same r
   await expect.poll(()=>page.evaluate(()=>window.fixtureDocumentMarker||null)).toBeNull();
   await expect(page.locator('html')).toHaveAttribute('lang','en');
   await expect(page.locator('#language-trigger')).toContainText('English');
-  await expect(page.locator('#settings-heading')).toHaveText('General');
+  await expect(page.locator('#settings-heading')).toHaveText('General settings');
   await expect(page.locator('.settings-nav-heading').first()).toHaveText('Personal');
-  await expect(page.locator('.settings-workspace h2')).toHaveText('General');
+  await expect(page.locator('.settings-workspace h2')).toHaveText('General settings');
   expect(await page.evaluate(()=>sessionStorage.getItem('crs.auth.session.v1'))).toBe(token);
   expect(calls.filter(call=>call.method==='passwordSignIn'||call.method==='beginOAuthSignIn')).toHaveLength(0);
   await page.goto('/?view=equipment');await expect(page.locator('#equipment-title')).toHaveText('Choose the right equipment');
   await page.goto('/?view=settings');await page.locator('#language-trigger').click();
   await page.locator('[data-language-code="th"]').click();await expect(page.locator('html')).toHaveAttribute('lang','th');
-  await expect(page.locator('#settings-heading')).toHaveText('ทั่วไป');
+  await expect(page.locator('#settings-heading')).toHaveText('การตั้งค่าทั่วไป');
   await expect(page.locator('.settings-nav-heading').first()).toHaveText('ส่วนตัว');
   await page.goto('/?view=equipment');await expect(page.locator('#equipment-title')).toHaveText('เลือกอุปกรณ์ที่ใช่');
 });
@@ -1253,7 +1320,7 @@ test('Settings language reload uses a tab-local fallback when persistent writes 
   await mock(page,{preserveSession:true});await page.addInitScript(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(this===window.localStorage)throw new DOMException('Fixture quota exceeded','QuotaExceededError');return original.call(this,key,value);};});
   await page.goto('/?view=settings');await page.locator('#language-trigger').click();await page.locator('[data-language-code="en"]').click();
   await expect(page.locator('html')).toHaveAttribute('lang','en');
-  await expect(page.locator('#settings-heading')).toHaveText('General');
+  await expect(page.locator('#settings-heading')).toHaveText('General settings');
   expect(await page.evaluate(()=>sessionStorage.getItem('crs-ui-language-fallback'))).toBe('en');
   await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','en');
 });

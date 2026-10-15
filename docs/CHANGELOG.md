@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Owner profile and Settings refinements (2026-10-15, source only)
+
+- Add owner-only versioned/command-safe name autosave in Account and Settings Account, with existing Users identity and old History snapshots preserved; retain legacy long names, expose retry/save states and reuse the existing session without extending expiry.
+- Add private square JPEG/PNG/WebP avatar uploads ≤512×512 and ≤1 MiB, immutable tracked resources, full server validation, reauthorization after I/O, one success pulse and accessible/reduced-motion feedback. Old avatars remain private; no public bucket or new auth flow. Include durable resources in format-4 backups/empty-target restore, with formats 1–3 normalized safely.
+- Refine Settings hover/focus, Profile → Account arrow/canonical link, requested Thai headings, Email label, Storage-menu removal and TH/EN Restore defaults. Preserve legacy source and unrelated operator edits. Verification details, final gates and outstanding live additive activation authority are recorded in Memory; no cloud/schema/writer/deployment change is part of this source phase.
+
 ### Catalog and Settings presentation (2026-10-15)
 
 - Replace duplicate My Borrow tabs with existing Sidebar route panes, retaining filters, History paging/search and return workflow. Bound literal Specifications to eight visible wrapped lines with native/keyboard scrolling and complete text selection.
