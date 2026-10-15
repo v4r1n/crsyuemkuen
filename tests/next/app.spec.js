@@ -189,6 +189,89 @@ async function mock(page,{signedOut=false,restricted=false,preserveSession=false
   return {calls,record};
 }
 
+test('Sidebar routes replace duplicate borrow tabs while retaining history search, pagination and Back navigation',async({page})=>{
+  const {calls}=await mock(page);const historyCalls=[];
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();if(input.method!=='listMyHistory')return route.fallback();historyCalls.push(input.args[0]);
+    await route.fulfill({json:{ok:true,data:{items:[{action:'RETURN',asset_id:'AST-000001',note:'Fixture history',timestamp:'2026-10-01T00:00:00Z'}],page:input.args[0].page,pageSize:20,total:21,totalPages:2}}});
+  });
+  await page.goto('/?view=history');await expect(page.locator('#my-borrow-history-pane')).toBeVisible();
+  await expect(page.locator('#my-borrow-list-pane')).toBeHidden();await expect(page.locator('#my-borrow-tabs,[role="tabpanel"]')).toHaveCount(0);
+  expect(calls.some(call=>call.method==='listMyBorrowing')).toBe(false);await expect.poll(()=>historyCalls.length).toBe(1);
+  await page.locator('#my-history-search').fill('Fixture');await page.locator('#form-my-history-filter [type="submit"]').click();
+  await expect.poll(()=>historyCalls.some(query=>query.search==='Fixture'&&query.page===1)).toBe(true);
+  await page.locator('#pagination-my-history [data-page="2"]').first().click();await expect.poll(()=>historyCalls.some(query=>query.page===2&&query.search==='Fixture')).toBe(true);
+  await page.locator('.sidebar-link[data-route="my-borrow"]').click();await expect(page.locator('#my-borrow-list-pane')).toBeVisible();await expect(page.locator('#my-borrow-history-pane')).toBeHidden();
+  await page.locator('#my-borrow-status-filter').selectOption('RETURNED');await page.locator('#my-borrow-sort-direction').selectOption('asc');
+  await page.locator('#form-my-borrow-filter [type="submit"]').click();await expect.poll(()=>calls.some(call=>call.method==='listMyBorrowing'&&call.args[0].status==='RETURNED'&&call.args[0].sortDirection==='asc')).toBe(true);
+  await page.goBack();await expect(page.locator('#my-borrow-history-pane')).toBeVisible();await expect(page.locator('.sidebar-link[data-route="history"]')).toHaveClass(/active/);
+  await page.goForward();await expect(page.locator('#my-borrow-list-pane')).toBeVisible();
+  expect(calls.some(call=>['requestReturn','createBorrowRequest'].includes(call.method))).toBe(false);
+});
+
+test('borrow/history route composition works without the optional experience adapter and leaves no dangling tab labels',async({page})=>{
+  await mock(page);await page.route('**/crs/experience.js',route=>route.abort());
+  for(const view of ['my-borrow','history']){
+    await page.goto('/?view='+view);await expect(page.locator(view==='history'?'#my-borrow-history-pane':'#my-borrow-list-pane')).toBeVisible();
+    await expect(page.locator('#my-borrow-tabs,#my-borrow-history-tab,#my-borrow-list-tab')).toHaveCount(0);
+    expect(await page.locator('#page-my-borrow [aria-labelledby],#page-my-borrow[aria-labelledby]').evaluateAll(nodes=>nodes.every(node=>node.getAttribute('aria-labelledby').split(/\s+/).every(id=>document.getElementById(id))))).toBe(true);
+  }
+});
+
+for(const theme of ['light','dark']){
+  test('requested controls share the search radius without changing filter or Asset ID behavior in '+theme,async({page})=>{
+    const {calls,record}=await mock(page);await page.emulateMedia({reducedMotion:'reduce'});
+    for(const width of [320,768,1440]){
+      await page.setViewportSize({width,height:900});await page.goto('/?view=equipment');await expect(page.locator('#equipment-search')).toBeVisible();await page.evaluate(value=>CRS.theme.apply(value,true),theme);
+      const radius=await page.locator('#equipment-search').evaluate(node=>getComputedStyle(node).borderTopLeftRadius);
+      async function matching(selectors){for(const selector of selectors){const node=page.locator(selector);await expect(node).toBeVisible();const corners=await node.evaluate(node=>{const style=getComputedStyle(node);return [style.borderTopLeftRadius,style.borderTopRightRadius,style.borderBottomLeftRadius,style.borderBottomRightRadius];});expect(corners).toEqual([radius,radius,radius,radius]);}}
+      await matching(['#equipment-category-filter','#equipment-status-filter','#equipment-sort-direction','#equipment-sort-by','#equipment-department-filter','#equipment-location-filter','#form-equipment-filter [type="submit"]']);
+      await page.locator('#equipment-status-filter').selectOption('AVAILABLE');await page.locator('#equipment-sort-by').selectOption('asset_id');await page.locator('#equipment-sort-direction').selectOption('desc');await page.locator('#form-equipment-filter [type="submit"]').click();
+      await expect.poll(()=>calls.some(call=>call.method==='listEquipment'&&call.args[0].status==='AVAILABLE'&&call.args[0].sortBy==='asset_id'&&call.args[0].sortDirection==='desc')).toBe(true);
+      await page.goto('/?view=my-borrow');await matching(['#my-borrow-status-filter','#my-borrow-sort-direction','#form-my-borrow-filter [type="submit"]']);
+      await page.goto('/?view=history');await matching(['#my-history-search','#form-my-history-filter [type="submit"]']);
+      await page.goto('/?view=scan');await matching(['#asset-id-entry','#asset-id-entry-form [type="submit"]']);await expectNoOverflow(page);
+      await page.locator('#asset-id-entry').fill(record.asset_id);await page.locator('#asset-id-entry-form [type="submit"]').click();await expect(page.locator('#page-equipment-detail')).toBeVisible();
+      await page.goto('/?view=account');await matching(['#view-root .btn-outline-secondary[data-route="settings"]','#view-root .btn-outline-danger[data-action="sign-out"]']);await expectNoOverflow(page);
+    }
+  });
+
+  test('specification keeps all literal text with an eight-line keyboard-scroll region only on overflow in '+theme,async({page})=>{
+    const {record}=await mock(page);let content=Array.from({length:18},(_,i)=>'Line '+(i+1)+' · ข้อมูลอุปกรณ์').join('\n')+'\n<script>window.fixtureInjected=true</script>';
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.route('**/api/rpc',async route=>{if(route.request().postDataJSON().method!=='getEquipmentDetail')return route.fallback();await route.fulfill({json:{ok:true,data:{...record,specification:content,imageAvailable:false,included_items:[]}}});});
+    for(const width of [320,1440]){
+      await page.setViewportSize({width,height:900});await page.goto('/?view=equipment-detail&id='+record.asset_id);await page.evaluate(value=>CRS.theme.apply(value,true),theme);
+      const node=page.locator('#equipment-detail-specification');await expect(node).toHaveAttribute('tabindex','0');await expect(node).toHaveAttribute('aria-labelledby','equipment-specification-title');
+      expect(await node.textContent()).toBe(content);expect(await page.evaluate(()=>window.fixtureInjected)).toBeUndefined();
+      const size=await node.evaluate(node=>{const style=getComputedStyle(node);return {height:node.clientHeight,scroll:node.scrollHeight,cap:8*parseFloat(style.lineHeight),padding:parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)};});expect(size.padding).toBe(0);expect(size.height).toBeLessThanOrEqual(size.cap+1);expect(size.scroll).toBeGreaterThan(size.height);
+      await node.focus();await page.keyboard.press('PageDown');await expect.poll(()=>node.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+      await node.evaluate(node=>{const range=document.createRange();range.selectNodeContents(node);getSelection().removeAllRanges();getSelection().addRange(range);});expect(await page.evaluate(()=>getSelection().toString())).toBe(content);await expectNoOverflow(page);
+    }
+    content='Short specification';await page.goto('/?view=equipment-detail&id='+record.asset_id);await expect(page.locator('#equipment-detail-specification')).toHaveText(content);await expect(page.locator('#equipment-detail-specification')).not.toHaveAttribute('tabindex');
+    content=Array(120).fill('รายละเอียด').join(' ');await page.goto('/?view=equipment-detail&id='+record.asset_id);await page.setViewportSize({width:320,height:900});await expect(page.locator('#equipment-detail-specification')).toHaveAttribute('tabindex','0');await expectNoOverflow(page);
+  });
+
+  test('Settings language fills its list with selected-check-only styling and symmetric security cards in '+theme,async({page})=>{
+    await mock(page);await page.emulateMedia({reducedMotion:'reduce'});
+    for(const width of [320,1440])for(const language of ['th','en']){
+      await page.setViewportSize({width,height:900});await page.addInitScript(value=>localStorage.setItem('crs-ui-language',value),language);await page.goto('/?view=settings');await page.evaluate(value=>CRS.theme.apply(value,true),theme);
+      const trigger=page.locator('#language-trigger');await trigger.click();const list=page.locator('#language-list'),selected=list.locator('[aria-selected="true"]'),other=list.locator('[aria-selected="false"]');await expect(list.locator('[role="option"]')).toHaveCount(2);
+      await page.mouse.move(0,0);await expect(selected).toHaveCSS('background-color','rgba(0, 0, 0, 0)');await expect(selected.locator('.bi-check-lg')).toBeVisible();
+      await selected.hover();await expect(selected.locator('.bi-check-lg')).toBeVisible();await other.hover();await expect(other.locator('.bi-check-lg')).toBeHidden();
+      const dimensions=await list.evaluate(node=>({client:node.clientHeight,scroll:node.scrollHeight,gutter:getComputedStyle(node).scrollbarGutter,width:node.clientWidth,option:node.firstElementChild.getBoundingClientRect().width}));expect(dimensions.scroll).toBe(dimensions.client);expect(dimensions.gutter).toBe('auto');expect(Math.abs(dimensions.option-dimensions.width)).toBeLessThan(1);
+      const corners=await trigger.evaluate(node=>{const s=getComputedStyle(node);return[s.borderTopLeftRadius,s.borderBottomRightRadius,s.height];});expect(corners[0]).toBe(corners[1]);expect(parseFloat(corners[2])).toBeGreaterThanOrEqual(44);
+      await page.keyboard.press('ArrowDown');await expect(list.locator('[role="option"]').first()).toBeFocused();await page.keyboard.press('Escape');await expect(trigger).toBeFocused();
+      for(const section of ['security','account','notifications']){
+        await page.evaluate(section=>CRS.navigate('settings',{section}),section);const root=page.locator('.settings-security-root');await expect(root.locator('> .settings-card').first()).toBeVisible();
+        const geometry=await root.evaluate(node=>{const cards=[...node.querySelectorAll(':scope > .settings-card')];const box=node.getBoundingClientRect();return{top:cards[0].getBoundingClientRect().top-box.top,widths:cards.map(n=>n.getBoundingClientRect().width),lefts:cards.map(n=>n.getBoundingClientRect().left),padding:cards.map(n=>parseFloat(getComputedStyle(n).paddingLeft))};});expect(geometry.top).toBeLessThan(1);expect(Math.max(...geometry.widths)-Math.min(...geometry.widths)).toBeLessThan(1);expect(new Set(geometry.lefts).size).toBe(1);expect(geometry.padding.every(value=>value>=16)).toBe(true);await expectNoOverflow(page);
+      }
+      for(const subview of ['sessions','activity']){await page.evaluate(subview=>CRS.navigate('settings',{section:'security',subview}),subview);await expect(page.locator('[data-security-back]')).toBeVisible();await expectNoOverflow(page);}
+    }
+  });
+}
+
 test('post-login loader covers pending bootstrap and first view without blocking sign-in or inventing requests',async({page})=>{
   const {calls}=await mock(page,{signedOut:true});
   let bootstrapEntered=false,viewEntered=false,catalogEntered=false,releaseBootstrap,releaseView,releaseCatalog;

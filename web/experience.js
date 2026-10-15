@@ -245,6 +245,21 @@
     }).catch(()=>{control.title='ไม่สามารถตรวจการเผยแพร่ได้ กรุณาโหลดหน้าใหม่';control.disabled=true;});
   }
   function reveal(button,visible){const input=document.getElementById(button.dataset.revealFor);if(input){input.type=visible?'text':'password';button.setAttribute('aria-pressed',String(visible));}}
+  let specification=null,specificationResize=null;
+  function syncSpecification(){
+    const next=document.querySelector('#equipment-detail-specification');
+    if(next!==specification){
+      specificationResize?.disconnect();specification=next;
+      specificationResize=next&&typeof ResizeObserver==='function'?new ResizeObserver(syncSpecification):null;
+      if(next)specificationResize?.observe(next);
+    }
+    if(!specification)return;
+    const overflow=specification.scrollHeight>specification.clientHeight+1;
+    if(overflow){specification.tabIndex=0;specification.setAttribute('role','region');specification.setAttribute('aria-labelledby','equipment-specification-title');}
+    else{specification.removeAttribute('tabindex');specification.removeAttribute('role');specification.removeAttribute('aria-labelledby');}
+  }
+  global.addEventListener('resize',syncSpecification);
+  global.addEventListener('pagehide',()=>{specificationResize?.disconnect();specificationResize=null;specification=null;});
   document.addEventListener('DOMContentLoaded',()=>{
     const card=document.querySelector('.access-card'),controls=document.createElement('div');controls.className='login-controls';
     controls.append(document.querySelector('#theme-toggle-login'));card.prepend(controls);
@@ -261,7 +276,7 @@
     const form=document.querySelector('#password-login-form'),error=document.querySelector('#password-login-error');
     form.addEventListener('submit',async event=>{event.preventDefault();if(!form.reportValidity())return;const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;submit.disabled=true;error.hidden=true;try{await CRS.auth.passwordSignIn(form.email.value,form.password.value);}catch(problem){error.textContent=problem.message;error.hidden=false;}finally{form.password.value='';submit.disabled=false;translate();}});
     const observer=new MutationObserver(()=>translate());observer.observe(document.querySelector('#access-state-title'),{childList:true});
-    const views=new MutationObserver(()=>{decorate(document.querySelector('#view-root'));mountDashboard();});views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
+    const views=new MutationObserver(()=>{decorate(document.querySelector('#view-root'));mountDashboard();syncSpecification();});views.observe(document.querySelector('#view-root'),{childList:true,subtree:true});
     if(global.CRSReactBits)global.CRSReactBits.mountDeletes();
     else{
       // Never silently restore click-to-delete when the hold adapter fails.

@@ -35,6 +35,26 @@ for(const match of includes){
     if(text.split(inlineHandoffStory).length!==2)throw new Error('Inline OAuth story composition seam changed');
     text=text.replace(inlineHandoffStory,'');
   }
+  if(name==='my-borrow') {
+    const tabs=/<ul class="nav nav-tabs mb-4" id="my-borrow-tabs" role="tablist">[\s\S]*?<\/ul>/;
+    const list=/<section id="my-borrow-list-pane" class="tab-pane fade show active" role="tabpanel"\s+aria-labelledby="my-borrow-list-tab" tabindex="0">/;
+    const history=/<section id="my-borrow-history-pane" class="tab-pane fade" role="tabpanel"\s+aria-labelledby="my-borrow-history-tab" tabindex="0">/;
+    if(!tabs.test(text)||!list.test(text)||!history.test(text))throw new Error('Borrow route pane composition seam changed');
+    text=text.replace(tabs,'').replace('aria-labelledby="my-borrow-title"','aria-labelledby="page-title"')
+      .replace('<div class="tab-content">','<div class="borrow-route-content">')
+      .replace(list,'<section id="my-borrow-list-pane" aria-labelledby="page-title">')
+      .replace(history,'<section id="my-borrow-history-pane" aria-labelledby="page-title" hidden>');
+  }
+  if(name==='scripts-borrow') {
+    const tabListener=/    CRS\.\$\('#my-borrow-history-tab', page\)\.addEventListener\('shown\.bs\.tab', function \(\) \{\s+if \(!state\.historyLoaded\) loadHistory\(\);\s+\}\);/;
+    const selection=/    await loadList\(\);\s+if \(params\.tab === 'history'\) \{\s+bootstrap\.Tab\.getOrCreateInstance\(CRS\.\$\('#my-borrow-history-tab', page\)\)\.show\(\);\s+\}/;
+    if(!tabListener.test(text)||!selection.test(text))throw new Error('Borrow route selection composition seam changed');
+    text=text.replace(tabListener,'').replace(selection,`    const showHistory = params.tab === 'history';
+    CRS.$('#my-borrow-list-pane', page).hidden = showHistory;
+    CRS.$('#my-borrow-history-pane', page).hidden = !showHistory;
+    if (showHistory) await loadHistory();
+    else await loadList();`);
+  }
   if(name==='scripts-api') text=text.replace(/  function serverRpc\(method, args\) \{[\s\S]*?\n  function randomBrowserSecret/,`  function serverRpc(method, args) {
     return global.CRS_SERVER_RPC(method, args || []).then(function(response) {
       if (response && response.ok) return response.data;

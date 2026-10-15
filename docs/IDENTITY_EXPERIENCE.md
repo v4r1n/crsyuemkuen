@@ -6,6 +6,16 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+### Catalog and Settings presentation refinement (2026-10-15)
+
+The operator confirms eight visible wrapped lines for Specifications, selected-language check-only styling and full-width one-column Security cards. These are reversible Next-only presentation choices, not changes to ADR-030's navigation authority or ADR-034's owner/session model. Validation and actual activation belong in [Memory](MEMORY.md).
+
+- Remove duplicate My Borrow tabs through asserted build composition. Existing `my-borrow`/`history` routes select their own semantic pane and await only that pane's existing guarded read. Preserve forms, search/status/sort, paging, return handling, errors and stale-response checks. Remove tab listeners/Bootstrap selection and dangling tab labels together; legacy `src/` remains unchanged.
+- Specifications remain literal `textContent` with preserved newlines/wrapping and complete selectable text. Native vertical scrolling starts after eight rendered lines on both desktop/mobile. Keep block spacing outside the scroll viewport so padding cannot expose a partial ninth line. An overflow-only labelled keyboard focus target is synchronized through the existing view observer and a disconnected-on-navigation ResizeObserver; no polling, data request or truncation is added.
+- Requested catalog/borrowing/history/scan/account controls reuse the catalog search's `--crs-radius-sm`, including all corners of the manual Asset ID group with a gap. Scope by control/form/view rather than changing every Bootstrap primary/destructive button. Validation, submission and navigation stay unchanged.
+- Language trigger uses the same radius and a 44 px target. The existing TH/EN list fills its dropdown without a reserved scrollbar gutter or artificial height cap. Preserve labels, search, actual selection, arrow/Escape/outside behavior and Settings save/reload. Selection's persistent background is removed; only the actual selected language has its check, including on hover. Hover and keyboard focus remain distinct visible feedback, not a new selected state.
+- Security/Account/Notifications adapter cards occupy one full-width column with matching inset/spacing. An empty live-status node stays accessible but out of grid flow; populated status/error remains visible. Password/OTP, Remember, owner reads/revocation/preferences and current-safe session rules remain in their existing modules.
+
 ### Settings phase 1 — contract and activation (2026-10-14)
 
 The operator approved additive design after the capability-gap report. The [current Memory validation checkpoint](MEMORY.md) records offline source acceptance and outstanding manual/cloud gates. This paragraph supplements existing invariants, not migration/deployment authority.

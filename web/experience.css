@@ -113,6 +113,20 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .search-field-with-icon { position:relative; }
 .search-field-with-icon > .input-group-text { position:absolute; inset:0 auto 0 0; z-index:5; background:transparent; border:0; pointer-events:none; }
 .search-field-with-icon > :is(#equipment-search,#my-borrow-search).form-control { margin:0; border-radius:var(--crs-radius-sm) !important; padding-left:2.8rem; width:100%; }
+/* Match the catalog search token, not Bootstrap's joined-group corners. */
+:is(#equipment-category-filter,#equipment-status-filter,#equipment-sort-direction,#equipment-sort-by,#equipment-department-filter,#equipment-location-filter,#asset-id-entry,#my-borrow-status-filter,#my-borrow-sort-direction,#my-history-search),
+:is(#form-equipment-filter,#asset-id-entry-form,#form-my-borrow-filter,#form-my-history-filter) button[type="submit"],
+#view-root :is(.btn-outline-secondary[data-route="settings"],.btn-outline-danger[data-action="sign-out"]) { border-radius:var(--crs-radius-sm) !important; }
+#asset-id-entry-form .input-group { gap:.5rem; }
+#asset-id-entry-form .input-group > :is(.form-control,.btn) { margin:0; }
+#equipment-detail-specification { max-block-size:12.4em; padding-block:0; margin-block:var(--bs-card-spacer-y,1rem); overflow-y:auto; overflow-wrap:anywhere; overscroll-behavior:contain; }
+@supports (max-block-size:1lh) { #equipment-detail-specification { max-block-size:8lh; } }
+#equipment-detail-specification:focus-visible { outline:3px solid var(--crs-focus-outline); outline-offset:-3px; }
+.settings-language-trigger { min-height:44px; border-radius:var(--crs-radius-sm); padding:.5rem .75rem; }
+.settings-language-list { max-height:none; overflow:visible; scrollbar-gutter:auto; }
+.settings-language-option { min-height:44px; }
+.settings-language-option[aria-selected="true"] { background:transparent; }
+.settings-language-option:hover,.settings-language-option[aria-selected="true"]:hover { background:var(--crs-surface-hover); }
 /* Nested curves share an inset, including the panel's 1px border. Keep
  * scrolling and focus outlines intact; do not clip the containing sidebar. */
 .account-popover,.account-submenu { --account-panel-radius:1rem; --account-panel-inset:.25rem; --account-item-radius:calc(var(--account-panel-radius) - var(--account-panel-inset)); border-radius:var(--account-panel-radius); padding:calc(var(--account-panel-inset) - 1px); }
@@ -171,7 +185,14 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 @keyframes notification-enter { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion:reduce) { .notification-popover { animation:none; } .notification-item { transition:none; } }
 .notification-time { display:block; font-size:.75rem; color:var(--crs-muted); margin-top:.4rem; }
-.settings-security-root { display:grid; gap:1rem; min-width:0; }
+.settings-security-root { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; min-width:0; position:relative; }
+.settings-security-root > [role="status"] { margin:0; overflow-wrap:anywhere; }
+.settings-security-root > [role="status"]:empty { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.settings-security-root > .settings-card { min-width:0; padding:clamp(1rem,2.5vw,1.5rem); display:flex; flex-direction:column; align-items:stretch; gap:1rem; }
+.settings-security-root > .settings-card > :is(h3,p,dl) { margin:0; }
+.settings-security-root > .settings-card > .btn { align-self:flex-start; max-width:100%; white-space:normal; }
+.settings-security-root > .settings-card > form { margin:0; width:100%; }
+.settings-security-root .settings-session-row:last-of-type { border-bottom:0; }
 .settings-security-root .btn,.settings-channel-picker summary,.settings-channel-picker label,.settings-remember { min-height:44px; }
 .settings-account-fields { display:grid; grid-template-columns:minmax(5rem,1fr) minmax(0,2fr); gap:.75rem; }
 .settings-account-fields dd,.settings-session-row p { margin:0; overflow-wrap:anywhere; }
