@@ -6,11 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Catalog and Settings presentation (2026-10-15, source accepted)
+### Catalog and Settings presentation (2026-10-15)
 
 - Replace duplicate My Borrow tabs with existing Sidebar route panes, retaining filters, History paging/search and return workflow. Bound literal Specifications to eight visible wrapped lines with native/keyboard scrolling and complete text selection.
 - Reuse catalog-search radii on requested filter/scan/Account controls; make language trigger/list/selection consistent and full-width without a scrollbar gutter. Keep selected checks, labels, hover/focus, TH/EN save/reload. Align Security/Account/Notifications cards in one padded column without an empty status gap.
 - All 387 phase gates pass, including the final 136-case Next repeat, seven compiled-artifact checks and production build; audit has zero advisories. Six synthetic Desktop/Mobile Light/Dark captures are reviewed, including exact eight-line clipping without losing text. Production activation is recorded separately in Memory; no auth/schema/workflow/env/writer-mode change is part of these UI edits.
+- Activate immutable `2060489` on canonical Production after READY Singapore build and 19 candidate / 20 canonical smoke groups, including exact UI bytes and compiled route-pane checks. Preserve writable Production, frozen Preview, all env/callback/protection values and Preview source/alias. Complete phase-only Session End commit/push with deployment evidence; actual-device/screen-reader and existing provider/restore/concurrency gates remain separate.
 
 ### Login navigation and OAuth popover (2026-10-15)
 
