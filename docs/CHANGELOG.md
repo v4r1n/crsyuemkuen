@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Login navigation and OAuth popover (2026-10-15, source accepted)
+
+- Remove quick language buttons from Login and authenticated topbar; retain Guest switching and existing Settings-controlled labels. Move Public equipment into the bottom-left of Login story; keep the theme, Guide, notification and original navigation behavior.
+- Present the same OAuth handoff inputs in an accessible native popover with CSS fallback, close/reopen and lifecycle cleanup. Preserve auth polling/proof/OTP/session rules and inline fallback when the optional adapter is blocked. Correct the known English Google-only Login heading to generic Sign in.
+- Add responsive native/fallback, paste/focus/error/disposal regressions and update obsolete language-button expectations. All 379 phase gates pass, including the final 128-case Next repeat and production build; zero dependency advisories. Stationary command fixtures use reduced motion after reproducing smooth-scroll hold cancellation, without changing runtime guards or timeouts. Production activation is recorded separately in Memory; no schema, provider, writer-mode or private record change is part of this UI phase.
+
 ### Settings Production activation (2026-10-14)
 
 - Activate accepted `89c6559` on canonical Production after seven-binary online backup, guarded additive migration/repeat verification, READY Singapore candidate and 19 candidate / 20 canonical smoke groups. User explicitly preserves writable Production and frozen Preview; all environment/callback/protection values and Preview source/alias remain unchanged.

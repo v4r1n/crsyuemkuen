@@ -30,6 +30,11 @@ for(const match of includes){
     requestSecurity: function (method,input) {`);
   }
   if(name==='styles')text=text.replace(/\s*\.login-orbit \{[^}]*\}/,'');
+  if(name==='styles') {
+    const inlineHandoffStory='.login-layout:has(#oauth-handoff-panel:not([hidden])) .login-story { display: none; }';
+    if(text.split(inlineHandoffStory).length!==2)throw new Error('Inline OAuth story composition seam changed');
+    text=text.replace(inlineHandoffStory,'');
+  }
   if(name==='scripts-api') text=text.replace(/  function serverRpc\(method, args\) \{[\s\S]*?\n  function randomBrowserSecret/,`  function serverRpc(method, args) {
     return global.CRS_SERVER_RPC(method, args || []).then(function(response) {
       if (response && response.ok) return response.data;
@@ -159,7 +164,7 @@ if(!index.includes('id="password-login-form"')) throw new Error('Login compositi
 const googleIcon=await readFile(join(root,'web','google-icon.svg'),'utf8');
 if(!index.includes('<i class="bi bi-google me-2" aria-hidden="true"></i>')) throw new Error('Google icon seam changed');
 index=index.replace('<i class="bi bi-google me-2" aria-hidden="true"></i>',googleIcon);
-index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/session-loading.js"></script><script src="/crs/notification-inbox.js"></script><script src="/crs/settings-security.js"></script><script src="/crs/experience.js"></script></body>');
+index=index.replace('</body>','<script src="/crs/magic-ui.js"></script><script src="/crs/react-bits.js"></script><script src="/crs/recaptcha.js"></script><script src="/crs/login-parallax.js"></script><script src="/crs/session-loading.js"></script><script src="/crs/notification-inbox.js"></script><script src="/crs/settings-security.js"></script><script src="/crs/oauth-handoff.js"></script><script src="/crs/experience.js"></script></body>');
 // Remove only this retired generated asset on incremental builds as well.
 await rm(join(output,'login-scene.js'),{force:true});
 await rm(join(output,'guest-scene.js'),{force:true});
@@ -171,6 +176,7 @@ await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web',
 await writeFile(join(output,'session-loading.js'),await readFile(join(root,'web','session-loading.js'),'utf8'));
 await writeFile(join(output,'notification-inbox.js'),await readFile(join(root,'web','notification-inbox.js'),'utf8'));
 await writeFile(join(output,'settings-security.js'),await readFile(join(root,'web','settings-security.js'),'utf8'));
+await writeFile(join(output,'oauth-handoff.js'),await readFile(join(root,'web','oauth-handoff.js'),'utf8'));
 const styleSource=await read('styles');
 const tokens=[styleSource.match(/  :root \{[^}]*\}/)?.[0],styleSource.match(/  \[data-bs-theme="dark"\] \{[^}]*\}/)?.[0]];
 if(tokens.some(value=>!value))throw new Error('404 design token seam changed');

@@ -24,7 +24,7 @@
     root.querySelectorAll('[data-experience-action="language"]').forEach(node=>{const language=CRS.language.effective();node.textContent=language==='en'?'EN':'TH';node.setAttribute('aria-label',language==='en'?'Language: English. Switch to Thai':'ภาษา: ไทย เปลี่ยนเป็นอังกฤษ');});
     if(root===document){
       const title=document.querySelector('#access-state-title');
-      if(title && title.textContent!==t('signIn') && ['ลงชื่อเข้าใช้ด้วย Google','กรุณาลงชื่อเข้าใช้ Google','เข้าสู่ระบบ','Sign in'].includes(title.textContent)) title.textContent=t('signIn');
+      if(title && title.textContent!==t('signIn') && ['ลงชื่อเข้าใช้ด้วย Google','กรุณาลงชื่อเข้าใช้ Google','เข้าสู่ระบบ','Sign in','Sign in with Google','Please sign in with Google'].includes(title.textContent)) title.textContent=t('signIn');
       const message=document.querySelector('#access-state-message');
       if(message && /^(เลือกบัญชี Google|ใช้บัญชีที่ได้รับสิทธิ์|Use an account)/.test(message.textContent.trim())) message.textContent=t('intro');
       const google=document.querySelector('[data-auth-button-label]');
@@ -33,7 +33,7 @@
     }
   }
   const button=(key,action,classes='btn btn-outline-secondary')=>'<button type="button" class="'+classes+'" data-experience-action="'+action+'" data-experience-text="'+key+'">'+escape(t(key))+'</button>';
-  function actions({guide=true,login=true}={}){return '<div class="experience-actions">'+(guide?button('guide','guide'):'')+'<button type="button" class="btn btn-outline-secondary" data-experience-action="language">'+(CRS.language.effective()==='en'?'EN':'TH')+'</button>'+((login&&!CRS.auth.hasSession())?button('signIn','login'):'')+'</div>';}
+  function actions({guide=true,login=true,language=true}={}){return '<div class="experience-actions">'+(guide?button('guide','guide'):'')+(language?'<button type="button" class="btn btn-outline-secondary" data-experience-action="language">'+(CRS.language.effective()==='en'?'EN':'TH')+'</button>':'')+((login&&!CRS.auth.hasSession())?button('signIn','login'):'')+'</div>';}
   function dialog(title,content){
     const node=document.createElement('dialog');node.className='experience-dialog';
     node.innerHTML='<header><h2>'+escape(title)+'</h2><button type="button" class="close-dialog" aria-label="'+escape(t('close'))+'"><i class="bi bi-x" aria-hidden="true"></i></button></header>'+content;
@@ -247,11 +247,11 @@
   function reveal(button,visible){const input=document.getElementById(button.dataset.revealFor);if(input){input.type=visible?'text':'password';button.setAttribute('aria-pressed',String(visible));}}
   document.addEventListener('DOMContentLoaded',()=>{
     const card=document.querySelector('.access-card'),controls=document.createElement('div');controls.className='login-controls';
-    controls.innerHTML=actions({guide:false,login:false});controls.append(document.querySelector('#theme-toggle-login'));card.prepend(controls);
-    document.querySelector('#access-state').insertAdjacentHTML('afterbegin','<nav class="entry-navigation" aria-label="'+escape(t('equipment'))+'"><button type="button" class="btn btn-outline-secondary" data-experience-action="home"><i class="bi bi-arrow-left me-2" aria-hidden="true"></i><span data-experience-text="equipment">'+escape(t('equipment'))+'</span></button></nav>');
+    controls.append(document.querySelector('#theme-toggle-login'));card.prepend(controls);
+    document.querySelector('.login-story').insertAdjacentHTML('beforeend','<nav class="entry-navigation" aria-label="'+escape(t('equipment'))+'"><button type="button" class="btn btn-outline-secondary" data-experience-action="home"><i class="bi bi-arrow-left me-2" aria-hidden="true"></i><span data-experience-text="equipment">'+escape(t('equipment'))+'</span></button></nav>');
     card.insertAdjacentHTML('beforeend','<div class="login-footer">'+button('privacy','privacy','btn btn-link btn-sm')+button('terms','terms','btn btn-link btn-sm')+'</div>');
     const note=card.querySelector('.login-security-note span');note.dataset.experienceText='securityNote';
-    const top=document.querySelector('.topbar-actions');top.querySelector('.theme-toggle').insertAdjacentHTML('beforebegin',notificationButton()+actions());
+    const top=document.querySelector('.topbar-actions');top.querySelector('.theme-toggle').insertAdjacentHTML('beforebegin',notificationButton()+actions({language:false}));
     fetch('/api/experience',{cache:'no-store'}).then(response=>response.ok?response.json():{}).then(links=>{
       for(const [key,value]of[['privacy',links.privacyUrl],['terms',links.termsUrl]]){
         let url;try{url=new URL(value);}catch{continue;}if(url.protocol!=='https:'||url.username||url.password)continue;
@@ -268,7 +268,7 @@
       document.addEventListener('click',event=>{if(event.target.closest('button[data-action="delete-equipment"],#equipment-delete-form button[data-submit]')){event.preventDefault();event.stopImmediatePropagation();CRS.toast(CRS.language.effective()==='en'?'Delete control unavailable. Reload the page.':'ปุ่มลบไม่พร้อมใช้งาน กรุณาโหลดหน้าใหม่','danger');}},true);
       document.addEventListener('submit',event=>{if(event.target.id==='equipment-delete-form'){event.preventDefault();event.stopImmediatePropagation();}},true);
     }
-    translate();cardEffect=global.CRSMagicUI?.mountCard(card)||null;
+    translate();global.CRSOAuthHandoff?.mount(document.querySelector('#oauth-handoff-panel'));cardEffect=global.CRSMagicUI?.mountCard(card)||null;
     global.CRSMagicUI?.mountRipple(document.querySelector('.login-art'));
     global.CRSMagicUI?.mountBlur(document.querySelector('.app-main'));
     global.CRSLoginParallax?.mount(document.querySelector('.login-story'));

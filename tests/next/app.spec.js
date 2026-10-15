@@ -75,6 +75,71 @@ for(const width of [320,390,768,1440])for(const language of ['th','en'])for(cons
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   });
 }
+for(const width of [320,1440])for(const fallback of [false,true])test('OAuth handoff popover '+width+' '+(fallback?'fallback':'native'),async({page})=>{
+  await page.setViewportSize({width,height:740});await mock(page,{signedOut:true});let ended=false;const attempts=[];
+  await page.addInitScript(({fallback,width})=>{
+    localStorage.setItem('crs-ui-language',width===320?'en':'th');localStorage.setItem('crs-theme',width===320?'dark':'light');
+    if(fallback)Object.defineProperty(HTMLElement.prototype,'showPopover',{value:undefined,configurable:true});
+    const popup={closed:false,document:{title:'',body:{}},location:{replace(){}},close(){this.closed=true;}};
+    window.open=()=>popup;
+  },{fallback,width});
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();
+    if(input.method==='beginOAuthSignIn')return route.fulfill({json:{ok:true,data:{flowId:'flow1_'+'a'.repeat(43),authorizationUrl:'https://accounts.google.com/o/oauth2/v2/auth?state=fixture-only',expiresAt:Math.floor(Date.now()/1000)+120}}});
+    if(input.method==='completeOAuthSignIn'){
+      const otp=input.args[2];if(otp)attempts.push(otp);
+      return route.fulfill({json:ended?{ok:false,error:{code:'UNAUTHENTICATED',message:'Fixture attempt ended'}}:otp?{ok:false,error:{code:'OTP_INVALID',message:'Fixture invalid OTP'}}:{ok:true,data:{status:'AWAITING_CONFIRMATION',closePopup:true}}});
+    }
+    return route.fallback();
+  });
+  await page.goto('/');await openLogin(page);await page.emulateMedia({reducedMotion:'reduce'});
+  const panel=page.locator('#oauth-handoff-panel');await expect(panel).toBeHidden();
+  await page.locator('#google-signin-button').click();await expect(panel).toBeVisible();
+  await expect(panel).toHaveAttribute('data-handoff-open','true');await expect(panel).toHaveAttribute('role','dialog');
+  if(!fallback)expect(await panel.evaluate(node=>node.matches(':popover-open'))).toBe(true);
+  await expect(panel.locator('[data-otp-digit]').first()).toBeFocused();
+  const height=await page.locator('.login-layout').evaluate(node=>node.getBoundingClientRect().height);
+  await expect(page.locator('.login-story')).toBeVisible();
+  const box=await panel.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.y+box.height).toBeLessThanOrEqual(740);
+  await expect(panel.locator('#oauth-handoff-submit')).toBeDisabled();
+  await panel.locator('[data-otp-digit]').first().evaluate(node=>{const event=new Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:()=> '１２ ３-４５６'}});node.dispatchEvent(event);});
+  expect(await panel.locator('[data-otp-digit]').evaluateAll(nodes=>nodes.map(n=>n.value).join(''))).toBe('123456');
+  await panel.locator('#oauth-handoff-submit').click();await expect(panel.locator('#oauth-handoff-error')).toHaveText('Fixture invalid OTP');expect(attempts).toEqual(['123456']);
+  // Submission clears the old code through the preserved auth module. A new,
+  // unsubmitted edit must survive presentation dismissal instead of cancellation.
+  await panel.locator('[data-otp-digit]').first().fill('9');
+  await page.keyboard.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('[data-handoff-reopen]')).toBeFocused();
+  expect(Math.abs(await page.locator('.login-layout').evaluate(node=>node.getBoundingClientRect().height)-height)).toBeLessThan(1);
+  expect(await panel.evaluate(node=>node.hidden)).toBe(false); // Closing presentation must not cancel auth.
+  await page.locator('[data-handoff-reopen]').click();await expect(panel).toBeVisible();
+  expect(await panel.locator('[data-otp-digit]').evaluateAll(nodes=>nodes.map(n=>n.value).join(''))).toBe('9');
+  await panel.locator('[data-handoff-close]').click();await expect(panel).toBeHidden();await page.locator('[data-handoff-reopen]').click();
+  ended=true;await expect(panel).toBeHidden();await expect(page.locator('[data-handoff-reopen]')).toBeHidden();
+  expect(await panel.locator('[data-otp-digit]').evaluateAll(nodes=>nodes.every(n=>!n.value))).toBe(true);
+  await expect(page.locator('#google-signin-button')).toBeEnabled();await expectNoOverflow(page);
+});
+
+test('OAuth handoff presentation disposes and remounts without changing the auth hidden flag',async({page})=>{
+  await mock(page,{signedOut:true});await page.goto('/');await openLogin(page);
+  const panel=page.locator('#oauth-handoff-panel');await panel.evaluate(node=>node.hidden=false);await expect(panel).toBeVisible();
+  await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
+  await expect(page.locator('[data-handoff-close],[data-handoff-reopen]')).toHaveCount(0);
+  await expect(page.locator('.access-card > #oauth-handoff-panel')).toHaveCount(1);
+  expect(await panel.evaluate(node=>node.hidden)).toBe(false);
+  await page.evaluate(()=>{const dispose=CRSOAuthHandoff.mount(document.querySelector('#oauth-handoff-panel'));dispose();dispose();CRSOAuthHandoff.mount(document.querySelector('#oauth-handoff-panel'));});
+  await expect(page.locator('[data-handoff-close]')).toHaveCount(1);await expect(page.locator('[data-handoff-reopen]')).toHaveCount(1);
+  await expect(panel).toBeVisible();await panel.evaluate(node=>node.hidden=true);await expect(panel).toBeHidden();await expect(page.locator('[data-handoff-reopen]')).toBeHidden();
+});
+
+test('blocked handoff enhancement keeps the existing inline OTP inputs usable',async({page})=>{
+  await mock(page,{signedOut:true});await page.route('**/crs/oauth-handoff.js',route=>route.abort());
+  await page.goto('/');await openLogin(page);const panel=page.locator('#oauth-handoff-panel');
+  await panel.evaluate(node=>node.hidden=false);await expect(panel).toBeVisible();
+  await expect(panel).not.toHaveAttribute('popover');await expect(page.locator('[data-handoff-close]')).toHaveCount(0);
+  await panel.locator('[data-otp-digit]').first().fill('123456');await expect(panel.locator('#oauth-handoff-submit')).toBeEnabled();
+  await expect(page.locator('#password-login-form')).toBeVisible();await expect(page.locator('#google-signin-button')).toBeEnabled();
+});
+
 test.beforeEach(async({page})=>{
   await installOfflineAssets(page);
   // No Google requests/real CAPTCHA solving in deterministic UI tests.
@@ -410,6 +475,9 @@ test('incomplete/changing public pagination fails visibly without private fallba
 
 async function holdKey(page,control,key=' '){await control.focus();await page.keyboard.down(key);await expect(page.locator('#equipment-delete-modal')).toBeVisible({timeout:4000});await page.keyboard.up(key);}
 test('Hold Button covers detail and final delete, requires exact typed ID, blocks click/Enter-submit, and sends one guarded mutation',async({page})=>{
+  // Keep this workflow fixture stationary. The separate cancellation regression
+  // exercises real scroll/blur; a focus-induced smooth scroll must cancel holds.
+  await page.emulateMedia({reducedMotion:'reduce'});
   const {calls,record}=await mock(page);await page.goto('/?view=equipment-detail&id='+record.asset_id);
   const entry=page.locator('#page-equipment-detail [data-action="delete-equipment"]');await expect(entry).toHaveClass(/hold-button/);
   await entry.click();await expect(page.locator('#equipment-delete-modal')).toBeHidden();await holdKey(page,entry);
@@ -782,7 +850,7 @@ test('Login hints translate with real language and pill hover is scoped, readabl
   await mock(page,{signedOut:true});await page.goto('/',{waitUntil:'domcontentloaded'});await openLogin(page);
   await expect(page.locator('#login-email')).toHaveAttribute('placeholder','กรอกอีเมลของคุณ');
   await expect(page.locator('#login-password')).toHaveAttribute('placeholder','กรอกรหัสผ่านของคุณ');
-  await page.locator('.login-controls [data-experience-action="language"]').click();
+  await page.evaluate(()=>CRS.language.set('en'));
   await expect(page.locator('#login-email')).toHaveAttribute('placeholder','Enter your email');
   await expect(page.locator('#login-password')).toHaveAttribute('placeholder','Enter your password');
   const submit=page.locator('#password-login-submit'),google=page.locator('#google-signin-button');
@@ -1015,13 +1083,20 @@ test('forced password change routes to Security instead of the requested busines
   await expect(page.locator('#equipment-results')).toHaveCount(0);
 });
 
-test('new actions translate TH/EN; quick theme has two states and System remains in Appearance',async({page})=>{
-  await mock(page);await page.goto('/?view=settings&section=appearance');
+test('topbar follows Settings language without a quick language button; theme retains its two states',async({page})=>{
+  await mock(page,{preserveSession:true});await page.goto('/?view=settings&section=appearance');
   await expect(page.locator('.settings-global-actions')).toHaveCount(0);
   await page.locator('[data-settings-theme="system"]').click();await expect(page.locator('html')).toHaveAttribute('data-theme-preference','system');
   await page.goto('/?view=equipment');
-  await page.locator('.topbar-actions [data-experience-action="language"]').click();await expect(page.locator('.topbar-actions [data-experience-action="guide"]')).toHaveText('Guide');
-  await page.locator('.topbar-actions [data-experience-action="language"]').click();await expect(page.locator('.topbar-actions [data-experience-action="guide"]')).toHaveText('คู่มือ');
+  await expect(page.locator('.topbar-actions [data-experience-action="language"]')).toHaveCount(0);
+  await page.goto('/?view=settings');await page.locator('#language-trigger').click();await page.locator('[data-language-code="en"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang','en');await page.goto('/?view=dashboard');
+  await expect(page.locator('.topbar-actions [data-experience-action="guide"]')).toHaveText('Guide');
+  await expect(page.locator('.notification-bell')).toHaveAttribute('aria-label',/Notifications/);
+  await page.goto('/?view=settings');await page.locator('#language-trigger').click();await page.locator('[data-language-code="th"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang','th');await page.goto('/?view=dashboard');
+  await expect(page.locator('.topbar-actions [data-experience-action="guide"]')).toHaveText('คู่มือ');
+  await expect(page.locator('.topbar-actions [data-experience-action="language"]')).toHaveCount(0);
   await page.locator('.topbar-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
   await page.locator('.topbar-actions [data-action="theme-toggle"]').click();await expect(page.locator('html')).not.toHaveAttribute('data-theme-preference','system');
   await page.goto('/?view=dashboard');await page.locator('[data-experience-action="notifications"]').click();await expect(page.locator('.notification-popover .notification-item')).toContainText('อนุมัติ');
@@ -1114,7 +1189,8 @@ test('Login effects and icon/search geometry respect reduced motion, touch, them
   await openLogin(page);
   await expect(page.locator('.liquid-glass-cursor')).toBeHidden();await expect(page.locator('.login-foil')).toHaveCount(0);
   const location=await page.locator('#theme-toggle-login').evaluate(node=>{const style=getComputedStyle(node.querySelector('i'));return{inside:!!node.closest('.access-card'),align:style.alignItems,justify:style.justifyContent};});expect(location.inside).toBe(true);expect(location.align).toBe('center');expect(location.justify).toBe('center');
-  await page.locator('.access-card [data-experience-action="language"]').click();await expect(page.locator('#access-state-title')).toHaveText('Sign in');await expect(page.locator('label[for="login-email"]')).toHaveText('Email');
+  await expect(page.locator('.access-card [data-experience-action="language"]')).toHaveCount(0);
+  await page.evaluate(()=>CRS.language.set('en'));await expect(page.locator('#access-state-title')).toHaveText('Sign in');await expect(page.locator('label[for="login-email"]')).toHaveText('Email');
   await page.evaluate(()=>window.CRS.theme.apply('dark',true));
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme','dark');
   await page.locator('#access-state').evaluate(element=>element.scrollTo({top:0,behavior:'instant'}));
@@ -1216,6 +1292,8 @@ test('forgot password modal clears secrets after OTP-verified matching reset; fo
 });
 
 test('Admin can explicitly publish a narrow Guest projection and issue a password only by email',async({page})=>{
+  // This fixture tests guarded commands, not Bootstrap's opening transition.
+  await page.emulateMedia({reducedMotion:'reduce'});
   const {calls,record}=await mock(page);await page.goto('/?view=equipment-detail&id='+record.asset_id);
   const publish=page.locator('[data-equipment-public]');await expect(publish).toHaveText('เปิดให้ Guest ดู');await expect(publish).toBeEnabled();await publish.click();
   await page.locator('#confirm-modal [data-confirm-accept]').click();await expect(publish).toHaveText('ปิดการแสดงต่อ Guest');
@@ -1226,14 +1304,16 @@ test('Admin can explicitly publish a narrow Guest projection and issue a passwor
   await expect(page.locator('.toast').last()).toContainText('ส่งและเปิดใช้รหัสชั่วคราวแล้ว');
 });
 
-test('Login controls use Thai by default, synchronize saved language, center pairs and order actions before theme',async({page})=>{
+test('Login uses saved language without a quick toggle, keeps its centered pairs and home inside story',async({page})=>{
   await mock(page,{signedOut:true});
   await page.addInitScript(()=>Object.defineProperty(navigator,'language',{value:'en-US',configurable:true}));
   for(const width of [320,390,768,1440])for(const theme of ['light','dark']){
     await page.setViewportSize({width,height:900});await page.goto('/');await openLogin(page);
     await page.evaluate(value=>window.CRS.theme.apply(value,true),theme);
     await expect(page.locator('html')).toHaveAttribute('lang','th');
-    await expect(page.locator('.login-controls [data-experience-action="language"]')).toHaveText('TH');
+    await expect(page.locator('#access-state [data-experience-action="language"]')).toHaveCount(0);
+    await expect(page.locator('.login-story > .entry-navigation [data-experience-action="home"]')).toBeVisible();
+    await expect(page.locator('#access-state > .entry-navigation')).toHaveCount(0);
     await expect(page.locator('.login-story-footer,.login-foil')).toHaveCount(0);
     await expect(page.locator('#google-signin-button .bi-google')).toHaveCount(0);
     const colors=await page.locator('.google-brand-icon path').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('fill')));
@@ -1244,15 +1324,15 @@ test('Login controls use Thai by default, synchronize saved language, center pai
       const control=document.querySelector('.login-controls'),reset=document.querySelector('[data-experience-action="reset-password"]');
       return {remember:Math.abs(center(check)-center(label)),security:Math.abs(center(note.querySelector('i'))-center(note.querySelector('span'))),
         resetRight:Math.abs(reset.getBoundingClientRect().right-document.querySelector('#password-login-form').getBoundingClientRect().right),
-        last:control.lastElementChild.id,actionsBefore:control.querySelector('.experience-actions').nextElementSibling.id};
+        last:control.lastElementChild.id,controls:control.children.length,navInside:document.querySelector('.login-story').contains(document.querySelector('.entry-navigation'))};
     });
     expect(geometry.remember).toBeLessThan(1);expect(geometry.security).toBeLessThan(1);expect(geometry.resetRight).toBeLessThan(1);
-    expect(geometry.last).toBe('theme-toggle-login');expect(geometry.actionsBefore).toBe('theme-toggle-login');await expectNoOverflow(page);
+    expect(geometry.last).toBe('theme-toggle-login');expect(geometry.controls).toBe(1);expect(geometry.navInside).toBe(true);await expectNoOverflow(page);
   }
-  const language=page.locator('.login-controls [data-experience-action="language"]');
-  await language.click();await expect(language).toHaveText('EN');await expect(page.locator('html')).toHaveAttribute('lang','en');
-  await page.reload();await openLogin(page);await expect(language).toHaveText('EN');
-  await language.click();await expect(language).toHaveText('TH');
+  await page.locator('.entry-navigation [data-experience-action="home"]').click();
+  await page.locator('.guest-controls [data-experience-action="language"]').click();await openLogin(page);await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await page.reload();await openLogin(page);await expect(page.locator('#access-state-title')).toHaveText('Sign in');
+  await expect(page.locator('#access-state [data-experience-action="language"]')).toHaveCount(0);
   for(const [key,target]of[['privacy','https://policies.google.com/privacy'],['terms','https://policies.google.com/terms']]){
     const link=page.locator('.login-footer [data-experience-action="'+key+'"]');await expect(link).toHaveAttribute('href',target);await expect(link).toHaveAttribute('rel','noopener noreferrer');
   }
@@ -1277,7 +1357,7 @@ test('animated remember checkbox preserves native label, keyboard, saved prefere
   await expect(drawing).toHaveCSS('outline-style','solid');await expect(drawing).toHaveCSS('outline-width','3px');
   expect(await page.evaluate(()=>localStorage.getItem('crs.auth.remember.v1'))).toBe('false');
   // The decorative SVG lives outside the label replaced by TH/EN textContent.
-  await page.locator('.login-controls [data-experience-action="language"]').click();
+  await page.evaluate(()=>CRS.language.set('en'));
   await expect(page.getByRole('checkbox',{name:'Remember sign-in on this device',exact:true})).toHaveCount(1);
   await expect(drawing.locator('svg')).toHaveCount(1);await label.click();await expect(checkbox).toBeChecked();
   await checkbox.evaluate(node=>node.disabled=true);await expect(checkbox).toBeDisabled();

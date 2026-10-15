@@ -31,7 +31,16 @@
 .login-controls { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
 .access-card .theme-toggle-login { position:static; flex-shrink:0; }
 .brand-mark:has(> img) { background:transparent; box-shadow:none; }
-.entry-navigation { width:min(1080px,100%); margin:0 auto 1rem; }
+.login-story { display:flex; flex-direction:column; }
+.entry-navigation { align-self:flex-start; max-width:100%; margin:auto 0 0; padding-top:1.5rem; position:relative; z-index:1; }
+.entry-navigation .btn { min-height:44px; max-width:100%; }
+#oauth-handoff-panel.oauth-handoff-popover { position:fixed; inset:0; margin:auto; width:min(28rem,calc(100vw - 2rem)); height:max-content; max-height:calc(100dvh - 2rem); overflow-y:auto; overscroll-behavior:contain; padding:3.25rem 1.25rem 1.25rem; border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius-lg); background:var(--crs-surface); color:var(--crs-ink); box-shadow:var(--crs-shadow); text-align:center; }
+#oauth-handoff-panel.oauth-handoff-popover:not([popover]):not([data-handoff-open="true"]) { display:none; }
+#oauth-handoff-panel.oauth-handoff-popover:not([popover])[data-handoff-open="true"] { z-index:1090; }
+.oauth-handoff-popover::backdrop { background:transparent; pointer-events:none; }
+.oauth-handoff-close { position:absolute; inset-block-start:.5rem; inset-inline-end:.5rem; display:grid; place-items:center; width:44px; height:44px; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); }
+.oauth-handoff-reopen { min-height:44px; }
+.oauth-handoff-close:focus-visible,.oauth-handoff-reopen:focus-visible { outline:3px solid var(--crs-focus-outline); outline-offset:2px; }
 .login-password-form { width:100%; margin-block:1.25rem; }
 .password-field { position:relative; }
 .password-field input { padding-inline-end:3.2rem; }
