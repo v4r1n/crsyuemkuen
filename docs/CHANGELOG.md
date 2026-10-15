@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Owner profile Production activation (2026-10-15)
+
+- Activate accepted `3d92732` after an explicitly approved verified online format-3 backup (seven binaries), additive private profile schema, matching three-entry migration ledger and repeat/no-data-change checks. Preserve writable Production, frozen Preview, canonical callbacks, protection and private originals.
+- Repeat focused offline tests/build and validate the unassigned Production artifact before promoting it. Record canonical verification, rollback boundary, existing advisor warnings and remaining real-user/provider/device/restore acceptance in Memory. No new runtime source, Preview rollout, live user/profile mutation or credential/environment change is part of this activation phase.
+
 ### Owner profile and Settings refinements (2026-10-15, source only)
 
 - Add owner-only versioned/command-safe name autosave in Account and Settings Account, with existing Users identity and old History snapshots preserved; retain legacy long names, expose retry/save states and reuse the existing session without extending expiry.

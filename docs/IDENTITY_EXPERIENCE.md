@@ -20,6 +20,8 @@ Private additive `20261015064806_owner_profile.sql` and format-4 backup tooling 
 
 Activation requires a fresh target/writer check, a verified private backup made using the prior accepted backup format, explicit approval of additive schema and any required freeze (or a separately approved online snapshot plan), idempotent checksum-ledger application and private-table advisors, then staged/canonical smoke. Preserve Production/Preview origins, callback, protection and writer modes unless separately authorized. Source tests are not actual-provider, real-device, concurrent-Postgres or cloud restore acceptance.
 
+Later on 2026-10-15, the operator explicitly approves the bounded online-snapshot alternative with Production writable and Preview frozen. The verified prior-format snapshot and additive profile migration precede activation of accepted `3d92732`; [Memory](MEMORY.md) owns current candidate/canonical evidence, rollback and outstanding real-provider acceptance. This exception does not authorize changing writer modes or restoring a point-in-time snapshot over subsequent writes.
+
 ### Catalog and Settings presentation refinement (2026-10-15)
 
 The operator confirms eight visible wrapped lines for Specifications, selected-language check-only styling and full-width one-column Security cards. These are reversible Next-only presentation choices, not changes to ADR-030's navigation authority or ADR-034's owner/session model. Validation and actual activation belong in [Memory](MEMORY.md).
