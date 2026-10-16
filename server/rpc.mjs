@@ -12,6 +12,7 @@ import { digest } from './domain.mjs';
 import { settingsOverview,listSessions,revokeSessions,securityActivity,notificationPreferences } from './settings-security.mjs';
 import { touchSession } from './session-metadata.mjs';
 import {profileService} from './profile.mjs';
+import {registerPush} from './notification-delivery.mjs';
 const passwords=passwordAuth();
 const profiles=profileService();
 
@@ -39,6 +40,7 @@ export async function rpc(method,args,token,requestKey='',requestContext={}) {
     if(method==='verifyPasswordOtp') return passwords.verifyOtp(args[0],token);
     if(method==='changePassword') return passwords.changePassword(args[0],token,requestKey);
     if(method==='adminIssueTemporaryPassword') return passwords.issueTemporary(args[0],token);
+    if(method==='registerPushSubscription')return registerPush(token,args[0]);
     const profileMethods={getOwnProfile:'get',saveOwnName:'rename',prepareOwnAvatar:'prepare',finalizeOwnAvatar:'finalize',getOwnAvatar:'avatar'};
     if(Object.hasOwn(profileMethods,method))return profiles[profileMethods[method]](token,args[0]);
     if(['getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference'].includes(method)) {
@@ -48,9 +50,9 @@ export async function rpc(method,args,token,requestKey='',requestContext={}) {
         if(method==='listActiveSessions') return listSessions(db,user,token);
         if(method==='revokeOtherSessions') return revokeSessions(db,user,token,args[0]);
         if(method==='listSecurityActivity') return securityActivity(db,user);
-        if(method==='getNotificationPreferences') return notificationPreferences(db,user);
+        if(method==='getNotificationPreferences') return notificationPreferences(db,user,undefined,token);
         if(args[0]===undefined)fail('VALIDATION_FAILED');
-        return notificationPreferences(db,user,args[0]);
+        return notificationPreferences(db,user,args[0],token);
       });
     }
     if(method==='listPublicEquipment') {

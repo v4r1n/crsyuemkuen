@@ -2,6 +2,10 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-036 — Opt-in external notification delivery
+
+[Decision](adr/0006-external-notification-delivery.md): user authorizes real single-select Push/Email on 2026-10-16. Preserve independent in-app preferences and mandatory security mail. Queue only new authoritative notices, isolate canonical targets and session-bound private devices, and treat ambiguous provider outcomes as uncertain rather than resending. This supersedes ADR-034's unavailable-channel restriction only upon separately accepted activation; source preparation is not cloud rollout.
+
 ## ADR-035 — Owner profile and private avatar resources
 
 [Decision](adr/0005-owner-profile-and-private-avatar.md): retain Users.name and historical snapshots, use owner-only versioned commands, and keep private avatars separate from Equipment. Format-4 backups retain immutable staged/current/retired resources. Live additive activation is a separate gate; Memory owns current verification and deployment evidence.

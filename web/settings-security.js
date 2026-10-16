@@ -108,12 +108,56 @@
           for(const item of items) {
             const row=document.createElement('div');row.className='settings-preference-row';
             const label=document.createElement('span');label.textContent=labels[item.event];row.append(label);
-            const details=document.createElement('details');details.className='settings-channel-picker';details.innerHTML='<summary></summary><div><label><input type="checkbox" data-in-app> '+t('ในระบบ','In-app')+'</label><label><input type="checkbox" disabled> '+t('พุช · ยังไม่พร้อม','Push · unavailable')+'</label><label><input type="checkbox" disabled> '+t('อีเมล · ยังไม่พร้อม','Email · unavailable')+'</label></div>';
-            const summary=details.querySelector('summary'),checkbox=details.querySelector('[data-in-app]');
-            const sync=()=>{checkbox.checked=item.inApp;summary.textContent=(item.inApp?t('ในระบบ','In-app'):t('ปิด','Off'))+' ▾';};sync();summary.setAttribute('aria-label',label.textContent);
-            checkbox.onchange=async()=>{
-              checkbox.disabled=true;
-              try {const saved=await request('saveNotificationPreference',{event:item.event,inApp:checkbox.checked,expectedVersion:item.version});if(!valid())return;Object.assign(item,saved.items.find(value=>value.event===item.event));await inbox.refreshCount();status.textContent=t('บันทึกแล้ว','Saved');}
+            const controls=document.createElement('div');controls.className='settings-delivery-controls';
+            const inApp=document.createElement('label');inApp.className='settings-in-app';
+            inApp.innerHTML='<input type="checkbox" data-in-app> '+t('ในระบบ','In-app');controls.append(inApp);
+            const checkbox=inApp.querySelector('input');checkbox.setAttribute('aria-label',label.textContent+' · '+t('ในระบบ','In-app'));
+            const details=document.createElement('details');details.className='settings-channel-picker';
+            details.innerHTML='<summary aria-haspopup="menu"></summary><div role="menu" class="settings-channel-menu"></div>';
+            const summary=details.querySelector('summary'),menu=details.querySelector('[role="menu"]');
+            menu.id='settings-channel-menu-'+item.event;summary.setAttribute('aria-controls',menu.id);
+            summary.setAttribute('aria-label',label.textContent+' · '+t('ช่องทางภายนอก','External channel'));
+            menu.setAttribute('aria-label',summary.getAttribute('aria-label'));
+            if(typeof menu.showPopover==='function')menu.setAttribute('popover','manual');
+            const options=['PUSH','EMAIL'].map(channel=>{
+              const option=document.createElement('button');option.type='button';option.dataset.channel=channel;
+              option.setAttribute('role','menuitemradio');
+              const name=document.createElement('span');name.textContent=channel==='PUSH'?t('พุช','Push'):t('อีเมล','Email');
+              const check=document.createElement('i');check.className='bi bi-check-lg';check.setAttribute('aria-hidden','true');option.append(name,check);menu.append(option);return option;
+            });
+            const clear=document.createElement('button');clear.type='button';clear.className='btn btn-outline-secondary';
+            clear.textContent=t('ปิดการส่งภายนอก','Turn off external delivery');clear.dataset.deliveryOff='';
+            const close=()=>{if(menu.hasAttribute('popover')&&menu.matches(':popover-open'))menu.hidePopover();details.open=false;summary.setAttribute('aria-expanded','false');};
+            const position=()=>{
+              if(!details.open || !menu.hasAttribute('popover'))return;
+              const box=summary.getBoundingClientRect(),height=menu.getBoundingClientRect().height;
+              menu.style.left=Math.max(8,Math.min(box.right-200,innerWidth-208))+'px';
+              menu.style.top=Math.max(8,box.bottom+height+8>innerHeight?box.top-height-4:box.bottom+4)+'px';
+            };
+            let busy=false;
+            const sync=()=>{
+              if(!busy)checkbox.checked=item.inApp;checkbox.disabled=busy;
+              summary.setAttribute('aria-expanded',String(details.open));
+              summary.textContent=(item.channel==='PUSH'?t('พุช','Push'):item.channel==='EMAIL'?t('อีเมล','Email'):t('เลือกช่องทาง','Choose channel'))+' ▾';
+              clear.hidden=!item.channel;clear.disabled=busy;
+              for(const option of options){
+                option.setAttribute('aria-checked',String(item.channel===option.dataset.channel));
+                option.disabled=busy || (option.dataset.channel==='PUSH'?(!data.channels.push || !global.CRSPush?.supported()):!data.channels.email);
+                option.title=option.disabled&&!busy?t('ยังไม่พร้อมใช้งาน','Unavailable'):'';
+              }
+            };sync();
+            async function save(update){
+              if(busy)return;busy=true;sync();status.textContent=t('กำลังบันทึก…','Saving…');
+              try {
+                if(update.channel==='PUSH') {
+                  if(!await global.CRSPush.enable(data.pushPublicKey,request,valid))return;
+                  data.pushRegistered=true;
+                }
+                if(!valid())return;
+                const saved=await request('saveNotificationPreference',{event:item.event,...update,expectedVersion:item.version});
+                if(!valid())return;Object.assign(item,saved.items.find(value=>value.event===item.event));
+                await inbox.refreshCount();if(valid())status.textContent=t('บันทึกแล้ว','Saved');
+              }
               catch(error){
                 if(!valid())return;status.textContent=error.message;
                 if(error.code==='STATE_CONFLICT') {
@@ -121,18 +165,43 @@
                   catch{/* Keep the failure visible; no unguarded or optimistic write. */}
                 }
               }
-              finally{if(valid()){sync();checkbox.disabled=false;}}
+              finally{if(valid()){busy=false;sync();}}
+            }
+            checkbox.onchange=()=>save({inApp:checkbox.checked});clear.onclick=()=>save({channel:null});
+            for(const option of options)option.onclick=()=>{close();summary.focus();if(item.channel!==option.dataset.channel || option.dataset.channel==='PUSH'&&!data.pushRegistered)save({channel:option.dataset.channel});};
+            details.ontoggle=()=>{
+              summary.setAttribute('aria-expanded',String(details.open));
+              if(details.open){
+                root.querySelectorAll('.settings-channel-picker[open]').forEach(node=>{if(node!==details)node.open=false;});
+                if(menu.hasAttribute('popover')){if(!menu.matches(':popover-open'))menu.showPopover();position();}
+              }else if(menu.hasAttribute('popover')&&menu.matches(':popover-open'))menu.hidePopover();
             };
-            details.onkeydown=event=>{if(event.key==='Escape'){event.stopPropagation();details.open=false;summary.focus();}};
-            row.append(details);panel.append(row);
+            details.onkeydown=event=>{
+              if(event.key==='Escape'){event.stopPropagation();event.preventDefault();close();summary.focus();}
+              if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
+                event.preventDefault();details.open=true;
+                // The native details toggle event is queued. Open the top
+                // layer now so arrow-key focus cannot race that later event.
+                if(menu.hasAttribute('popover')&&!menu.matches(':popover-open')){menu.showPopover();position();}
+                const enabled=options.filter(option=>!option.disabled),index=enabled.indexOf(document.activeElement);
+                const next=event.key==='Home'?0:event.key==='End'?enabled.length-1:index<0?(event.key==='ArrowUp'?enabled.length-1:0):(index+(event.key==='ArrowUp'?-1:1)+enabled.length)%enabled.length;
+                requestAnimationFrame(()=>{if(valid()&&details.open)enabled[next]?.focus();});
+              }
+            };
+            // Browser scroll/resize must not strand a top-layer menu.
+            details._close=close;details._position=position;
+            controls.append(details,clear);row.append(controls);panel.append(row);
           }
         }
-        root.insertAdjacentHTML('beforeend',card(heading(t('การเตือนกำหนดคืน','Due date reminders'))+'<p>'+t('ใกล้ครบกำหนด / เกินกำหนด · ยังไม่มี scheduler จึงยังไม่เปิดใช้','Due soon / overdue · scheduler not installed; unavailable')+'</p>')+card(heading(t('สถานะ Email / Push','Email / Push status'))+'<p>'+t('อีเมลธุรกิจและ Web Push ยังไม่พร้อมใช้งาน อีเมล OTP และความปลอดภัยใช้ระบบเดิม','Business email and Web Push are unavailable. OTP/security email retains the existing delivery system.')+'</p>'));
+        root.insertAdjacentHTML('beforeend',card(heading(t('การเตือนกำหนดคืน','Due date reminders'))+'<p>'+t('ใกล้ครบกำหนด / เกินกำหนด · ยังไม่เปิดใช้','Due soon / overdue · unavailable')+'</p>')+card(heading(t('สถานะ Email / Push','Email / Push status'))+'<p>'+t('เลือกช่องทางภายนอกได้หนึ่งช่องทางต่อกิจกรรม โดยไม่ปิดการแจ้งเตือนในเว็บ อีเมลส่งไปยังอีเมลบัญชีปัจจุบัน พุชต้องอนุญาตบนอุปกรณ์นี้และลงทะเบียนใหม่หลังลงชื่อเข้าใช้ครั้งใหม่ ช่องทางที่ยังไม่ตั้งค่าจะเลือกไม่ได้','Choose one external channel per activity without disabling in-app notices. Email uses your current account address. Push requires device permission and registration after a new sign-in. Unconfigured channels are unavailable.')+'</p>'));
         const recent=document.createElement('section');recent.className='settings-card';recent.innerHTML=heading(t('การแจ้งเตือนล่าสุด','Recent notifications'))+action(t('อ่านทั้งหมดแล้ว','Mark all as read'),'data-settings-read-all')+'<div class="notification-list mt-3" data-settings-inbox></div>';root.append(recent);inbox.mount(recent.querySelector('[data-settings-inbox]'));
         const mark=recent.querySelector('[data-settings-read-all]');mark.disabled=typeof inbox.markAllRead!=='function';mark.onclick=async()=>{mark.disabled=true;try{await inbox.markAllRead();}catch(error){if(valid())status.textContent=error.message;}finally{if(valid())mark.disabled=false;}};
-        const controller=new AbortController();document.addEventListener('pointerdown',event=>{root.querySelectorAll('details[open]').forEach(node=>{if(!node.contains(event.target))node.open=false;});},{signal:controller.signal});
+        const controller=new AbortController(),closeOutside=event=>root.querySelectorAll('.settings-channel-picker[open]').forEach(node=>{if(!node.contains(event.target))node._close();});
+        document.addEventListener('pointerdown',closeOutside,{signal:controller.signal});
+        document.addEventListener('focusin',closeOutside,{signal:controller.signal});
+        for(const name of ['resize','scroll'])global.addEventListener(name,()=>root.querySelectorAll('.settings-channel-picker[open]').forEach(node=>node._position()),{capture:true,passive:true,signal:controller.signal});
         const previousCleanup=CRS.state.routeCleanup;
-        CRS.setRouteCleanup(async()=>{controller.abort();if(previousCleanup)await previousCleanup();});
+        CRS.setRouteCleanup(async()=>{controller.abort();root.querySelectorAll('.settings-channel-picker').forEach(node=>node._close());if(previousCleanup)await previousCleanup();});
       }catch(error){showError(error,notifications);}
     }
     if(section==='notifications')notifications();

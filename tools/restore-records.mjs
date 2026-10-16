@@ -75,6 +75,10 @@ export async function commitRestore(snapshot,transaction) {
     // Ephemeral identity/proof data is never restored or allowed to authorize
     // the restored Users. Fresh linked Google or password sign-in is mandatory.
     for(const table of ['sessions','auth_flows','proofs','rate_limits','password_challenges']) await db.query(`DELETE FROM crs.${table}`);
+    // Device capabilities and delivery attempts are transient, excluded from
+    // backups. Historical notices are never re-enqueued after restore.
+    for(const table of ['notification_delivery','push_subscriptions'])if((await db.query('SELECT to_regclass($1) AS name',['crs.'+table])).rows[0].name)
+      await db.query(`DELETE FROM crs.${table}`);
     await db.query("UPDATE crs.security_mail SET status='UNCERTAIN' WHERE status IN ('PENDING','SENDING')");
   });
 }

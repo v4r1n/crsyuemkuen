@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { config } from './config.mjs';
 import { digest, loadDomain, saveDomain } from './domain.mjs';
 import { fail } from './errors.mjs';
+import {deliveryConfiguration} from './notification-config.mjs';
+import {assertWritable} from './images.mjs';
 
 export const preferenceEvents = Object.freeze(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']);
 const adminEvents = new Set(['ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']);
@@ -93,17 +95,32 @@ export async function securityActivity(db,user) {
     return {id:row.id,action:row.action,timestamp:row.timestamp,outcome};
   })};
 }
-export async function notificationPreferences(db,user,input) {
+export async function notificationPreferences(db,user,input,token) {
+  const channels=deliveryConfiguration(),origin=config().WEB_APP_URL;
+  const pushRegistered=Boolean(channels.push && token && (await db.query(
+    'SELECT id FROM crs.push_subscriptions WHERE user_id=$1 AND session_hash=$2 AND origin=$3 AND expires_at>now()',
+    [user.user_id,digest(token),origin])).rows.length);
   if(input!==undefined) {
     if(!input || typeof input!=='object' || !preferenceEvents.includes(input.event) || (adminEvents.has(input.event) && user.role!=='ADMIN') ||
-      typeof input.inApp!=='boolean' || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion<0) fail('VALIDATION_FAILED');
+      (input.inApp!==undefined && typeof input.inApp!=='boolean') ||
+      (input.channel!==undefined && ![null,'PUSH','EMAIL'].includes(input.channel)) ||
+      (input.inApp===undefined && input.channel===undefined) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion<0) fail('VALIDATION_FAILED');
+    if(input.channel!==undefined) {
+      assertWritable();
+      if(input.channel==='EMAIL'&&!channels.email || input.channel==='PUSH'&&(!channels.push || !pushRegistered))
+        fail('NOTIFICATION_UNAVAILABLE','กรุณาเปิดใช้งานช่องทางแจ้งเตือนก่อน');
+    }
     const prior=(await db.query('SELECT row_version FROM crs.notification_preferences WHERE user_id=$1 AND event=$2',[user.user_id,input.event])).rows[0];
     if(Number(prior?.row_version || 0)!==input.expectedVersion) fail('STATE_CONFLICT','ข้อมูลเปลี่ยนไป กรุณาโหลดใหม่');
-    await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app) VALUES($1,$2,$3)
+    if(input.channel!==undefined)await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app,external_channel) VALUES($1,$2,COALESCE($3,true),$4)
+      ON CONFLICT(user_id,event) DO UPDATE SET in_app=COALESCE($3,crs.notification_preferences.in_app),external_channel=$4,
+      row_version=crs.notification_preferences.row_version+1,updated_at=now()`,[user.user_id,input.event,input.inApp??null,input.channel]);
+    else await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app) VALUES($1,$2,$3)
       ON CONFLICT(user_id,event) DO UPDATE SET in_app=excluded.in_app,row_version=crs.notification_preferences.row_version+1,updated_at=now()`,[user.user_id,input.event,input.inApp]);
   }
-  const saved=(await db.query('SELECT event,in_app,row_version FROM crs.notification_preferences WHERE user_id=$1',[user.user_id])).rows;
+  const saved=(await db.query('SELECT * FROM crs.notification_preferences WHERE user_id=$1',[user.user_id])).rows;
   return {items:preferenceEvents.filter(event=>!adminEvents.has(event)||user.role==='ADMIN').map(event=>{
-    const row=saved.find(item=>item.event===event);return {event,inApp:row?.in_app??true,version:Number(row?.row_version||0)};
-  }),channels:{inApp:true,push:false,email:false},dueRemindersAvailable:false,securityEmailRequired:true};
+    const row=saved.find(item=>item.event===event);return {event,inApp:row?.in_app??true,channel:row?.external_channel??null,version:Number(row?.row_version||0)};
+  }),channels:{inApp:true,push:channels.push,email:channels.email},pushPublicKey:channels.publicKey,pushRegistered,
+    dueRemindersAvailable:false,securityEmailRequired:true};
 }

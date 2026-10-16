@@ -14,6 +14,11 @@ await writeFile(join(output,'i18n.js'),'window.CRS_UI_COPY='+JSON.stringify(uiCo
 const includes=[...index.matchAll(/<\?!= include_\('([^']+)'\); \?>/g)];
 for(const match of includes){
   const name=match[1]; let text=await read(name);
+  if(name==='components') {
+    const restore='data-account-shortcuts-restore>คืนค่าเริ่มต้น / Restore defaults';
+    if(text.split(restore).length!==2)throw new Error('Account restore label composition seam changed');
+    text=text.replace(restore,'data-account-shortcuts-restore>คืนค่าเริ่มต้น');
+  }
   const removedEyebrows={dashboard:'พื้นที่ทำงานของคุณ',equipment:'ค้นหาอุปกรณ์สำหรับงานของคุณ',scan:'ค้นหาอุปกรณ์จากสติกเกอร์',admin:'จัดการทุกอย่างได้ในที่เดียว'};
   if(Object.hasOwn(removedEyebrows,name)) {
     const paragraph=new RegExp('\\s*<p class="eyebrow [^"]*">'+removedEyebrows[name]+'<\\/p>');
@@ -22,7 +27,7 @@ for(const match of includes){
   }
   if(name==='scripts-api') {
     if(!text.includes("'adminGetEquipmentVisibility'].indexOf(method)") || !text.includes('    requestSecurity: function (method,input) {'))throw new Error('Settings security auth composition seam changed');
-    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference','getOwnProfile','saveOwnName','prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].indexOf(method)");
+    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference','registerPushSubscription','getOwnProfile','saveOwnName','prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].indexOf(method)");
     text=text.replace('    requestSecurity: function (method,input) {', `    rememberSession: function () { return Boolean(storageGet(global.localStorage, AUTH_SESSION_STORAGE_KEY)); },
     setRememberSession: function (remember) {
       if (typeof remember !== 'boolean' || !authState.sessionToken) throw new ClientApiError({code:'UNAUTHENTICATED'});
@@ -270,6 +275,8 @@ await writeFile(join(output,'login-parallax.js'),await readFile(join(root,'web',
 await writeFile(join(output,'session-loading.js'),await readFile(join(root,'web','session-loading.js'),'utf8'));
 await writeFile(join(output,'notification-inbox.js'),await readFile(join(root,'web','notification-inbox.js'),'utf8'));
 await writeFile(join(output,'settings-security.js'),await readFile(join(root,'web','settings-security.js'),'utf8'));
+await writeFile(join(output,'push-client.js'),await readFile(join(root,'web','push-client.js'),'utf8'));
+index=index.replace('<script src="/crs/settings-security.js">','<script src="/crs/push-client.js"></script><script src="/crs/settings-security.js">');
 await writeFile(join(output,'profile.js'),await readFile(join(root,'web','profile.js'),'utf8'));
 index=index.replace('<script src="/crs/settings-security.js">','<script src="/crs/profile.js"></script><script src="/crs/settings-security.js">');
 await writeFile(join(output,'oauth-handoff.js'),await readFile(join(root,'web','oauth-handoff.js'),'utf8'));

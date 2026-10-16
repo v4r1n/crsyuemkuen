@@ -1,5 +1,7 @@
 import { rpc } from '../../../server/rpc.mjs';
 import { config } from '../../../server/config.mjs';
+import {after} from 'next/server';
+import {deliveryProcessor} from '../../../server/notification-delivery.mjs';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -24,5 +26,10 @@ export async function POST(request) {
   if(!input || typeof input.method!=='string') return new Response('{}',{status:400,headers});
   const token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
   const key=request.headers.get('x-vercel-forwarded-for')||request.headers.get('x-forwarded-for')||'local';
-  return new Response(JSON.stringify(await rpc(input.method,input.args,token,key,{userAgent:request.headers.get('user-agent')||''})),{headers});
+  const result=await rpc(input.method,input.args,token,key,{userAgent:request.headers.get('user-agent')||''});
+  if(result.ok && token && ['getAppBootstrap','listNotifications','createBorrowRequest','requestReturn',
+    'adminApproveBorrow','adminRejectBorrow','adminCheckoutBorrow','adminCompleteReturn'].includes(input.method)) {
+    after(async()=>{try{await deliveryProcessor()();}catch{console.error(JSON.stringify({code:'NOTIFICATION_WORKER_UNAVAILABLE'}));}});
+  }
+  return new Response(JSON.stringify(result),{headers});
 }

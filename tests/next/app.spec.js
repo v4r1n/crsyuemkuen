@@ -4,6 +4,84 @@ const {installOfflineAssets}=require('./offline-assets.cjs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
 
+test('Notification delivery worker denies absent/fake credentials without exposing configuration',async({request})=>{
+  for(const authorization of ['', 'Bearer synthetic-invalid-worker-secret']){
+    const response=await request.get('/api/notifications/process',{headers:{authorization}});
+    expect(response.status()).toBe(403);expect(response.headers()['cache-control']).toBe('no-store');expect(await response.json()).toEqual({});
+  }
+  const foreign=await request.post('/api/rpc',{headers:{origin:'https://evil.test'},data:{method:'registerPushSubscription',args:[{}]}});
+  expect(foreign.status()).toBe(403);
+});
+
+test('Notification delivery popover fallback, outside dismissal and permission denial retain saved state',async({page})=>{
+  const {calls}=await mock(page);await page.setViewportSize({width:320,height:1000});
+  await page.addInitScript(()=>Object.defineProperty(HTMLElement.prototype,'showPopover',{value:undefined,configurable:true}));
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();if(input.method!=='getNotificationPreferences')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:true,channel:null,version:0}],channels:{inApp:true,push:true,email:true},pushRegistered:false,pushPublicKey:'fixture'}}});
+  });
+  await page.goto('/?view=dashboard');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>{window.CRSPush={supported:()=>true,enable:async()=>{throw new Error('Fixture permission denied');}};CRS.navigate('settings',{section:'notifications'});});
+  const picker=page.locator('.settings-channel-picker').first(),summary=picker.locator('summary');await summary.click();
+  await expect(picker.locator('[role="menu"]')).toBeVisible();await picker.locator('[data-channel="PUSH"]').click();
+  await expect(page.locator('.settings-security-root > [role="status"]')).toHaveText('Fixture permission denied');
+  await expect(summary).toContainText('เลือกช่องทาง');expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
+  await summary.click();await page.locator('#settings-heading').click();await expect(picker).not.toHaveAttribute('open','');await expectNoOverflow(page);
+});
+
+for(const language of ['th','en'])for(const theme of ['light','dark'])test('Notification delivery single-select popover '+language+' '+theme,async({page})=>{
+  await mock(page);let version=0,channel=null;const changes=[];
+  await page.addInitScript(({language,theme})=>{localStorage.setItem('crs-ui-language',language);localStorage.setItem('crs-theme',theme);},{language,theme});
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();
+    if(!['getNotificationPreferences','saveNotificationPreference'].includes(input.method))return route.fallback();
+    if(input.method==='saveNotificationPreference'){changes.push(input.args[0]);channel=input.args[0].channel;version++;}
+    return route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:true,channel,version},{event:'ADMIN_BORROW_REQUEST',inApp:true,channel:null,version:0}],channels:{inApp:true,push:true,email:true},pushRegistered:false,pushPublicKey:'fixture-only'}}});
+  });
+  await page.goto('/?view=dashboard');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>{window.CRSPush={supported:()=>true,enable:async()=>true};CRS.navigate('settings',{section:'notifications'});});
+  for(const width of [320,1440]) {
+    await page.setViewportSize({width,height:900});
+    const picker=page.locator('.settings-channel-picker').first(),summary=picker.locator('summary');
+    await summary.click();const choices=picker.getByRole('menuitemradio');await expect(choices).toHaveCount(2);
+    await expect(choices.first()).toHaveAttribute('aria-checked',String(channel==='PUSH'));
+    await picker.locator('[data-channel="EMAIL"]').click();await expect(summary).toHaveText(language==='en'?'Email ▾':'อีเมล ▾');
+    await expect(picker).not.toHaveAttribute('open','');
+    await summary.focus();await page.keyboard.press('ArrowDown');await expect(choices.first()).toBeFocused();
+    await expect(picker.locator('[data-channel="EMAIL"]')).toHaveAttribute('aria-checked','true');
+    expect(await picker.locator('[data-channel="EMAIL"] .bi-check-lg').evaluate(node=>getComputedStyle(node).visibility)).toBe('visible');
+    const box=await picker.locator('[role="menu"]').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
+    await captureUi(page,'delivery-'+language+'-'+theme+'-'+width,{staticView:true});
+    await page.keyboard.press('Enter');await expect(summary).toHaveText(language==='en'?'Push ▾':'พุช ▾');
+    await expect(picker.locator('..').locator('[data-in-app]')).toBeChecked();
+    await summary.click();await page.keyboard.press('Escape');await expect(summary).toBeFocused();await expect(picker).not.toHaveAttribute('open','');
+    await picker.locator('..').locator('[data-delivery-off]').click();await expect(summary).toContainText(language==='en'?'Choose channel':'เลือกช่องทาง');
+    await expectNoOverflow(page);
+  }
+  expect(changes.map(item=>item.channel)).toEqual(['EMAIL','PUSH',null,'EMAIL','PUSH',null]);
+  await page.evaluate(()=>CRS.navigate('dashboard'));await expect(page.locator('.settings-channel-menu')).toHaveCount(0);
+});
+
+for(const language of ['th','en'])test('Notification delivery Account restore label follows language without changing shortcut behaviour '+language,async({page})=>{
+  const {calls}=await mock(page);
+  await page.addInitScript(language=>localStorage.setItem('crs-ui-language',language),language);
+  await page.goto('/?view=dashboard');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>{
+    CRS.sidebarShortcut.setEnabled(false);
+    CRS.sidebarShortcut.setBinding({ctrl:true,shift:false,alt:true,meta:false,code:'KeyK'});
+    CRS.accountMenu.openShortcuts(document.querySelector('[data-action="account-menu-toggle"]'));
+  });
+  const restore=page.locator('[data-account-shortcuts-restore]');
+  await expect(restore).toHaveText(language==='th'?'คืนค่าเริ่มต้น':'Restore defaults');
+  const before=calls.length;await restore.click();
+  await expect(page.locator('#sidebar-shortcut-enabled')).toHaveAttribute('aria-checked','true');
+  await expect(page.locator('[data-shortcut-key="sidebar"]')).toHaveText('Ctrl + Shift + S');
+  expect(calls.length).toBe(before);
+  await page.locator('[data-account-shortcuts-close]').click();
+  await page.evaluate(()=>CRS.navigate('settings',{section:'keyboard'}));
+  await expect(page.locator('[data-settings-shortcut-restore]')).toHaveText(language==='th'?'คืนค่าเริ่มต้น':'Restore defaults');
+});
+
 for(const theme of ['light','dark'])for(const language of ['th','en'])test('Admin refinement disclosures, queue refresh and profile symmetry '+theme+' '+language,async({page})=>{
   const {calls}=await mock(page);let queued=false;
   await page.addInitScript(({theme,language})=>{localStorage.setItem('crs-theme',theme);localStorage.setItem('crs-ui-language',language);},{theme,language});
@@ -146,8 +224,8 @@ test('stale notification preference refreshes its owner-scoped version without a
   });
   await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
   const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
-  const control=picker.locator('[data-in-app]');await control.uncheck();await expect(control).toBeEnabled();
-  await expect(picker.locator('summary')).toContainText('ปิด');expect(reads).toBe(2);
+  const control=picker.locator('..').locator('[data-in-app]');await control.uncheck();await expect(control).toBeEnabled();
+  await expect(control).not.toBeChecked();expect(reads).toBe(2);
   await control.check();await expect(control).toBeEnabled();expect(versions).toEqual([0,2]);
 });
 
@@ -167,8 +245,10 @@ for(const width of [320,390,768,1440])for(const language of ['th','en'])for(cons
     await expect(page.locator('.settings-account-fields')).toBeVisible();await expect(page.locator('.settings-account-fields input')).toHaveCount(1);await expect(page.locator('.settings-account-fields [name="name"]')).toBeEditable();await expect(page.locator('.settings-account-fields [type="email"]')).toHaveCount(0);
     await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
     const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
-    await expect(picker.locator('input:disabled')).toHaveCount(2);await picker.locator('[data-in-app]').uncheck();await expect(picker).toHaveAttribute('open','');
-    await expect(picker.locator('summary')).toContainText(language==='en'?'Off':'ปิด');
+    await expect(picker.locator('[role="menuitemradio"]:disabled')).toHaveCount(2);
+    const inApp=picker.locator('..').locator('[data-in-app]');await inApp.uncheck();await expect(inApp).not.toBeChecked();
+    await picker.locator('summary').click();await expect(picker).toHaveAttribute('open','');
+    await expect(picker.locator('summary')).toContainText(language==='en'?'Choose channel':'เลือกช่องทาง');
     await picker.locator('summary').focus();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   });

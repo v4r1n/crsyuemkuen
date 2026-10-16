@@ -1,6 +1,7 @@
 import { config } from './config.mjs';
 import { createHash } from 'node:crypto';
 import { fail } from './errors.mjs';
+import {enqueueDelivery} from './notification-outbox.mjs';
 const actions = new Set(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN']);
 const digest=value=>createHash('sha256').update(value).digest('base64url');
 // Preferences filter delivery/display, never transaction History or event creation.
@@ -30,9 +31,14 @@ export async function projectNotifications(db, domain, changes) {
     if (['BORROW_REQUEST','REQUEST_RETURN'].includes(event.action)) {
       for (const user of domain.records.Users.filter(row => row.role === 'ADMIN' && row.status === 'ACTIVE')) recipients.add(user.user_id);
     }
-    for (const userId of recipients) await db.query(`INSERT INTO crs.notifications(id,user_id,history_id,borrow_id,action,created_at)
-      VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,history_id) DO NOTHING`,
-      [digest(event.log_id + ':' + userId),userId,event.log_id,borrow.borrow_id,event.action,event.timestamp]);
+    for (const userId of recipients) {
+      const id=digest(event.log_id+':'+userId);
+      const inserted=await db.query(`INSERT INTO crs.notifications(id,user_id,history_id,borrow_id,action,created_at)
+        VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,history_id) DO NOTHING RETURNING id`,
+        [id,userId,event.log_id,borrow.borrow_id,event.action,event.timestamp]);
+      if(inserted.rows.length)await enqueueDelivery(db,id,userId,
+        userId!==borrow.user_id && ['BORROW_REQUEST','REQUEST_RETURN'].includes(event.action)?'ADMIN_'+event.action:event.action);
+    }
   }
 }
 export async function notificationInbox(db,user,input = {}) {

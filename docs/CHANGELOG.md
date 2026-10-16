@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Opt-in notification delivery and restore-label copy (2026-10-16, source preparation)
+
+- Add a real single-select Push/Email popover with saved-option checkmark, independent in-app checkbox and external opt-out. Introduce private additive device/outbox storage, authoritative-event enqueue, target/session-safe Web Push, SMTP delivery, bounded post-response/daily processing and honest uncertain-outcome handling. Preserve security email, workflow/History and freeze guards; activation requires separate schema/config/provider acceptance.
+- Localize only the Account Restore defaults label through the Next adapter, retaining existing shortcut behavior and the legacy baseline. Add offline server/browser/compiled privacy regressions; Memory records actual verification and remaining gates.
+
 ### Admin integrity/profile Production activation (2026-10-15)
 
 - Deploy accepted `3855a5e` through a tested unassigned Production candidate and same-artifact promotion. Preserve canonical domains/callbacks, protection, writable Production and frozen unchanged Preview. No migration or real image cleanup is run; Memory records canonical checks, rollback and monitoring/manual-acceptance limits.

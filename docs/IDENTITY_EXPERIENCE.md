@@ -6,6 +6,12 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+### External notification channels (2026-10-16, source preparation)
+
+The operator chooses real Push/Email rather than a simulated picker. [ADR-036](adr/0006-external-notification-delivery.md) owns event/outbox/device/failure/activation semantics, superseding the earlier unavailable-channel restriction only after activation. The Settings activity/Admin rows use a two-option single-select popover with a checkmark for the saved channel, separate in-app checkbox and explicit external-delivery opt-out. Unconfigured or unsupported channels stay unavailable. Preserve owner/version/conflict checks, keyboard/outside/Escape dismissal, viewport positioning, route disposal and TH/EN/Light/Dark.
+
+Account Restore defaults changes only its authored Next label, using the same existing translation as Settings; shortcut enable/reset/listeners/storage remain unchanged. Legacy `src/` stays preserved. Memory owns source validation, live state and next activation gates.
+
 ### Admin integrity and profile presentation (2026-10-15)
 
 Next removes only the requested Dashboard/Equipment/Scan/Admin eyebrow copy and centers accessory-note cells. Data/Image audit headings toggle their existing result regions after a successful scan, with keyboard/ARIA state and no new read on toggle; a fresh scan opens its latest result. The owner editor retains accessible naming, autosave/retry/version and required controls while removing the duplicate visible caption and matching Save/input heights. The shared confirmation waits for Bootstrap's shown event before accepting, preserves hidden-event completion and restores focus on dismissal.
