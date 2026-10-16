@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Private notification-key readiness (2026-10-16)
+
+- Prepare and cryptographically verify distinct target-specific VAPID/worker secrets in ignored owner-restricted private files after contact confirmation. Preserve `.env.local`, keep delivery disabled and document the remaining activation/backup/schema/provider gates. No runtime source, cloud setting or deployment changes.
+
 ### Opt-in notification delivery and restore-label copy (2026-10-16, source preparation)
 
 - Add a real single-select Push/Email popover with saved-option checkmark, independent in-app checkbox and external opt-out. Introduce private additive device/outbox storage, authoritative-event enqueue, target/session-safe Web Push, SMTP delivery, bounded post-response/daily processing and honest uncertain-outcome handling. Preserve security email, workflow/History and freeze guards; activation requires separate schema/config/provider acceptance.

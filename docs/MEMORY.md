@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-16
 
+## Current checkpoint — Private delivery keys prepared, no cloud activation
+
+- After the local-only readiness check found no VAPID/contact/worker values, the operator supplies the VAPID contact. Generate distinct Production/Preview P-256 pairs and 256-bit worker secrets with Node built-ins in an ignored private directory; use exclusive-create files, never replace existing credentials. Restrict directory access to the current Windows owner and SYSTEM, check Git exclusion and verify both pairs with a sign/verify round trip plus readback/target-separation checks. No value enters stdout, tracked source or chat. Keep the contact itself out of Git as operator configuration.
+- Both fragments retain NOTIFICATION_DELIVERY_ENABLED=false. A before/after digest confirms `.env.local` is unchanged. Existing SMTP fields are present locally, not a verified current connection or delivered-message test. No application/schema/provider code changes this phase; reuse accepted `e1559b0` and its recorded 432-component source evidence, not a claim of a new full test/build run for private key generation.
+- No Vercel environment write, cloud inspection, DDL, backup/restore, provider message, domain/protection/freeze change or deployment occurs. The private fragments are not installed on Vercel or automatically loaded by the application. Do not regenerate or rotate them on a generic continuation; inspect privately and reuse the existing artifacts for an authorized activation.
+- Next requires explicit activation/preflight authority: fresh project/alias/environment/writer verification, approved prior-source verified backup with authorized freeze or a separately approved bounded online snapshot, additive migration/advisors, private target-scoped configuration and tested candidate/canonical deployment. Preserve Production/Preview separation and writer modes unless newly authorized. Real provider/device acceptance remains outstanding. This phase's Session End changes only Memory/Changelog; no tag or runtime redeployment.
+
 ## Current checkpoint — External notification delivery, source acceptance
 
 - The operator chooses real Push/Email delivery and explicitly permits pinned dependency preparation in a credential-free sandbox. Account Restore defaults changes its label only, localized through the existing Next translation; shortcut enable/reset/storage/listeners remain intact. Preserve unrelated dirty `src/index.html` and the operator evidence file.
