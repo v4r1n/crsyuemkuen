@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Provider transport probe; device acceptance pending (2026-10-16)
+
+- Verify configured SMTP TLS/authentication and submit one explicitly requested generic test email, accepted by the provider with inbox/device receipt still unconfirmed. Preserve disabled dispatch and unchanged cloud/runtime configuration; record the controlled Push-test scope needed before conditional Production activation.
+
 ### Notification schema/configuration and disabled Production rollout (2026-10-16)
 
 - Verify a private bounded online format-4 DB/image backup, install the additive notification-delivery migration with unchanged durable data and repeat-safe ledger checks, and install distinct private target configuration without changing writer modes, origins or protection.
