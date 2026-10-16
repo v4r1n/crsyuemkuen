@@ -27,7 +27,7 @@ for(const match of includes){
   }
   if(name==='scripts-api') {
     if(!text.includes("'adminGetEquipmentVisibility'].indexOf(method)") || !text.includes('    requestSecurity: function (method,input) {'))throw new Error('Settings security auth composition seam changed');
-    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference','registerPushSubscription','getOwnProfile','saveOwnName','prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].indexOf(method)");
+    text=text.replace("'adminGetEquipmentVisibility'].indexOf(method)","'adminGetEquipmentVisibility','getSettingsSecurity','listActiveSessions','revokeOtherSessions','listSecurityActivity','getNotificationPreferences','saveNotificationPreference','registerPushSubscription','sendTestPush','getOwnProfile','saveOwnName','prepareOwnAvatar','finalizeOwnAvatar','getOwnAvatar'].indexOf(method)");
     text=text.replace('    requestSecurity: function (method,input) {', `    rememberSession: function () { return Boolean(storageGet(global.localStorage, AUTH_SESSION_STORAGE_KEY)); },
     setRememberSession: function (remember) {
       if (typeof remember !== 'boolean' || !authState.sessionToken) throw new ClientApiError({code:'UNAUTHENTICATED'});

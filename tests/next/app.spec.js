@@ -4,6 +4,40 @@ const {installOfflineAssets}=require('./offline-assets.cjs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
 
+for(const language of ['th','en'])for(const theme of ['light','dark'])test('Account-only Push diagnostic is explicit, one-shot and independent of preferences '+language+' '+theme,async({page})=>{
+  const {calls}=await mock(page);let sends=0;
+  await page.addInitScript(({language,theme})=>{localStorage.setItem('crs-ui-language',language);localStorage.setItem('crs-theme',theme);},{language,theme});
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();
+    if(input.method==='sendTestPush'){sends++;return route.fulfill({json:{ok:true,data:{status:'ACCEPTED',deviceReceiptConfirmed:false}}});}
+    if(input.method!=='getNotificationPreferences')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:true,channel:null,version:0}],channels:{inApp:true,push:false,email:false},pushRegistered:false,pushPublicKey:'fixture',pushTestAvailable:true}}});
+  });
+  await page.goto('/?view=dashboard');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>{window.CRSPush={supported:()=>true,enable:async()=>true};CRS.navigate('settings',{section:'notifications'});});
+  const panel=page.locator('[data-push-test]'),register=panel.locator('[data-push-test-register]'),send=panel.locator('[data-push-test-send]');
+  await expect(panel).toBeVisible();await expect(send).toBeDisabled();expect(sends).toBe(0);
+  await register.click();await expect(send).toBeEnabled();expect(sends).toBe(0);
+  await send.focus();await page.keyboard.press('Enter');await expect(panel.locator('[role="status"]')).toContainText(language==='en'?'Provider accepted':'Provider รับแล้ว');
+  await expect(send).toBeDisabled();await expect(register).toBeDisabled();expect(sends).toBe(1);
+  expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
+  for(const width of [320,1440]){await page.setViewportSize({width,height:900});await expectNoOverflow(page);await captureUi(page,'push-test-'+language+'-'+theme+'-'+width,{staticView:true});}
+  await page.evaluate(()=>CRS.navigate('dashboard'));await expect(page.locator('[data-push-test]')).toHaveCount(0);
+});
+
+test('Push diagnostic permission failure does not send; non-test owner has no diagnostic UI',async({page})=>{
+  await mock(page);let available=true,sends=0;
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();if(input.method==='sendTestPush')sends++;
+    if(input.method!=='getNotificationPreferences')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{items:[],channels:{inApp:true,push:false,email:false},pushRegistered:false,pushPublicKey:available?'fixture':null,pushTestAvailable:available}}});
+  });
+  await page.goto('/?view=dashboard');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>{window.CRSPush={supported:()=>true,enable:async()=>{throw new Error('Fixture permission denied');}};CRS.navigate('settings',{section:'notifications'});});
+  await page.locator('[data-push-test-register]').click();await expect(page.locator('[data-push-test] [role="status"]')).toHaveText('Fixture permission denied');await expect(page.locator('[data-push-test-send]')).toBeDisabled();expect(sends).toBe(0);
+  available=false;await page.evaluate(()=>CRS.navigate('dashboard'));await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));await expect(page.locator('.settings-security-root')).toBeVisible();await expect(page.locator('[data-push-test]')).toHaveCount(0);
+});
+
 test('Notification delivery worker denies absent/fake credentials without exposing configuration',async({request})=>{
   for(const authorization of ['', 'Bearer synthetic-invalid-worker-secret']){
     const response=await request.get('/api/notifications/process',{headers:{authorization}});

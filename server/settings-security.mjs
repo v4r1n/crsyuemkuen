@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { config } from './config.mjs';
 import { digest, loadDomain, saveDomain } from './domain.mjs';
 import { fail } from './errors.mjs';
-import {deliveryConfiguration} from './notification-config.mjs';
+import {deliveryConfiguration,pushTestConfiguration} from './notification-config.mjs';
 import {assertWritable} from './images.mjs';
 
 export const preferenceEvents = Object.freeze(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']);
@@ -96,8 +96,8 @@ export async function securityActivity(db,user) {
   })};
 }
 export async function notificationPreferences(db,user,input,token) {
-  const channels=deliveryConfiguration(),origin=config().WEB_APP_URL;
-  const pushRegistered=Boolean(channels.push && token && (await db.query(
+  const channels=deliveryConfiguration(),test=pushTestConfiguration(user),origin=config().WEB_APP_URL;
+  const pushRegistered=Boolean((channels.push||test.available) && token && (await db.query(
     'SELECT id FROM crs.push_subscriptions WHERE user_id=$1 AND session_hash=$2 AND origin=$3 AND expires_at>now()',
     [user.user_id,digest(token),origin])).rows.length);
   if(input!==undefined) {
@@ -121,6 +121,6 @@ export async function notificationPreferences(db,user,input,token) {
   const saved=(await db.query('SELECT * FROM crs.notification_preferences WHERE user_id=$1',[user.user_id])).rows;
   return {items:preferenceEvents.filter(event=>!adminEvents.has(event)||user.role==='ADMIN').map(event=>{
     const row=saved.find(item=>item.event===event);return {event,inApp:row?.in_app??true,channel:row?.external_channel??null,version:Number(row?.row_version||0)};
-  }),channels:{inApp:true,push:channels.push,email:channels.email},pushPublicKey:channels.publicKey,pushRegistered,
+  }),channels:{inApp:true,push:channels.push,email:channels.email},pushPublicKey:channels.publicKey||test.publicKey,pushRegistered,pushTestAvailable:test.available,
     dueRemindersAvailable:false,securityEmailRequired:true};
 }

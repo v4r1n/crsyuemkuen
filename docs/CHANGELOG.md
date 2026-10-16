@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Account-only expiring Push diagnostic (2026-10-16)
+
+- Add an explicitly initiated owner/session-bound test Push with private Production-only account/expiry configuration, committed rate-limit reservation, no automatic resend and honest provider-versus-device status. Keep global delivery/preferences disabled and borrowing/History/outbox unchanged. Memory records source verification, actual activation and remaining Windows/Edge receipt gate separately.
+- Record the operator's Inbox confirmation for the prior SMTP test; do not send another email or infer deployed workflow acceptance.
+
 ### Provider transport probe; device acceptance pending (2026-10-16)
 
 - Verify configured SMTP TLS/authentication and submit one explicitly requested generic test email, accepted by the provider with inbox/device receipt still unconfirmed. Preserve disabled dispatch and unchanged cloud/runtime configuration; record the controlled Push-test scope needed before conditional Production activation.

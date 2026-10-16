@@ -102,6 +102,28 @@
         const data=await request('getNotificationPreferences');if(!valid())return;status.textContent='';
         const labels={BORROW_REQUEST:t('คำขอยืม','Borrow request'),APPROVE:t('อนุมัติ','Approved'),REJECT:t('ไม่อนุมัติ','Rejected'),CHECKOUT:t('จ่ายอุปกรณ์','Checkout'),REQUEST_RETURN:t('คำขอคืน','Return request'),RETURN:t('ตรวจรับคืน','Returned'),ADMIN_BORROW_REQUEST:t('คำขอยืมใหม่','New borrow request'),ADMIN_REQUEST_RETURN:t('คำขอคืนใหม่','New return request')};
         const general=document.createElement('section');general.className='settings-card';general.innerHTML=heading(t('ทั่วไป','General'))+'<p>'+t('ตั้งค่าช่องทางแสดงผล ไม่เปลี่ยนรายการยืมหรือ History','Delivery preferences never change borrowing or History.')+'</p><p>🔒 '+t('อีเมลด้านความปลอดภัย · บังคับส่ง ปิดไม่ได้','Security email · mandatory; cannot be disabled')+'</p>';root.append(general);
+        if(data.pushTestAvailable) {
+          const panel=document.createElement('section');panel.className='settings-card';panel.dataset.pushTest='';
+          panel.innerHTML=heading(t('ทดสอบ Push เฉพาะบัญชีนี้','Account-only Push test'))+'<p>'+t('ยังไม่เปิดส่งทั่วระบบ กดอนุญาตบนอุปกรณ์นี้แล้วส่งทดสอบหนึ่งครั้ง ผลรับจาก provider ยังไม่ยืนยันว่าอุปกรณ์แสดงข้อความ','Global delivery is disabled. Grant permission on this device, then send one test. Provider acceptance does not confirm device display.')+'</p>';
+          const register=document.createElement('button'),send=document.createElement('button'),result=document.createElement('p');
+          register.type=send.type='button';register.className=send.className='btn btn-outline-primary me-2 mb-2';
+          register.textContent=t('ลงทะเบียนอุปกรณ์ทดสอบ','Register test device');send.textContent=t('ส่ง Push ทดสอบ','Send test Push');
+          register.dataset.pushTestRegister='';send.dataset.pushTestSend='';result.setAttribute('role','status');result.setAttribute('aria-live','polite');
+          register.disabled=!global.CRSPush?.supported();send.disabled=!data.pushRegistered;
+          register.onclick=async()=>{
+            register.disabled=send.disabled=true;
+            try{if(await global.CRSPush.enable(data.pushPublicKey,request,valid)){if(!valid())return;data.pushRegistered=true;send.disabled=false;result.textContent=t('ลงทะเบียนแล้ว กดส่งทดสอบได้','Registered. You may send a test.');}}
+            catch(error){if(valid())result.textContent=error.message;}
+            finally{if(valid()){register.disabled=!global.CRSPush?.supported();send.disabled=!data.pushRegistered;}}
+          };
+          send.onclick=async()=>{
+            send.disabled=register.disabled=true;
+            try{const response=await request('sendTestPush',{});if(!valid())return;result.textContent=response.status==='ACCEPTED'?t('Provider รับแล้ว กรุณายืนยันว่าเห็นแจ้งเตือนใน Windows / Edge','Provider accepted. Please confirm the notification appeared in Windows / Edge.'):t('ยังยืนยันการส่งไม่ได้ จะไม่ส่งซ้ำอัตโนมัติ','Delivery is unconfirmed. No automatic resend.');}
+            catch(error){if(valid())result.textContent=error.message;}
+            // No retry button after an uncertain request; the server also rate limits.
+          };
+          panel.append(register,send,result);root.append(panel);
+        }
         for(const admin of [false,true]) {
           const items=data.items.filter(item=>item.event.startsWith('ADMIN_')===admin);if(!items.length)continue;
           const panel=document.createElement('section');panel.className='settings-card';panel.innerHTML=heading(admin?t('การแจ้งเตือนผู้ดูแล','Admin notifications'):t('กิจกรรมยืม–คืน','Borrowing activity'));root.append(panel);

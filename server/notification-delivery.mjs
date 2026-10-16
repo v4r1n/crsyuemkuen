@@ -9,7 +9,7 @@ import {authorizedUser} from './password-auth.mjs';
 import {rateLimit} from './auth.mjs';
 import {assertWritable} from './images.mjs';
 import {fail} from './errors.mjs';
-import {deliveryConfiguration} from './notification-config.mjs';
+import {deliveryConfiguration,pushTestConfiguration} from './notification-config.mjs';
 export {deliveryConfiguration} from './notification-config.mjs';
 
 export function validateSubscription(input) {
@@ -34,7 +34,7 @@ export function validateSubscription(input) {
 
 export async function ownPushSubscription(db,user,token,input) {
   assertWritable();
-  if(!deliveryConfiguration().push)fail('NOTIFICATION_UNAVAILABLE','การแจ้งเตือนพุชยังไม่พร้อมใช้งาน');
+  if(!deliveryConfiguration().push&&!pushTestConfiguration(user).available)fail('NOTIFICATION_UNAVAILABLE','การแจ้งเตือนพุชยังไม่พร้อมใช้งาน');
   if(!await rateLimit(db,'push-register:'+user.user_id,10,600))return {limited:true};
   if(input?.remove===true && Object.keys(input).length===1) {
     await db.query('DELETE FROM crs.push_subscriptions WHERE user_id=$1 AND session_hash=$2 AND origin=$3',
@@ -63,10 +63,10 @@ async function sendEmail(job) {
     return Array.isArray(result.accepted)&&result.accepted.some(address=>address.toLowerCase()===job.email.toLowerCase())?'ACCEPTED':'UNCERTAIN';
   }catch{return 'UNCERTAIN';}finally{sender.close();}
 }
-async function sendPush(job) {
+export async function sendPush(job) {
   try {
     await webpush.sendNotification({endpoint:job.subscription.endpoint,keys:{p256dh:job.subscription.p256dh,auth:job.subscription.auth}},
-      JSON.stringify({id:job.notification_id}),{TTL:300,timeout:10000,urgency:'normal',vapidDetails:{
+      JSON.stringify({id:job.notification_id,...(job.test===true?{test:true}:{})}),{TTL:300,timeout:10000,urgency:'normal',vapidDetails:{
         subject:process.env.WEB_PUSH_SUBJECT,publicKey:process.env.WEB_PUSH_PUBLIC_KEY,privateKey:process.env.WEB_PUSH_PRIVATE_KEY}});
     return 'ACCEPTED';
   }catch(error) {

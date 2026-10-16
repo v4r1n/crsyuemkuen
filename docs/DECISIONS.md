@@ -4,6 +4,8 @@ Decisions are append-only. A later decision may supersede an earlier one but mus
 
 ## ADR-036 — Opt-in external notification delivery
 
+The later operator-approved [account-only diagnostic contract](IDENTITY_EXPERIENCE.md#external-notification-channels-2026-10-16-source-preparation) separates an explicit expiring test Push from authoritative activity delivery. It preserves disabled global dispatch and the provider/device acceptance gate; it does not invent domain History or authorize other recipients.
+
 [Decision](adr/0006-external-notification-delivery.md): user authorizes real single-select Push/Email on 2026-10-16. Preserve independent in-app preferences and mandatory security mail. Queue only new authoritative notices, isolate canonical targets and session-bound private devices, and treat ambiguous provider outcomes as uncertain rather than resending. This supersedes ADR-034's unavailable-channel restriction only upon separately accepted activation; source preparation is not cloud rollout.
 
 ## ADR-035 — Owner profile and private avatar resources

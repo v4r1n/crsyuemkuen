@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
-import {createECDH} from 'node:crypto';
+import {createECDH,createHash} from 'node:crypto';
 import vm from 'node:vm';
 import {PGlite} from '@electric-sql/pglite';
 import webpush from 'web-push';
@@ -11,6 +11,8 @@ import {digest,secret,loadDomain,saveDomain} from '../../server/domain.mjs';
 import {notificationPreferences} from '../../server/settings-security.mjs';
 import {deliveryConfiguration,validateSubscription,ownPushSubscription,deliveryProcessor} from '../../server/notification-delivery.mjs';
 import {snapshotTables,reserveRestore,commitRestore} from '../../tools/restore-records.mjs';
+import {pushTestConfiguration} from '../../server/notification-config.mjs';
+import {pushTestService} from '../../server/push-test.mjs';
 const require=createRequire(import.meta.url),{bootstrappedHarness,createEquipment,createUser}=require('../backend/test-helpers.cjs');
 const keys=webpush.generateVAPIDKeys();
 Object.assign(process.env,{WEB_APP_URL:'https://delivery.example.test',GOOGLE_OAUTH_CLIENT_ID:'delivery-fixture.apps.googleusercontent.com',
@@ -21,6 +23,17 @@ const migrations=['202610050001_crs','202610070002_identity_experience','2026101
 function subscription(suffix='fixture') {
   const curve=createECDH('prime256v1');curve.generateKeys();
   return {endpoint:'https://fcm.googleapis.com/fcm/send/'+suffix,keys:{p256dh:curve.getPublicKey().toString('base64url'),auth:Buffer.alloc(16,7).toString('base64url')}};
+}
+function testEnvironment(email) {
+  return {...process.env,VERCEL_ENV:'production',WEB_APP_URL:'https://crsyuemkuen.vercel.app',WRITE_FREEZE:'false',
+    NOTIFICATION_DELIVERY_ENABLED:'false',PUSH_TEST_USER_SHA256:createHash('sha256').update(email).digest('hex'),
+    PUSH_TEST_EXPIRES_AT:new Date(Date.now()+3600000).toISOString()};
+}
+async function withPushTest(email,work){
+  const next=testEnvironment(email),names=['VERCEL_ENV','WEB_APP_URL','WRITE_FREEZE','NOTIFICATION_DELIVERY_ENABLED','PUSH_TEST_USER_SHA256','PUSH_TEST_EXPIRES_AT'];
+  const before=Object.fromEntries(names.map(k=>[k,process.env[k]]));
+  try{for(const k of names)process.env[k]=next[k];return await work();}
+  finally{for(const k of names){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 }
 async function fixture() {
   const legacy=bootstrappedHarness(),asset=createEquipment(legacy),user=createUser(legacy,{suffix:'delivery'});
@@ -47,6 +60,58 @@ test('delivery configuration fails closed; subscription validates capability hos
   for(const endpoint of ['http://fcm.googleapis.com/x','https://127.0.0.1/x','https://fcm.googleapis.com.evil.test/x','https://fcm.googleapis.com:444/x','https://user@fcm.googleapis.com/x','https://fcm.googleapis.com/x#secret','https://fcm.googleapis.com/../x','https://fcm.googleapis.com/\nfoo'])
     assert.throws(()=>validateSubscription({...sub,endpoint}),error=>error.code==='VALIDATION_FAILED');
   assert.throws(()=>validateSubscription({...sub,keys:{...sub.keys,auth:'bad'}}));
+});
+
+test('account-only diagnostic is exact-owner, canonical Production, expiring and never global delivery',()=>{
+  const user={status:'ACTIVE',email:'push-test@example.com'},env=testEnvironment(user.email),now=Date.now();
+  assert.equal(pushTestConfiguration(user,env,now).available,true);
+  assert.equal(deliveryConfiguration(env).enabled,false);assert.equal(deliveryConfiguration(env).push,false);
+  for(const change of [{VERCEL_ENV:'preview'},{WEB_APP_URL:'https://crsyuemkuen-preview.vercel.app'},{WRITE_FREEZE:'true'},
+    {NOTIFICATION_DELIVERY_ENABLED:'true'},{PUSH_TEST_USER_SHA256:''},{PUSH_TEST_USER_SHA256:'a'.repeat(64)},
+    {PUSH_TEST_EXPIRES_AT:new Date(now-1).toISOString()},{PUSH_TEST_EXPIRES_AT:new Date(now+86400001).toISOString()},
+    {PUSH_TEST_EXPIRES_AT:'2030-01-01'},{WEB_PUSH_PRIVATE_KEY:'invalid'}])
+    assert.equal(pushTestConfiguration(user,{...env,...change},now).available,false,JSON.stringify(Object.keys(change)));
+  for(const owner of [undefined,{...user,status:'INACTIVE'},{...user,email:'other@example.com'},{...user,email:'PUSH-TEST@example.com'}])
+    assert.equal(pushTestConfiguration(owner,env,now).available,false);
+});
+
+test('diagnostic permits only opted-in current-session device; reserves before I/O without business/outbox/history mutation',async()=>{
+  const f=await fixture();try{await withPushTest(f.user.email,async()=>{
+    const before=await notificationPreferences(f.db,f.user,undefined,f.token);
+    assert.equal(before.pushTestAvailable,true);assert.equal(before.channels.push,false);assert.equal(before.channels.email,false);
+    assert.equal(before.pushPublicKey,keys.publicKey);assert.equal(before.pushRegistered,false);
+    const history=(await f.db.query('SELECT count(*)::int n FROM crs.history')).rows[0].n;
+    let sends=0;const send=pushTestService({transact:f.transact,push:async job=>{
+      f.outside();sends++;assert.equal(job.test,true);assert.match(job.notification_id,/^[A-Za-z0-9_-]{43}$/);
+      assert.equal(job.subscription.user_id,f.user.user_id);return 'ACCEPTED';
+    }});
+    await assert.rejects(send(f.token,{}),e=>e.code==='NOTIFICATION_UNAVAILABLE');
+    await ownPushSubscription(f.db,f.user,f.token,subscription());
+    assert.equal((await notificationPreferences(f.db,f.user,undefined,f.token)).pushRegistered,true);
+    assert.equal((await send(f.token,{})).status,'ACCEPTED');
+    await assert.rejects(send(f.token,{}),e=>e.code==='RATE_LIMITED');assert.equal(sends,1);
+    assert.equal((await f.db.query('SELECT count(*)::int n FROM crs.history')).rows[0].n,history);
+    assert.equal((await f.rows()).length,0);assert.equal((await f.db.query('SELECT count(*)::int n FROM crs.notifications')).rows[0].n,0);
+    assert.equal((await f.db.query('SELECT count(*)::int n FROM crs.notification_preferences')).rows[0].n,0);
+    assert.equal(pushTestConfiguration(f.admin).available,false);
+    const other=await notificationPreferences(f.db,f.admin);assert.equal(other.pushTestAvailable,false);assert.equal(other.pushPublicKey,null);
+    await assert.rejects(ownPushSubscription(f.db,f.admin,f.token,subscription('other')),e=>e.code==='NOTIFICATION_UNAVAILABLE');
+    await assert.rejects(send(f.token,{email:f.admin.email}),e=>e.code==='VALIDATION_FAILED');
+    process.env.WRITE_FREEZE='true';await assert.rejects(send(f.token,{}),e=>e.code==='WRITE_FROZEN');
+  });}finally{await f.db.close();}
+});
+
+test('diagnostic ambiguity cannot resend, revoked/expired proof cannot dispatch',async()=>{
+  const f=await fixture();try{await withPushTest(f.user.email,async()=>{
+    await ownPushSubscription(f.db,f.user,f.token,subscription());let calls=0;
+    const send=pushTestService({transact:f.transact,push:async()=>{calls++;throw Error('provider payload must not escape');}});
+    await assert.rejects(send('invalid-session',{}),e=>e.code==='UNAUTHENTICATED');assert.equal(calls,0);
+    const result=await send(f.token,{});assert.deepEqual(result,{status:'UNCERTAIN',deviceReceiptConfirmed:false});
+    await assert.rejects(send(f.token,{}),e=>e.code==='RATE_LIMITED');assert.equal(calls,1);
+    process.env.PUSH_TEST_EXPIRES_AT=new Date(Date.now()-1).toISOString();await assert.rejects(send(f.token,{}),e=>e.code==='NOTIFICATION_UNAVAILABLE');
+    await f.db.query('DELETE FROM crs.sessions WHERE id=$1',[digest(f.token)]);
+    await assert.rejects(send(f.token,{}),e=>e.code==='UNAUTHENTICATED');assert.equal(calls,1);
+  });}finally{await f.db.close();}
 });
 
 test('external opt-in is owner/version/admin guarded; Push requires this session device, channels are single-select',async()=>{
@@ -168,6 +233,8 @@ test('notification worker handles generic tags and canonical clicks only; malfor
   listeners.push({data:{json:()=>({id:'bad'})},waitUntil:()=>assert.fail('malformed push')});assert.equal(seen.length,1);
   listeners.notificationclick({notification:{close(){}},waitUntil:value=>pending.push(value)});await Promise.all(pending);
   assert.equal(seen[1],'https://delivery.example.test/');assert.deepEqual(Object.keys(listeners).sort(),['notificationclick','push']);
+  listeners.push({data:{json:()=>({id:'b'.repeat(43),test:true,url:'https://evil.test'})},waitUntil:value=>pending.push(value)});await Promise.all(pending);
+  assert.match(seen[2].options.body,/Push delivery test/);assert.ok(!JSON.stringify(seen).includes('evil'));
 });
 
 test('a second worker cannot reserve a provider request already in flight',async()=>{
