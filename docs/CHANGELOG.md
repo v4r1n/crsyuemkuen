@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Notification schema/configuration and disabled Production rollout (2026-10-16)
+
+- Verify a private bounded online format-4 DB/image backup, install the additive notification-delivery migration with unchanged durable data and repeat-safe ledger checks, and install distinct private target configuration without changing writer modes, origins or protection.
+- Deploy accepted `e1559b0` through 25 candidate checks, same-artifact Production promotion and 25 canonical checks. Keep external dispatch disabled pending real provider/device acceptance; Preview source remains unchanged. Memory records build, advisors, bounded monitoring, rollback and remaining gates.
+
 ### Private notification-key readiness (2026-10-16)
 
 - Prepare and cryptographically verify distinct target-specific VAPID/worker secrets in ignored owner-restricted private files after contact confirmation. Preserve `.env.local`, keep delivery disabled and document the remaining activation/backup/schema/provider gates. No runtime source, cloud setting or deployment changes.
