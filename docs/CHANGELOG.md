@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Account-only expiring Push diagnostic (2026-10-16)
 
+- Deploy accepted `029b164` only as a bounded account-specific diagnostic after 440 offline checks/build, 26 candidate checks and same-artifact promotion with 26 canonical checks. Preserve disabled global delivery, writable Production and frozen unchanged Preview. The twelve-hour test window ends at 05:00 Asia/Bangkok on 2026-10-17; actual Windows/Edge receipt remains pending, not a completed general-delivery rollout.
 - Add an explicitly initiated owner/session-bound test Push with private Production-only account/expiry configuration, committed rate-limit reservation, no automatic resend and honest provider-versus-device status. Keep global delivery/preferences disabled and borrowing/History/outbox unchanged. Memory records source verification, actual activation and remaining Windows/Edge receipt gate separately.
 - Record the operator's Inbox confirmation for the prior SMTP test; do not send another email or infer deployed workflow acceptance.
 
