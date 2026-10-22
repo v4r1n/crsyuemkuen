@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Calendar reminders and notification usability (2026-10-22)
 
+- Deploy accepted `ecda0bc` to canonical Production after 446 offline checks/build, 26 candidate checks, same-artifact promotion and 26 canonical checks. Renew only the approved account's Push test until 16:48 Asia/Bangkok on 2026-10-23; enable in-app due reminders while keeping global external delivery disabled. Preserve writable Production / frozen protected Preview. Bounded error scan finds no INTERNAL/worker errors; actual all-OS/device receipt is not claimed.
 - Prepare viewport-wide background, logo-only reduced-motion-aware loading, a left-side shared Read all action, clearer disabled-Push feedback and symmetric sign-in methods. Remove the requested explanatory cards without disabling mandatory security mail.
 - Add owner-only due-tomorrow/daily-overdue reminders derived from current custody and Thailand dates, with durable deduplication, no fake History/backfill, current-state display/dispatch checks and existing bounded worker opportunities. Keep external delivery opt-in and independently disabled pending device acceptance.
 - Verify the approved private online snapshot and eight image binaries; install the additive reminder schema idempotently without rewriting durable records or changing writer modes. Memory owns final source tests, actual Production rollout, diagnostic expiry and real-device acceptance separately.
