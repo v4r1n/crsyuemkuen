@@ -33,7 +33,7 @@ async function setup(){
 test('additive schema is idempotent/checksummed and private with no client policies',async()=>{
   const f=await setup();try{
     await applyAdditiveMigrations(f.transact);
-    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.runtime_migrations')).rows[0].n,4);
+    assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.runtime_migrations')).rows[0].n,5);
     const result=await f.db.query("SELECT relname,relrowsecurity FROM pg_class JOIN pg_namespace n ON n.oid=relnamespace WHERE n.nspname='crs' AND relname IN ('password_credentials','password_challenges','security_mail','notifications','equipment_visibility')");
     assert.equal(result.rows.length,5);assert.ok(result.rows.every(row=>row.relrowsecurity));
     assert.equal((await f.db.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='crs'")).rows[0].n,0);

@@ -14,6 +14,7 @@ import { touchSession } from './session-metadata.mjs';
 import {profileService} from './profile.mjs';
 import {registerPush} from './notification-delivery.mjs';
 import {pushTestService} from './push-test.mjs';
+import {projectDueReminders} from './due-reminders.mjs';
 const passwords=passwordAuth();
 const profiles=profileService();
 const sendTestPush=pushTestService();
@@ -68,6 +69,7 @@ export async function rpc(method,args,token,requestKey='',requestContext={}) {
     }
     if(method==='listNotifications') return transaction(async db=>{
       const {user}=await authorizedUser(db,token);
+      await projectDueReminders(db,{userId:user.user_id});
       return notificationInbox(db,user,args[0]);
     });
     if(['adminSetEquipmentPublic','adminGetEquipmentVisibility'].includes(method)) {

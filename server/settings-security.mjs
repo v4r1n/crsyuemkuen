@@ -5,7 +5,7 @@ import { fail } from './errors.mjs';
 import {deliveryConfiguration,pushTestConfiguration} from './notification-config.mjs';
 import {assertWritable} from './images.mjs';
 
-export const preferenceEvents = Object.freeze(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']);
+export const preferenceEvents = Object.freeze(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN','DUE_SOON','OVERDUE']);
 const adminEvents = new Set(['ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']);
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const historyActions = ['LOGIN_GOOGLE','LOGIN_PASSWORD','LOGOUT','REVOKE_SESSION','REVOKE_OTHER_SESSIONS','CHANGE_PASSWORD','ISSUE_TEMPORARY_PASSWORD'];
@@ -122,5 +122,5 @@ export async function notificationPreferences(db,user,input,token) {
   return {items:preferenceEvents.filter(event=>!adminEvents.has(event)||user.role==='ADMIN').map(event=>{
     const row=saved.find(item=>item.event===event);return {event,inApp:row?.in_app??true,channel:row?.external_channel??null,version:Number(row?.row_version||0)};
   }),channels:{inApp:true,push:channels.push,email:channels.email},pushPublicKey:channels.publicKey||test.publicKey,pushRegistered,pushTestAvailable:test.available,
-    dueRemindersAvailable:false,securityEmailRequired:true};
+    deliveryEnabled:channels.enabled,dueRemindersAvailable:process.env.DUE_REMINDERS_ENABLED==='true',securityEmailRequired:true};
 }

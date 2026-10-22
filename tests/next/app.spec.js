@@ -3,6 +3,31 @@ const {mkdirSync}=require('node:fs');
 const {installOfflineAssets}=require('./offline-assets.cjs');
 const {bootstrappedHarness,createEquipment}=require('../backend/test-helpers.cjs');
 const canonical='https://example.test';
+test('disabled Push explains availability and loading uses one rotating logo',async({page})=>{
+  await mock(page);
+  await page.route('**/api/rpc',async route=>{
+    if(route.request().postDataJSON().method!=='getNotificationPreferences')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{items:[{event:'DUE_SOON',inApp:true,channel:null,version:0},{event:'OVERDUE',inApp:true,channel:null,version:0}],channels:{push:false,email:false},pushTestAvailable:false,dueRemindersAvailable:true}}});
+  });
+  await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();
+  for(const width of [320,768,1440]){
+    await page.setViewportSize({width,height:1000});
+    expect(await page.locator('#app-shell').evaluate(node=>node.getBoundingClientRect().height>=innerHeight&&node.getBoundingClientRect().width>=innerWidth)).toBe(true);
+    expect(await page.locator('body').evaluate(node=>getComputedStyle(node).backgroundAttachment.split(',').every(value=>value.trim()==='fixed'))).toBe(true);
+  }
+  await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
+  await expect(page.locator('[data-push-availability]')).toContainText('การส่งภายนอกยังปิดอยู่');
+  await expect(page.locator('.settings-security-root')).not.toContainText('สถานะ Email / Push');
+  await expect(page.locator('.settings-security-root')).not.toContainText('บังคับส่ง ปิดไม่ได้');
+  await expect(page.locator('.settings-security-root')).toContainText('ก่อนครบกำหนด 1 วัน');
+  await page.evaluate(()=>{window.loadingLease=CRSSessionLoading.begin();CRSSessionLoading.start();});
+  await expect(page.locator('#session-loading .loading-logo')).toBeVisible();
+  await expect(page.locator('#session-loading .spinner-border,#app-splash .spinner-border')).toHaveCount(0);
+  expect(await page.locator('#session-loading .loading-logo').evaluate(node=>getComputedStyle(node).animationName)).toBe('crs-logo-spin');
+  await page.emulateMedia({reducedMotion:'reduce'});
+  expect(await page.locator('#session-loading .loading-logo').evaluate(node=>getComputedStyle(node).animationName)).toBe('none');
+  await page.evaluate(()=>window.loadingLease.finish());
+});
 
 for(const language of ['th','en'])for(const theme of ['light','dark'])test('Account-only Push diagnostic is explicit, one-shot and independent of preferences '+language+' '+theme,async({page})=>{
   const {calls}=await mock(page);let sends=0;
@@ -567,7 +592,7 @@ test('session loading leases do not dismiss a newer cycle or change existing mut
     const latest=CRSSessionLoading.begin();CRSSessionLoading.start();first.finish();window.fixtureLoadingLease=latest;
   });
   await expect(page.locator('#session-loading')).toBeVisible();await expect(page.locator('#global-loading')).toBeVisible();
-  expect(await page.locator('#session-loading .spinner-border').evaluate(node=>getComputedStyle(node).animationName)).toBe('none');
+  expect(await page.locator('#session-loading .loading-logo').evaluate(node=>getComputedStyle(node).animationName)).toBe('none');
   await page.evaluate(()=>{window.fixtureLoadingLease.finish();delete window.fixtureLoadingLease;});
   await expect(page.locator('#session-loading')).toBeHidden();await expect(page.locator('#global-loading')).toBeVisible();
   await page.evaluate(()=>{CRS.setLoading(false);CRSSessionLoading.begin();CRSSessionLoading.start();window.dispatchEvent(new Event('pagehide'));});

@@ -2,9 +2,23 @@
 /* Above the 1080 Login surface, below application alerts/skip navigation. */
 .session-loading { position:fixed; inset:0; z-index:1085; display:grid; place-items:center; padding:1rem; background:var(--crs-overlay); backdrop-filter:blur(6px); }
 .session-loading-card { width:min(100%,24rem); padding:2rem 1.5rem; text-align:center; color:var(--crs-ink); background:var(--crs-glass-bg); border:1px solid var(--crs-glass-border); border-radius:var(--crs-radius-lg); box-shadow:var(--crs-shadow); }
-.session-loading-card .spinner-border { color:var(--crs-primary); margin-bottom:1rem; }
+.loading-logo { display:block; margin:0 auto 1rem; animation:crs-logo-spin 1.8s linear infinite; }
+#app-splash .brand-mark img { animation:crs-logo-spin 1.8s linear infinite; }
+@keyframes crs-logo-spin { to { transform:rotate(360deg); } }
 .session-loading-card p { color:var(--crs-muted); }
-@media (prefers-reduced-motion:reduce) { .session-loading .spinner-border { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .loading-logo,#app-splash .brand-mark img { animation:none; } }
+/* The viewport backdrop is independent of content height and sidebar width. */
+html { min-height:100%; background:var(--crs-canvas); }
+body { background-attachment:fixed; }
+.app-shell { min-height:100vh; min-height:100dvh; }
+.notification-popover footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.5rem; }
+.settings-signin-methods { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr); gap:1rem; margin:1.25rem 0; }
+.settings-signin-methods dt,.settings-signin-methods dd { margin:0; overflow-wrap:anywhere; }
+.settings-signin-methods dd { color:var(--crs-muted); }
+.settings-signin-email { overflow-wrap:anywhere; }
+.settings-signin-note { margin:.5rem 0 0; max-width:65ch; }
+.settings-push-availability { color:var(--crs-muted); margin:0; overflow-wrap:anywhere; }
+@media (max-width:575.98px) { .settings-signin-methods { grid-template-columns:1fr; gap:.4rem; } .settings-signin-methods dd:not(:last-child) { margin-bottom:.75rem; } }
 /* Bootstrap's scrollable content contains a form here. Let that intermediate
  * flex child shrink so only the body scrolls; do not change return validation. */
 #form-admin-return { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
@@ -168,7 +182,7 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .notification-close { display:grid; place-items:center; border:0; border-radius:var(--crs-control-radius); background:var(--crs-surface-soft); color:var(--crs-ink); min-width:44px; min-height:44px; }
 .notification-popover .notification-list { overflow:auto; min-height:0; padding:.75rem; overscroll-behavior:contain; }
 .notification-popover footer { padding:.75rem; border-top:1px solid var(--crs-border); flex-shrink:0; }
-.notification-popover footer button { width:100%; }
+.notification-popover footer button { width:auto; flex:1 1 0; min-width:0; min-height:44px; white-space:normal; }
 .notification-item { display:flex; align-items:flex-start; gap:.75rem; width:100%; text-align:start; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); color:var(--crs-ink); padding:.875rem; margin-bottom:.5rem; transition:background .15s; }
 .notification-item:last-child { margin-bottom:0; }
 .notification-item:hover { background:var(--crs-surface-hover); }

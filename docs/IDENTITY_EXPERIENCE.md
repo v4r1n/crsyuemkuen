@@ -6,6 +6,12 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+### Current-day reminders and notification presentation (2026-10-22)
+
+[ADR-037](adr/0007-calendar-due-reminders.md) owns the approved due-tomorrow/daily-overdue policy. Install `20261022091806_due_reminders.sql` before this runtime; it adds nullable calendar evidence without changing old notices or business History. A separate `DUE_REMINDERS_ENABLED` flag gates production, independently of global external delivery. Existing daily authenticated worker and owner inbox reads are bounded opportunities, not exact-time guarantees. Vercel Hobby's daily precision is limited; see [Cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing).
+
+Popover Read all calls the same owner-only mark-all method as Settings, guards duplicate clicks and retains errors, language, navigation and session epochs. Removing the requested explanatory cards does not disable mandatory security email. Sign-in presentation uses semantic method/value rows and connects Remember to its expiry explanation without altering session/auth. Startup and authenticated loading rotate only the supplied decorative logo, stop for reduced motion, and preserve text, existing loading leases and inert-state cleanup. Viewport background is independent of content/sidebar height. Disabled external choices explain configuration/capability limits rather than bypassing them. Actual Production configuration and real-device acceptance belong in Memory.
+
 ### External notification channels (2026-10-16, source preparation)
 
 The operator subsequently confirms the single SMTP test email arrived in Inbox and approves an account-only Windows/Edge Push diagnostic. This is not general delivery activation. `PUSH_TEST_USER_SHA256` is a private exact-email SHA-256 allowlist of one existing current ACTIVE account; `PUSH_TEST_EXPIRES_AT` is a strict UTC instant in the next 24 hours at most. Diagnostic capability requires the canonical Production origin/environment, writable mode, valid VAPID keys and an explicitly false global delivery flag. Missing, expired, wrong-origin/target/user or globally enabled configuration closes it. Neither private test setting enters a browser DTO; only the capability boolean and public VAPID key are projected to the eligible authenticated owner.

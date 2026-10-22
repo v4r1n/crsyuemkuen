@@ -43,7 +43,7 @@
           global.CRSProfile?.mount(root,{CRS,nameOnly:true});return;
         }
         root.insertAdjacentHTML('beforeend',card(heading(t('วิธีการลงชื่อเข้าใช้','Sign-in methods'))+
-          '<p>'+escape(data.email)+'</p><p>Google · '+escape(data.googleAvailable?t('ใช้บัญชี Google ที่ได้รับสิทธิ์','Authorized Google account'):t('ไม่พร้อมใช้งาน','Unavailable'))+'</p><p>Local Password · '+escape(data.passwordConfigured?t('ตั้งค่าแล้ว','Configured'):t('ยังไม่ได้ตั้งค่า','Not configured'))+'</p><label class="settings-remember"><input type="checkbox" data-settings-remember> '+t('จดจำเซสชันบนอุปกรณ์นี้','Remember session on this device')+'</label><p class="form-text">'+t('ไม่ต่ออายุเซสชัน อีเมลเปลี่ยนได้ผ่านผู้ดูแลระบบเท่านั้น','Does not extend expiry. Only an administrator can change your email.')+'</p>')+
+          '<p class="settings-signin-email">'+escape(data.email)+'</p><dl class="settings-signin-methods"><dt>Google</dt><dd>'+escape(data.googleAvailable?t('ใช้บัญชี Google ที่ได้รับสิทธิ์','Authorized Google account'):t('ไม่พร้อมใช้งาน','Unavailable'))+'</dd><dt>Local Password</dt><dd>'+escape(data.passwordConfigured?t('ตั้งค่าแล้ว','Configured'):t('ยังไม่ได้ตั้งค่า','Not configured'))+'</dd></dl><label class="settings-remember"><input type="checkbox" data-settings-remember aria-describedby="settings-remember-note"> '+t('จดจำเซสชันบนอุปกรณ์นี้','Remember session on this device')+'</label><p id="settings-remember-note" class="form-text settings-signin-note">'+t('การจดจำไม่ต่ออายุเซสชัน หากต้องการเปลี่ยนอีเมล กรุณาติดต่อผู้ดูแลระบบ','Remembering does not extend session expiry. Contact an administrator to change your email.')+'</p>')+
           card(heading(t('เซสชัน','Sessions'))+action(t('เซสชันที่ใช้งานอยู่','Active sessions')+' · '+data.activeSessionCount+' ›','data-security-sessions')+'<p>'+t('ตรวจสอบอุปกรณ์และเซสชันที่เข้าสู่ระบบอยู่','Review your signed-in sessions and devices')+'</p>'+action(t('ประวัติความปลอดภัย','Security activity')+' ›','data-security-activity')));
         root.querySelector('[data-security-sessions]').onclick=()=>CRS.navigate('settings',{section:'security',subview:'sessions'});
         root.querySelector('[data-security-activity]').onclick=()=>CRS.navigate('settings',{section:'security',subview:'activity'});
@@ -100,8 +100,9 @@
       status.textContent=t('กำลังโหลด…','Loading…');
       try {
         const data=await request('getNotificationPreferences');if(!valid())return;status.textContent='';
-        const labels={BORROW_REQUEST:t('คำขอยืม','Borrow request'),APPROVE:t('อนุมัติ','Approved'),REJECT:t('ไม่อนุมัติ','Rejected'),CHECKOUT:t('จ่ายอุปกรณ์','Checkout'),REQUEST_RETURN:t('คำขอคืน','Return request'),RETURN:t('ตรวจรับคืน','Returned'),ADMIN_BORROW_REQUEST:t('คำขอยืมใหม่','New borrow request'),ADMIN_REQUEST_RETURN:t('คำขอคืนใหม่','New return request')};
-        const general=document.createElement('section');general.className='settings-card';general.innerHTML=heading(t('ทั่วไป','General'))+'<p>'+t('ตั้งค่าช่องทางแสดงผล ไม่เปลี่ยนรายการยืมหรือ History','Delivery preferences never change borrowing or History.')+'</p><p>🔒 '+t('อีเมลด้านความปลอดภัย · บังคับส่ง ปิดไม่ได้','Security email · mandatory; cannot be disabled')+'</p>';root.append(general);
+        const labels={BORROW_REQUEST:t('คำขอยืม','Borrow request'),APPROVE:t('อนุมัติ','Approved'),REJECT:t('ไม่อนุมัติ','Rejected'),CHECKOUT:t('จ่ายอุปกรณ์','Checkout'),REQUEST_RETURN:t('คำขอคืน','Return request'),RETURN:t('ตรวจรับคืน','Returned'),ADMIN_BORROW_REQUEST:t('คำขอยืมใหม่','New borrow request'),ADMIN_REQUEST_RETURN:t('คำขอคืนใหม่','New return request'),DUE_SOON:t('ครบกำหนดคืนพรุ่งนี้','Due tomorrow'),OVERDUE:t('เกินกำหนดคืน','Overdue')};
+        const availability=document.createElement('p');availability.className='settings-push-availability';availability.dataset.pushAvailability='';
+        availability.textContent=!data.channels.push&&!data.channels.email?t('การส่งภายนอกยังปิดอยู่ หากหน้าต่างทดสอบหมดอายุ กรุณาติดต่อผู้ดูแลระบบ','External delivery is disabled. Contact an administrator if the test window has expired.'):!global.CRSPush?.supported()?t('เบราว์เซอร์นี้ไม่รองรับ Push; บน iOS ต้องใช้เว็บแอปที่เพิ่มบนหน้าจอโฮม','Push is unsupported here; on iOS use the web app added to the Home Screen.'):global.Notification?.permission==='denied'?t('Push ถูกบล็อก กรุณาอนุญาตในการตั้งค่าเว็บไซต์ของเบราว์เซอร์','Push is blocked. Allow notifications in your browser’s site settings.'):t('เลือก Push เพื่ออนุญาตแจ้งเตือนบนอุปกรณ์นี้','Choose Push to allow notifications on this device.');
         if(data.pushTestAvailable) {
           const panel=document.createElement('section');panel.className='settings-card';panel.dataset.pushTest='';
           panel.innerHTML=heading(t('ทดสอบ Push เฉพาะบัญชีนี้','Account-only Push test'))+'<p>'+t('ยังไม่เปิดส่งทั่วระบบ กดอนุญาตบนอุปกรณ์นี้แล้วส่งทดสอบหนึ่งครั้ง ผลรับจาก provider ยังไม่ยืนยันว่าอุปกรณ์แสดงข้อความ','Global delivery is disabled. Grant permission on this device, then send one test. Provider acceptance does not confirm device display.')+'</p>';
@@ -110,6 +111,7 @@
           register.textContent=t('ลงทะเบียนอุปกรณ์ทดสอบ','Register test device');send.textContent=t('ส่ง Push ทดสอบ','Send test Push');
           register.dataset.pushTestRegister='';send.dataset.pushTestSend='';result.setAttribute('role','status');result.setAttribute('aria-live','polite');
           register.disabled=!global.CRSPush?.supported();send.disabled=!data.pushRegistered;
+          if(register.disabled)result.textContent=t('เบราว์เซอร์นี้ไม่รองรับ Push; บน iOS ต้องเพิ่มเว็บแอปบนหน้าจอโฮมก่อน','Push is unsupported here; on iOS add the web app to the Home Screen first.');
           register.onclick=async()=>{
             register.disabled=send.disabled=true;
             try{if(await global.CRSPush.enable(data.pushPublicKey,request,valid)){if(!valid())return;data.pushRegistered=true;send.disabled=false;result.textContent=t('ลงทะเบียนแล้ว กดส่งทดสอบได้','Registered. You may send a test.');}}
@@ -124,9 +126,10 @@
           };
           panel.append(register,send,result);root.append(panel);
         }
-        for(const admin of [false,true]) {
-          const items=data.items.filter(item=>item.event.startsWith('ADMIN_')===admin);if(!items.length)continue;
-          const panel=document.createElement('section');panel.className='settings-card';panel.innerHTML=heading(admin?t('การแจ้งเตือนผู้ดูแล','Admin notifications'):t('กิจกรรมยืม–คืน','Borrowing activity'));root.append(panel);
+        for(const group of ['activity','admin','reminders']) {
+          const items=data.items.filter(item=>(['DUE_SOON','OVERDUE'].includes(item.event)?'reminders':item.event.startsWith('ADMIN_')?'admin':'activity')===group);if(!items.length)continue;
+          const panel=document.createElement('section');panel.className='settings-card';panel.innerHTML=heading(group==='admin'?t('การแจ้งเตือนผู้ดูแล','Admin notifications'):group==='reminders'?t('การเตือนกำหนดคืน','Due date reminders'):t('กิจกรรมยืม–คืน','Borrowing activity'));root.append(panel);
+          if(group==='reminders'){const note=document.createElement('p');note.textContent=data.dueRemindersAvailable?t('เตือนก่อนครบกำหนด 1 วัน และเกินกำหนดวันละครั้ง ตามเวลาไทย จนผู้ดูแลตรวจรับคืน','One day before the due date, then once daily when overdue (Thailand time), until the return is inspected.'):t('การเตือนกำหนดคืนยังไม่เปิดใช้งาน','Due date reminders are not enabled.');panel.append(note);}
           for(const item of items) {
             const row=document.createElement('div');row.className='settings-preference-row';
             const label=document.createElement('span');label.textContent=labels[item.event];row.append(label);
@@ -215,8 +218,8 @@
             controls.append(details,clear);row.append(controls);panel.append(row);
           }
         }
-        root.insertAdjacentHTML('beforeend',card(heading(t('การเตือนกำหนดคืน','Due date reminders'))+'<p>'+t('ใกล้ครบกำหนด / เกินกำหนด · ยังไม่เปิดใช้','Due soon / overdue · unavailable')+'</p>')+card(heading(t('สถานะ Email / Push','Email / Push status'))+'<p>'+t('เลือกช่องทางภายนอกได้หนึ่งช่องทางต่อกิจกรรม โดยไม่ปิดการแจ้งเตือนในเว็บ อีเมลส่งไปยังอีเมลบัญชีปัจจุบัน พุชต้องอนุญาตบนอุปกรณ์นี้และลงทะเบียนใหม่หลังลงชื่อเข้าใช้ครั้งใหม่ ช่องทางที่ยังไม่ตั้งค่าจะเลือกไม่ได้','Choose one external channel per activity without disabling in-app notices. Email uses your current account address. Push requires device permission and registration after a new sign-in. Unconfigured channels are unavailable.')+'</p>'));
         const recent=document.createElement('section');recent.className='settings-card';recent.innerHTML=heading(t('การแจ้งเตือนล่าสุด','Recent notifications'))+action(t('อ่านทั้งหมดแล้ว','Mark all as read'),'data-settings-read-all')+'<div class="notification-list mt-3" data-settings-inbox></div>';root.append(recent);inbox.mount(recent.querySelector('[data-settings-inbox]'));
+        root.querySelector('.settings-card').append(availability);
         const mark=recent.querySelector('[data-settings-read-all]');mark.disabled=typeof inbox.markAllRead!=='function';mark.onclick=async()=>{mark.disabled=true;try{await inbox.markAllRead();}catch(error){if(valid())status.textContent=error.message;}finally{if(valid())mark.disabled=false;}};
         const controller=new AbortController(),closeOutside=event=>root.querySelectorAll('.settings-channel-picker[open]').forEach(node=>{if(!node.contains(event.target))node._close();});
         document.addEventListener('pointerdown',closeOutside,{signal:controller.signal});

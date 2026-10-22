@@ -7,6 +7,11 @@ const digest=value=>createHash('sha256').update(value).digest('base64url');
 // Preferences filter delivery/display, never transaction History or event creation.
 const visibleNotice=`EXISTS (SELECT 1 FROM crs.users u JOIN crs.borrow b ON b.id=n.borrow_id
   WHERE u.id=n.user_id AND u.status='ACTIVE' AND (u.data->>'role'='ADMIN' OR b.data->>'user_id'=u.id))
+  AND (n.history_id IS NOT NULL OR EXISTS (SELECT 1 FROM crs.borrow b WHERE b.id=n.borrow_id
+    AND b.status IN ('CHECKED_OUT','RETURN_REQUESTED') AND b.data->>'due_date'=n.reminder_due_date::text
+    AND n.reminder_day=(now() AT TIME ZONE 'Asia/Bangkok')::date
+    AND ((n.action='OVERDUE' AND n.reminder_due_date<n.reminder_day)
+      OR (n.action='DUE_SOON' AND n.reminder_due_date=n.reminder_day+1))))
   AND NOT EXISTS (SELECT 1 FROM crs.notification_preferences p
   JOIN crs.borrow b ON b.id=n.borrow_id
   WHERE p.user_id=n.user_id AND p.in_app=false AND p.event=CASE

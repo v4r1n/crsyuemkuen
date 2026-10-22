@@ -7,7 +7,8 @@
     const eligible=()=>CRS.auth.hasSession()&&!CRS.state.bootstrap?.session.mustChangePassword;
     const current=version=>version===epoch&&eligible();
     const copy=()=>CRS.language.effective()==='en'?{empty:'You’re all caught up',hint:'Borrowing updates will appear here.',retry:'Try again',open:'Open notifications',unread:'unread',read:'Read',fresh:'Unread'}:{empty:'ยังไม่มีการแจ้งเตือน',hint:'อัปเดตการยืม–คืนจะแสดงที่นี่',retry:'ลองอีกครั้ง',open:'เปิดหน้าการแจ้งเตือน',unread:'ยังไม่อ่าน',read:'อ่านแล้ว',fresh:'ยังไม่อ่าน'};
-    const labels=()=>CRS.language.effective()==='en'?{BORROW_REQUEST:'Borrow request',APPROVE:'Approved',REJECT:'Rejected',CHECKOUT:'Checked out',REQUEST_RETURN:'Return requested',RETURN:'Returned'}:{BORROW_REQUEST:'คำขอยืม',APPROVE:'อนุมัติ',REJECT:'ไม่อนุมัติ',CHECKOUT:'จ่ายอุปกรณ์',REQUEST_RETURN:'แจ้งคืน',RETURN:'ตรวจรับคืน'};
+    const readAllCopy=()=>CRS.language.effective()==='en'?'Mark all as read':'อ่านทั้งหมด';
+    const labels=()=>CRS.language.effective()==='en'?{BORROW_REQUEST:'Borrow request',APPROVE:'Approved',REJECT:'Rejected',CHECKOUT:'Checked out',REQUEST_RETURN:'Return requested',RETURN:'Returned',DUE_SOON:'Due tomorrow',OVERDUE:'Overdue'}:{BORROW_REQUEST:'คำขอยืม',APPROVE:'อนุมัติ',REJECT:'ไม่อนุมัติ',CHECKOUT:'จ่ายอุปกรณ์',REQUEST_RETURN:'แจ้งคืน',RETURN:'ตรวจรับคืน',DUE_SOON:'ครบกำหนดคืนพรุ่งนี้',OVERDUE:'เกินกำหนดคืน'};
     const icons={BORROW_REQUEST:'bi-inbox',APPROVE:'bi-check-circle',REJECT:'bi-x-circle',CHECKOUT:'bi-box-arrow-up',REQUEST_RETURN:'bi-arrow-return-left',RETURN:'bi-box-seam'};
     function badge(count){
       const value=Number.isSafeInteger(count)&&count>0?count:0;
@@ -100,9 +101,11 @@
       if(!eligible())return;
       if(popup&&trigger===anchor){close();return;}close(false);trigger=anchor;
       const node=document.createElement('section');popup=node;node.id='crs-notification-popover';node.className='notification-popover';node.role='dialog';node.setAttribute('aria-modal','false');node.setAttribute('aria-labelledby','notification-popover-title');
-      node.innerHTML='<header><div><h2 id="notification-popover-title" data-experience-text="notifications">'+escape(t('notifications'))+'</h2><span data-inbox-unread></span></div><button type="button" class="notification-close" aria-label="'+escape(t('close'))+'"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><div class="notification-list" data-notification-list></div><footer><button type="button" class="btn btn-outline-secondary" data-inbox-all></button></footer>';
+      node.innerHTML='<header><div><h2 id="notification-popover-title" data-experience-text="notifications">'+escape(t('notifications'))+'</h2><span data-inbox-unread></span></div><button type="button" class="notification-close" aria-label="'+escape(t('close'))+'"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><div class="notification-list" data-notification-list></div><footer><button type="button" class="btn btn-outline-secondary" data-inbox-read-all></button><button type="button" class="btn btn-outline-secondary" data-inbox-all></button></footer>';
       document.body.append(node);anchor.setAttribute('aria-expanded','true');node.querySelector('[data-inbox-all]').textContent=copy().open;
       node.querySelector('.notification-close').onclick=()=>close();node.querySelector('[data-inbox-all]').onclick=()=>{close(false);CRS.navigate('settings',{section:'notifications'});};
+      const mark=node.querySelector('[data-inbox-read-all]');mark.textContent=readAllCopy();
+      mark.onclick=async()=>{if(mark.disabled)return;mark.disabled=true;try{await markAllRead();}catch(error){if(node===popup)CRS.toast(error.message,'danger');}finally{if(node===popup)mark.disabled=false;}};
       const position=()=>{
         if(!anchor.isConnected||!eligible()){close(false);return;}
         const box=anchor.getBoundingClientRect(),viewport=global.visualViewport,width=viewport?.width||innerWidth,height=viewport?.height||innerHeight,left=viewport?.offsetLeft||0,top=viewport?.offsetTop||0;
@@ -123,7 +126,7 @@
     function reset(){epoch++;revision++;countJob=null;close(false);for(const view of views)view.host.replaceChildren();views.clear();badge(0);}
     function sync(){
       badge(unreadCount);
-      if(popup){popup.querySelector('.notification-close').setAttribute('aria-label',t('close'));popup.querySelector('[data-inbox-all]').textContent=copy().open;}
+      if(popup){popup.querySelector('.notification-close').setAttribute('aria-label',t('close'));popup.querySelector('[data-inbox-all]').textContent=copy().open;popup.querySelector('[data-inbox-read-all]').textContent=readAllCopy();}
       for(const view of views){if(view.items)draw(view);else{const status=view.host.querySelector('[role="status"]');if(view.busy&&status)status.textContent=t('loading');const retry=view.host.querySelector('[data-inbox-retry]');if(retry)retry.textContent=copy().retry;}}
     }
     global.addEventListener('pagehide',reset);

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Calendar reminders and notification usability (2026-10-22)
+
+- Prepare viewport-wide background, logo-only reduced-motion-aware loading, a left-side shared Read all action, clearer disabled-Push feedback and symmetric sign-in methods. Remove the requested explanatory cards without disabling mandatory security mail.
+- Add owner-only due-tomorrow/daily-overdue reminders derived from current custody and Thailand dates, with durable deduplication, no fake History/backfill, current-state display/dispatch checks and existing bounded worker opportunities. Keep external delivery opt-in and independently disabled pending device acceptance.
+- Verify the approved private online snapshot and eight image binaries; install the additive reminder schema idempotently without rewriting durable records or changing writer modes. Memory owns final source tests, actual Production rollout, diagnostic expiry and real-device acceptance separately.
+
 ### Account-only expiring Push diagnostic (2026-10-16)
 
 - Deploy accepted `029b164` only as a bounded account-specific diagnostic after 440 offline checks/build, 26 candidate checks and same-artifact promotion with 26 canonical checks. Preserve disabled global delivery, writable Production and frozen unchanged Preview. The twelve-hour test window ends at 05:00 Asia/Bangkok on 2026-10-17; actual Windows/Edge receipt remains pending, not a completed general-delivery rollout.

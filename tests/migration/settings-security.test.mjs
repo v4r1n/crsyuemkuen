@@ -13,7 +13,7 @@ process.env.GOOGLE_OAUTH_CLIENT_ID='settings-fixture.apps.googleusercontent.com'
 process.env.ALLOWED_DOMAINS='example.test';
 async function fixture() {
   const db=new PGlite();
-  for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile'])await db.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
+  for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile','20261016023629_notification_delivery','20261022091806_due_reminders'])await db.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
   await db.query('INSERT INTO crs.sequences(data) VALUES($1)',[JSON.stringify({sequence_name:'LOG',prefix:'LOG-',padding:6,next_value:1,updated_at:new Date().toISOString()})]);
   const user={user_id:'USR-000001',email:'owner@example.test',name:'Owner',department:'Source department',role:'USER',status:'ACTIVE',row_version:1};
   const other={...user,user_id:'USR-000002',email:'other@example.test',role:'ADMIN'};
@@ -54,13 +54,13 @@ test('owner-only revocation is atomic/current-safe and replay cannot revoke a la
 });
 test('preferences enforce owner/version/ADMIN, unavailable channels cannot be enabled, RLS is private',async()=>{
   const f=await fixture();try{
-    assert.equal((await notificationPreferences(f.db,f.user)).items.length,6);
+    assert.equal((await notificationPreferences(f.db,f.user)).items.length,8);
     const input={event:'APPROVE',inApp:false,expectedVersion:0,user_id:f.other.user_id,role:'ADMIN'};
     const saved=await notificationPreferences(f.db,f.user,input);assert.equal(saved.items.find(item=>item.event==='APPROVE').inApp,false);assert.equal(saved.channels.push,false);assert.equal(saved.securityEmailRequired,true);
     assert.equal((await notificationPreferences(f.db,f.other)).items.find(item=>item.event==='APPROVE').inApp,true);
     await assert.rejects(notificationPreferences(f.db,f.user,input));
     await assert.rejects(notificationPreferences(f.db,f.user,{event:'ADMIN_BORROW_REQUEST',inApp:false,expectedVersion:0}));
-    await assert.rejects(notificationPreferences(f.db,f.user,{event:'DUE_SOON',inApp:true,expectedVersion:0}));
+    assert.equal((await notificationPreferences(f.db,f.user,{event:'DUE_SOON',inApp:true,expectedVersion:0})).items.find(item=>item.event==='DUE_SOON').inApp,true);
     assert.equal((await f.db.query("SELECT relrowsecurity FROM pg_class WHERE oid='crs.notification_preferences'::regclass")).rows[0].relrowsecurity,true);
     assert.equal((await f.db.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='crs' AND tablename='notification_preferences'")).rows[0].n,0);
   }finally{await f.db.close();}
@@ -97,7 +97,7 @@ test('restore format 3 retains preferences and never restores session/device pro
     const old={format:2,tables:{...snapshot.tables}};delete old.tables.notification_preferences;delete old.tables.profile_resources;assert.deepEqual(normalizeSnapshot(old).tables.notification_preferences,[]);
       // Use a new empty database, not deletion of protected canonical records.
       const clean=new PGlite();try{
-        for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile'])await clean.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
+        for(const filename of ['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile','20261016023629_notification_delivery','20261022091806_due_reminders'])await clean.exec(readFileSync(new URL('../../supabase/migrations/'+filename+'.sql',import.meta.url),'utf8'));
         const transact=async work=>{await clean.exec('BEGIN');try{const result=await work(clean);await clean.exec('COMMIT');return result;}catch(error){await clean.exec('ROLLBACK');throw error;}};
         await reserveRestore(snapshot,transact);await commitRestore(snapshot,transact);
         assert.equal((await clean.query('SELECT in_app FROM crs.notification_preferences')).rows[0].in_app,false);

@@ -2,6 +2,10 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## ADR-037 — Current-day due reminders
+
+[Decision](adr/0007-calendar-due-reminders.md): the operator accepts due-tomorrow and once-daily overdue reminders on 2026-10-22. Separate calendar evidence from custody History, deduplicate the current Thailand day, recheck due/custody before display or dispatch and preserve independent channel opt-in. This supersedes the earlier unavailable-reminder restriction only after additive activation; actual verification and rollout belong in Memory.
+
 ## ADR-036 — Opt-in external notification delivery
 
 The later operator-approved [account-only diagnostic contract](IDENTITY_EXPERIENCE.md#external-notification-channels-2026-10-16-source-preparation) separates an explicit expiring test Push from authoritative activity delivery. It preserves disabled global dispatch and the provider/device acceptance gate; it does not invent domain History or authorize other recipients.

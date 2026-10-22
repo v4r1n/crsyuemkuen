@@ -18,7 +18,7 @@
     if(node)return;
     node=document.createElement('section');node.id='session-loading';node.className='session-loading';node.hidden=true;
     node.setAttribute('role','status');node.setAttribute('aria-live','polite');node.setAttribute('aria-atomic','true');
-    node.innerHTML='<div class="session-loading-card"><span class="spinner-border" aria-hidden="true"></span><h2 class="h5 mb-2" data-session-loading-title></h2><p class="mb-0" data-session-loading-message></p></div>';
+    node.innerHTML='<div class="session-loading-card"><img class="loading-logo" src="/brand/icon-yuemkuen.png" width="56" height="56" alt="" aria-hidden="true"><h2 class="h5 mb-2" data-session-loading-title></h2><p class="mb-0" data-session-loading-message></p></div>';
     document.body.append(node);
   }
   function hide(){

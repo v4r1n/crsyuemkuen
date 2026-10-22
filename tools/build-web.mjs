@@ -244,6 +244,9 @@ index=index.replace(/<span class="state-icon state-icon-warning mx-auto"[\s\S]*?
 const brandIcon=/(<span class="brand-mark(?: [^"]*)?"[^>]*>)\s*<i class="bi bi-box-seam"[^>]*><\/i>\s*(<\/span>)/g;
 if(!brandIcon.test(index)) throw new Error('Brand mark composition seam changed');
 index=index.replace(brandIcon,'$1<img src="/brand/icon-yuemkuen.png" alt="" width="44" height="44" decoding="async">$2');
+const startupSpinner='<div class="spinner-border text-primary mt-4" aria-hidden="true"></div>';
+if(!index.includes(startupSpinner))throw new Error('Startup loading composition seam changed');
+index=index.replace(startupSpinner,'');
 // Keep the native checkbox and its translated label/session listener intact.
 // The decorative sibling must not be inside the label: translation replaces
 // that label's textContent. Compose only the Next shell, not the GAS baseline.

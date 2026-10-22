@@ -25,6 +25,21 @@ async function fixture(page,{restricted=false,admin=true,inbox}={}){
 }
 const bell=page=>page.locator('.topbar-actions [data-experience-action="notifications"]');
 const panel=page=>page.locator('#crs-notification-popover');
+test('popover read-all uses the existing owner flow, stays left and prevents double submission',async({page})=>{
+  let marked=false,release;const gate=new Promise(resolve=>release=resolve);
+  const calls=await fixture(page,{inbox:async input=>{if(input.markAllRead){await gate;marked=true;}return {items:[{...notice,read_at:marked?'2026-10-22T05:00:00Z':null}],unread:marked?0:1};}});
+  try{
+    await bell(page).click();const mark=panel(page).locator('[data-inbox-read-all]');await expect(mark).toHaveText('อ่านทั้งหมด');
+    await mark.click();await expect(mark).toBeDisabled();release();await expect(mark).toBeEnabled();
+    await expect(panel(page).locator('.notification-item')).toHaveAttribute('data-unread','false');
+    expect(calls.filter(call=>call.method==='listNotifications'&&call.args[0]?.markAllRead)).toHaveLength(1);
+    expect(await mark.evaluate(node=>node.nextElementSibling.hasAttribute('data-inbox-all'))).toBe(true);
+    await page.setViewportSize({width:320,height:640});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await expect(mark).toBeInViewport({ratio:1});await expect(panel(page).locator('[data-inbox-all]')).toBeInViewport({ratio:1});
+    const left=await mark.boundingBox(),right=await panel(page).locator('[data-inbox-all]').boundingBox();
+    expect(left.x+left.width).toBeLessThanOrEqual(right.x+1);expect(Math.abs(left.y-right.y)).toBeLessThan(1);
+  }finally{release();}
+});
 async function capture(page,name){
   if(process.env.CRS_UI_CAPTURE!=='1')return;mkdirSync('test-results/ui',{recursive:true});
   await page.screenshot({path:'test-results/ui/'+name+'.png',animations:'disabled'});

@@ -13,13 +13,25 @@ import {deliveryConfiguration,validateSubscription,ownPushSubscription,deliveryP
 import {snapshotTables,reserveRestore,commitRestore} from '../../tools/restore-records.mjs';
 import {pushTestConfiguration} from '../../server/notification-config.mjs';
 import {pushTestService} from '../../server/push-test.mjs';
+import {projectDueReminders,reminderCurrent,bangkokDate} from '../../server/due-reminders.mjs';
+import {notificationInbox} from '../../server/experience.mjs';
 const require=createRequire(import.meta.url),{bootstrappedHarness,createEquipment,createUser}=require('../backend/test-helpers.cjs');
 const keys=webpush.generateVAPIDKeys();
+test('expired Production diagnostic reproduces disabled Push independently of browser or OS',()=>{
+  const user={status:'ACTIVE',email:'diagnostic@example.test'},now=Date.parse('2026-10-22T00:00:00.000Z');
+  const env={NOTIFICATION_DELIVERY_ENABLED:'false',WRITE_FREEZE:'false',VERCEL_ENV:'production',WEB_APP_URL:'https://crsyuemkuen.vercel.app',
+    PUSH_TEST_USER_SHA256:createHash('sha256').update(user.email).digest('hex'),PUSH_TEST_EXPIRES_AT:'2026-10-16T22:00:00.000Z',
+    WEB_PUSH_SUBJECT:'mailto:fixture@example.test',WEB_PUSH_PUBLIC_KEY:keys.publicKey,WEB_PUSH_PRIVATE_KEY:keys.privateKey};
+  assert.equal(deliveryConfiguration(env).push,false);
+  assert.equal(pushTestConfiguration(user,env,now).available,false);
+  assert.equal(pushTestConfiguration(user,{...env,PUSH_TEST_EXPIRES_AT:'2026-10-22T12:00:00.000Z'},now).available,true);
+  assert.equal(deliveryConfiguration(env).push,false,'diagnostic renewal must not activate global dispatch');
+});
 Object.assign(process.env,{WEB_APP_URL:'https://delivery.example.test',GOOGLE_OAUTH_CLIENT_ID:'delivery-fixture.apps.googleusercontent.com',
   ALLOWED_DOMAINS:'example.com,gmail.com',WRITE_FREEZE:'false',NOTIFICATION_DELIVERY_ENABLED:'true',
   SMTP_HOST:'smtp.example.test',SMTP_PORT:'587',SMTP_USER:'fixture',SMTP_PASSWORD:'synthetic-only-password',SMTP_FROM:'fixture@example.com',
   WEB_PUSH_SUBJECT:'mailto:fixture@example.com',WEB_PUSH_PUBLIC_KEY:keys.publicKey,WEB_PUSH_PRIVATE_KEY:keys.privateKey});
-const migrations=['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile','20261016023629_notification_delivery'];
+const migrations=['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile','20261016023629_notification_delivery','20261022091806_due_reminders'];
 function subscription(suffix='fixture') {
   const curve=createECDH('prime256v1');curve.generateKeys();
   return {endpoint:'https://fcm.googleapis.com/fcm/send/'+suffix,keys:{p256dh:curve.getPublicKey().toString('base64url'),auth:Buffer.alloc(16,7).toString('base64url')}};
@@ -47,10 +59,73 @@ async function fixture() {
   let inTransaction=false;
   const transact=async work=>{assert.equal(inTransaction,false);await db.exec('BEGIN');inTransaction=true;try{const result=await work(db);await db.exec('COMMIT');return result;}catch(error){await db.exec('ROLLBACK');throw error;}finally{inTransaction=false;}};
   const request={command_id:'delivery-borrow-fixture',asset_id:asset.asset_id,borrow_date:'2026-10-16',due_date:'2026-10-17',purpose:'Fixture'};
-  async function borrow(){return transact(async db=>{const domain=await loadDomain(db,{session});const result=domain.invoke('createBorrowRequest',[token,request]);assert.equal(result.ok,true,JSON.stringify(result.error));await saveDomain(db,domain);return result.data;});}
+  async function borrow(overrides={}){return transact(async db=>{const domain=await loadDomain(db,{session});const result=domain.invoke('createBorrowRequest',[token,{...request,...overrides}]);assert.equal(result.ok,true,JSON.stringify(result.error));await saveDomain(db,domain);return result.data;});}
   const rows=async()=>(await db.query('SELECT * FROM crs.notification_delivery ORDER BY id')).rows;
   return {db,user,admin,token,transact,borrow,rows,outside:()=>assert.equal(inTransaction,false)};
 }
+
+test('Bangkok reminder boundaries preserve custody states and invalidate stale dates',()=>{
+  const now=Date.parse('2026-10-22T17:00:00Z');assert.equal(bangkokDate(now),'2026-10-23');
+  const notice={action:'DUE_SOON',reminder_day:'2026-10-23',reminder_due_date:'2026-10-24'};
+  const borrow={status:'CHECKED_OUT',due_date:'2026-10-24'};
+  assert.equal(reminderCurrent(notice,borrow,now),true);
+  assert.equal(reminderCurrent(notice,{...borrow,status:'RETURN_REQUESTED'},now),true);
+  for(const status of ['RETURNED','APPROVED','PENDING_APPROVAL','REJECTED'])assert.equal(reminderCurrent(notice,{...borrow,status},now),false);
+  assert.equal(reminderCurrent(notice,{...borrow,due_date:'2026-10-25'},now),false);
+  assert.equal(reminderCurrent(notice,borrow,now+86400000),false);
+  assert.equal(reminderCurrent({...notice,action:'OVERDUE',reminder_due_date:'2026-10-22'},{...borrow,due_date:'2026-10-22'},now),true);
+  assert.equal(reminderCurrent({...notice,action:'OVERDUE'},borrow,now),false);
+});
+
+test('current custody reminders dedupe today, never invent History, suppress stale delivery and respect freeze',async()=>{
+  const f=await fixture(),beforeFlag=process.env.DUE_REMINDERS_ENABLED;
+  try {
+    process.env.DUE_REMINDERS_ENABLED='true';
+    let borrow=await f.borrow();
+    async function invoke(method,input){return f.transact(async db=>{const domain=await loadDomain(db,{session:{userId:f.admin.user_id,email:f.admin.email,clientId:process.env.GOOGLE_OAUTH_CLIENT_ID,expiresAt:Math.floor(Date.now()/1000)+3600}});const result=domain.invoke(method,['fixture-admin-session',input]);assert.equal(result.ok,true,JSON.stringify(result.error));await saveDomain(db,domain);return result.data;});}
+    borrow=await invoke('adminApproveBorrow',{command_id:'reminder-approve',borrow_id:borrow.borrow_id,expected_version:borrow.row_version});
+    borrow=await invoke('adminCheckoutBorrow',{command_id:'reminder-checkout',borrow_id:borrow.borrow_id,expected_version:borrow.row_version});
+    await notificationPreferences(f.db,f.user,{event:'DUE_SOON',channel:'EMAIL',expectedVersion:0},f.token);
+    const history=JSON.stringify((await f.db.query('SELECT * FROM crs.history ORDER BY id')).rows);
+    const now=Date.parse('2026-10-16T05:00:00Z');
+    assert.equal((await f.transact(db=>projectDueReminders(db,{now,userId:f.admin.user_id}))).created,0);
+    assert.equal((await f.transact(db=>projectDueReminders(db,{now}))).created,1);
+    assert.equal((await f.transact(db=>projectDueReminders(db,{now}))).created,0);
+    const notices=(await f.db.query("SELECT * FROM crs.notifications WHERE action='DUE_SOON'")).rows;
+    assert.equal(notices.length,1);assert.equal(notices[0].history_id,null);assert.equal(notices[0].user_id,f.user.user_id);
+    assert.equal(JSON.stringify((await f.db.query('SELECT * FROM crs.history ORDER BY id')).rows),history);
+    assert.equal((await f.rows()).length,1);
+    let sent=0;await deliveryProcessor({transact:f.transact,email:async()=>{sent++;return 'ACCEPTED';}})();
+    assert.equal(sent,0,'old-day reminder must not dispatch');
+    assert.equal((await f.rows())[0].status,'CANCELLED');
+    process.env.WRITE_FREEZE='true';assert.equal((await projectDueReminders(f.db,{now:now+2*86400000})).created,0);process.env.WRITE_FREEZE='false';
+    assert.equal((await f.transact(db=>projectDueReminders(db,{now:now+2*86400000}))).created,1);
+    assert.equal((await f.transact(db=>projectDueReminders(db,{now:now+3*86400000}))).created,1,'only the current day, no gap backfill');
+    const count=(await f.db.query("SELECT count(*)::int n FROM crs.notifications WHERE action='OVERDUE'")).rows[0].n;assert.equal(count,2);
+    process.env.DUE_REMINDERS_ENABLED='false';assert.equal((await projectDueReminders(f.db,{now:now+4*86400000})).created,0);
+  }finally{process.env.WRITE_FREEZE='false';if(beforeFlag===undefined)delete process.env.DUE_REMINDERS_ENABLED;else process.env.DUE_REMINDERS_ENABLED=beforeFlag;await f.db.close();}
+});
+
+test('today reminder reaches owner inbox and opt-in provider once; inspected return invalidates it',async()=>{
+  const f=await fixture(),prior=process.env.DUE_REMINDERS_ENABLED;
+  try{
+    process.env.DUE_REMINDERS_ENABLED='true';
+    let borrow=await f.borrow({borrow_date:bangkokDate(),due_date:bangkokDate(Date.now()+86400000)});
+    const invoke=(method,input)=>f.transact(async db=>{const domain=await loadDomain(db,{session:{userId:f.admin.user_id,email:f.admin.email,clientId:process.env.GOOGLE_OAUTH_CLIENT_ID,expiresAt:Math.floor(Date.now()/1000)+3600}});const result=domain.invoke(method,['fixture-admin-session',input]);assert.equal(result.ok,true,JSON.stringify(result.error));await saveDomain(db,domain);return result.data;});
+    borrow=await invoke('adminApproveBorrow',{command_id:'today-reminder-approve',borrow_id:borrow.borrow_id,expected_version:borrow.row_version});
+    borrow=await invoke('adminCheckoutBorrow',{command_id:'today-reminder-checkout',borrow_id:borrow.borrow_id,expected_version:borrow.row_version});
+    await notificationPreferences(f.db,f.user,{event:'DUE_SOON',channel:'EMAIL',expectedVersion:0},f.token);
+    await f.transact(db=>projectDueReminders(db));
+    assert.equal((await notificationInbox(f.db,f.user)).items.filter(item=>item.action==='DUE_SOON').length,1);
+    assert.equal((await notificationInbox(f.db,f.admin)).items.filter(item=>item.action==='DUE_SOON').length,0,'admin does not get borrower reminder');
+    let sent=0;const worker=deliveryProcessor({transact:f.transact,email:async job=>{f.outside();assert.equal(job.event,'DUE_SOON');sent++;return 'ACCEPTED';}});
+    await worker();await worker();assert.equal(sent,1);
+    const items=(await loadDomain(f.db)).records.BorrowItems.filter(item=>item.borrow_id===borrow.borrow_id).map(item=>({borrow_item_id:item.borrow_item_id,returned_quantity:1,note:''}));
+    await invoke('adminCompleteReturn',{command_id:'today-reminder-return',borrow_id:borrow.borrow_id,expected_version:borrow.row_version,condition:'NORMAL',disposition:'AVAILABLE',items});
+    assert.equal((await notificationInbox(f.db,f.user)).items.filter(item=>item.action==='DUE_SOON').length,0);
+    assert.equal((await projectDueReminders(f.db)).created,0);
+  }finally{if(prior===undefined)delete process.env.DUE_REMINDERS_ENABLED;else process.env.DUE_REMINDERS_ENABLED=prior;await f.db.close();}
+});
 
 test('delivery configuration fails closed; subscription validates capability host/key without arbitrary network',()=>{
   assert.equal(deliveryConfiguration().push,true);assert.equal(deliveryConfiguration().email,true);

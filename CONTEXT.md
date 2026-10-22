@@ -43,3 +43,7 @@ _Avoid_: Phishing-resistant MFA, Google handoff code
 **Notification**:
 A recipient-specific notice of a committed custody-workflow event.
 _Avoid_: Browser-generated approval, transaction authority
+
+**Due-date reminder**:
+A recipient-specific notice derived from the current due date of equipment still in the borrower's custody, not a new custody-workflow event.
+_Avoid_: Overdue workflow status, fabricated History
