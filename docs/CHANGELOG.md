@@ -8,8 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Approved dependency patch (2026-10-26)
 
+- Activate source `32201ee` on canonical Production after 446 offline checks/build, clean fresh remote install, 26 protected candidate checks, same-artifact promotion and 26 canonical checks. The 27.9-second Singapore build is READY; bounded logs contain only expected denial probes, with no INTERNAL/worker/other errors and no configured drains. Preserve writable Production / frozen protected Preview and globally disabled external delivery. The mandatory-inbox UI and previously approved account-only Push window are now live until 11:30:58 Thai on 2026-10-27; actual device receipt remains pending.
 - Pin Next.js 16.4.1 and Nodemailer 10.1.4 with the npm-generated lockfile after explicit operator approval. Credential-free, script-disabled preparation and public metadata checks report zero advisories; other dependencies are unchanged.
-- Adapt the compiled-artifact regression harness to Turbopack's mangled/pruned exports by exercising the real compiled domain loader. Preserve current-user authorization/denial/bootstrap and private-file tracing assertions; no application-auth change or source fallback. Accept 446 component checks and production build across the non-Next aggregate gates and final full Next command. Staged/canonical release acceptance remains pending; Memory owns actual activation.
+- Adapt the compiled-artifact regression harness to Turbopack's mangled/pruned exports by exercising the real compiled domain loader. Preserve current-user authorization/denial/bootstrap and private-file tracing assertions; no application-auth change or source fallback. Accept 446 component checks and production build across the non-Next aggregate gates and final full Next command; Memory owns actual activation and remaining manual gates.
 
 ### Mandatory in-app notices and renewed Push test (2026-10-26)
 
