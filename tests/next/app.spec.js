@@ -112,7 +112,7 @@ for(const language of ['th','en'])for(const theme of ['light','dark'])test('Noti
     const box=await picker.locator('[role="menu"]').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
     await captureUi(page,'delivery-'+language+'-'+theme+'-'+width,{staticView:true});
     await page.keyboard.press('Enter');await expect(summary).toHaveText(language==='en'?'Push ▾':'พุช ▾');
-    await expect(picker.locator('..').locator('[data-in-app]')).toBeChecked();
+    await expect(page.locator('[data-in-app],.settings-in-app')).toHaveCount(0);
     await summary.click();await page.keyboard.press('Escape');await expect(summary).toBeFocused();await expect(picker).not.toHaveAttribute('open','');
     await picker.locator('..').locator('[data-delivery-off]').click();await expect(summary).toContainText(language==='en'?'Choose channel':'เลือกช่องทาง');
     await expectNoOverflow(page);
@@ -273,19 +273,19 @@ test('stale notification preference refreshes its owner-scoped version without a
   await page.route('**/api/rpc',async route=>{
     const input=route.request().postDataJSON();
     if(input.method==='getNotificationPreferences') {
-      reads++;await route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:reads===1,version:reads===1?0:2}],channels:{inApp:true,push:false,email:false}}}});return;
+      reads++;await route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:true,channel:'EMAIL',version:reads===1?0:2}],channels:{inApp:true,push:false,email:false}}}});return;
     }
     if(input.method==='saveNotificationPreference') {
       versions.push(input.args[0].expectedVersion);
-      await route.fulfill({json:versions.length===1?{ok:false,error:{code:'STATE_CONFLICT',message:'Fixture state changed'}}:{ok:true,data:{items:[{event:'APPROVE',inApp:true,version:3}]}}});return;
+      await route.fulfill({json:versions.length===1?{ok:false,error:{code:'STATE_CONFLICT',message:'Fixture state changed'}}:{ok:true,data:{items:[{event:'APPROVE',inApp:true,channel:null,version:3}]}}});return;
     }
     await route.fallback();
   });
   await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
   const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
-  const control=picker.locator('..').locator('[data-in-app]');await control.uncheck();await expect(control).toBeEnabled();
-  await expect(control).not.toBeChecked();expect(reads).toBe(2);
-  await control.check();await expect(control).toBeEnabled();expect(versions).toEqual([0,2]);
+  const control=picker.locator('..').locator('[data-delivery-off]');await control.click();await expect(control).toBeEnabled();
+  expect(reads).toBe(2);await expect(page.locator('[data-in-app]')).toHaveCount(0);
+  await control.click();await expect(control).toBeHidden();expect(versions).toEqual([0,2]);
 });
 
 for(const width of [320,390,768,1440])for(const language of ['th','en'])for(const theme of ['light','dark']) {
@@ -305,8 +305,8 @@ for(const width of [320,390,768,1440])for(const language of ['th','en'])for(cons
     await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
     const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
     await expect(picker.locator('[role="menuitemradio"]:disabled')).toHaveCount(2);
-    const inApp=picker.locator('..').locator('[data-in-app]');await inApp.uncheck();await expect(inApp).not.toBeChecked();
-    await picker.locator('summary').click();await expect(picker).toHaveAttribute('open','');
+    await expect(page.locator('[data-in-app],.settings-in-app')).toHaveCount(0);
+    await expect(picker).toHaveAttribute('open','');
     await expect(picker.locator('summary')).toContainText(language==='en'?'Choose channel':'เลือกช่องทาง');
     await picker.locator('summary').focus();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

@@ -55,12 +55,15 @@ test('owner-only revocation is atomic/current-safe and replay cannot revoke a la
 test('preferences enforce owner/version/ADMIN, unavailable channels cannot be enabled, RLS is private',async()=>{
   const f=await fixture();try{
     assert.equal((await notificationPreferences(f.db,f.user)).items.length,8);
-    const input={event:'APPROVE',inApp:false,expectedVersion:0,user_id:f.other.user_id,role:'ADMIN'};
-    const saved=await notificationPreferences(f.db,f.user,input);assert.equal(saved.items.find(item=>item.event==='APPROVE').inApp,false);assert.equal(saved.channels.push,false);assert.equal(saved.securityEmailRequired,true);
+    await f.db.query("INSERT INTO crs.notification_preferences(user_id,event,in_app) VALUES($1,'APPROVE',false)",[f.user.user_id]);
+    const input={event:'APPROVE',channel:null,expectedVersion:1,user_id:f.other.user_id,role:'ADMIN'};
+    for(const inApp of [false,true])await assert.rejects(notificationPreferences(f.db,f.user,{...input,inApp}),error=>error.code==='VALIDATION_FAILED');
+    const saved=await notificationPreferences(f.db,f.user,input);assert.equal(saved.items.find(item=>item.event==='APPROVE').inApp,true);assert.equal(saved.channels.push,false);assert.equal(saved.securityEmailRequired,true);
+    assert.equal((await f.db.query("SELECT in_app FROM crs.notification_preferences WHERE user_id=$1 AND event='APPROVE'",[f.user.user_id])).rows[0].in_app,true);
     assert.equal((await notificationPreferences(f.db,f.other)).items.find(item=>item.event==='APPROVE').inApp,true);
     await assert.rejects(notificationPreferences(f.db,f.user,input));
     await assert.rejects(notificationPreferences(f.db,f.user,{event:'ADMIN_BORROW_REQUEST',inApp:false,expectedVersion:0}));
-    assert.equal((await notificationPreferences(f.db,f.user,{event:'DUE_SOON',inApp:true,expectedVersion:0})).items.find(item=>item.event==='DUE_SOON').inApp,true);
+    assert.equal((await notificationPreferences(f.db,f.user,{event:'DUE_SOON',channel:null,expectedVersion:0})).items.find(item=>item.event==='DUE_SOON').inApp,true);
     assert.equal((await f.db.query("SELECT relrowsecurity FROM pg_class WHERE oid='crs.notification_preferences'::regclass")).rows[0].relrowsecurity,true);
     assert.equal((await f.db.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='crs' AND tablename='notification_preferences'")).rows[0].n,0);
   }finally{await f.db.close();}
@@ -92,7 +95,7 @@ test('session counts exclude obsolete client/email/generation and Account uses t
 });
 test('restore format 3 retains preferences and never restores session/device proofs; format 2 upgrades empty',async()=>{
   const f=await fixture();try{
-    await notificationPreferences(f.db,f.user,{event:'RETURN',inApp:false,expectedVersion:0});
+    await f.db.query("INSERT INTO crs.notification_preferences(user_id,event,in_app) VALUES($1,'RETURN',false)",[f.user.user_id]);
     const snapshot={format:4,tables:{}};for(const table of snapshotTables)snapshot.tables[table]=(await f.db.query('SELECT * FROM crs.'+table)).rows;
     const old={format:2,tables:{...snapshot.tables}};delete old.tables.notification_preferences;delete old.tables.profile_resources;assert.deepEqual(normalizeSnapshot(old).tables.notification_preferences,[]);
       // Use a new empty database, not deletion of protected canonical records.

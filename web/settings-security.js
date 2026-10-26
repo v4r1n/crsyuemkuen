@@ -134,9 +134,6 @@
             const row=document.createElement('div');row.className='settings-preference-row';
             const label=document.createElement('span');label.textContent=labels[item.event];row.append(label);
             const controls=document.createElement('div');controls.className='settings-delivery-controls';
-            const inApp=document.createElement('label');inApp.className='settings-in-app';
-            inApp.innerHTML='<input type="checkbox" data-in-app> '+t('ในระบบ','In-app');controls.append(inApp);
-            const checkbox=inApp.querySelector('input');checkbox.setAttribute('aria-label',label.textContent+' · '+t('ในระบบ','In-app'));
             const details=document.createElement('details');details.className='settings-channel-picker';
             details.innerHTML='<summary aria-haspopup="menu"></summary><div role="menu" class="settings-channel-menu"></div>';
             const summary=details.querySelector('summary'),menu=details.querySelector('[role="menu"]');
@@ -161,7 +158,6 @@
             };
             let busy=false;
             const sync=()=>{
-              if(!busy)checkbox.checked=item.inApp;checkbox.disabled=busy;
               summary.setAttribute('aria-expanded',String(details.open));
               summary.textContent=(item.channel==='PUSH'?t('พุช','Push'):item.channel==='EMAIL'?t('อีเมล','Email'):t('เลือกช่องทาง','Choose channel'))+' ▾';
               clear.hidden=!item.channel;clear.disabled=busy;
@@ -192,7 +188,7 @@
               }
               finally{if(valid()){busy=false;sync();}}
             }
-            checkbox.onchange=()=>save({inApp:checkbox.checked});clear.onclick=()=>save({channel:null});
+            clear.onclick=()=>save({channel:null});
             for(const option of options)option.onclick=()=>{close();summary.focus();if(item.channel!==option.dataset.channel || option.dataset.channel==='PUSH'&&!data.pushRegistered)save({channel:option.dataset.channel});};
             details.ontoggle=()=>{
               summary.setAttribute('aria-expanded',String(details.open));

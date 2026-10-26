@@ -102,9 +102,9 @@ export async function notificationPreferences(db,user,input,token) {
     [user.user_id,digest(token),origin])).rows.length);
   if(input!==undefined) {
     if(!input || typeof input!=='object' || !preferenceEvents.includes(input.event) || (adminEvents.has(input.event) && user.role!=='ADMIN') ||
-      (input.inApp!==undefined && typeof input.inApp!=='boolean') ||
+      Object.hasOwn(input,'inApp') ||
       (input.channel!==undefined && ![null,'PUSH','EMAIL'].includes(input.channel)) ||
-      (input.inApp===undefined && input.channel===undefined) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion<0) fail('VALIDATION_FAILED');
+      input.channel===undefined || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion<0) fail('VALIDATION_FAILED');
     if(input.channel!==undefined) {
       assertWritable();
       if(input.channel==='EMAIL'&&!channels.email || input.channel==='PUSH'&&(!channels.push || !pushRegistered))
@@ -112,15 +112,13 @@ export async function notificationPreferences(db,user,input,token) {
     }
     const prior=(await db.query('SELECT row_version FROM crs.notification_preferences WHERE user_id=$1 AND event=$2',[user.user_id,input.event])).rows[0];
     if(Number(prior?.row_version || 0)!==input.expectedVersion) fail('STATE_CONFLICT','ข้อมูลเปลี่ยนไป กรุณาโหลดใหม่');
-    if(input.channel!==undefined)await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app,external_channel) VALUES($1,$2,COALESCE($3,true),$4)
-      ON CONFLICT(user_id,event) DO UPDATE SET in_app=COALESCE($3,crs.notification_preferences.in_app),external_channel=$4,
-      row_version=crs.notification_preferences.row_version+1,updated_at=now()`,[user.user_id,input.event,input.inApp??null,input.channel]);
-    else await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app) VALUES($1,$2,$3)
-      ON CONFLICT(user_id,event) DO UPDATE SET in_app=excluded.in_app,row_version=crs.notification_preferences.row_version+1,updated_at=now()`,[user.user_id,input.event,input.inApp]);
+    await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app,external_channel) VALUES($1,$2,true,$3)
+      ON CONFLICT(user_id,event) DO UPDATE SET in_app=true,external_channel=$3,
+      row_version=crs.notification_preferences.row_version+1,updated_at=now()`,[user.user_id,input.event,input.channel]);
   }
   const saved=(await db.query('SELECT * FROM crs.notification_preferences WHERE user_id=$1',[user.user_id])).rows;
   return {items:preferenceEvents.filter(event=>!adminEvents.has(event)||user.role==='ADMIN').map(event=>{
-    const row=saved.find(item=>item.event===event);return {event,inApp:row?.in_app??true,channel:row?.external_channel??null,version:Number(row?.row_version||0)};
+    const row=saved.find(item=>item.event===event);return {event,inApp:true,channel:row?.external_channel??null,version:Number(row?.row_version||0)};
   }),channels:{inApp:true,push:channels.push,email:channels.email},pushPublicKey:channels.publicKey||test.publicKey,pushRegistered,pushTestAvailable:test.available,
     deliveryEnabled:channels.enabled,dueRemindersAvailable:process.env.DUE_REMINDERS_ENABLED==='true',securityEmailRequired:true};
 }

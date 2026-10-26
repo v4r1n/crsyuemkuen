@@ -216,7 +216,6 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .settings-channel-picker summary { display:flex; align-items:center; padding:.5rem 1rem; border:1px solid var(--crs-border); border-radius:999px; cursor:pointer; }
 .settings-channel-picker>div { display:grid; padding:.5rem; border:1px solid var(--crs-border); border-radius:var(--crs-radius-sm); background:var(--crs-surface); }
 .settings-delivery-controls { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:.5rem; max-width:100%; }
-.settings-in-app { display:flex; align-items:center; gap:.5rem; min-height:44px; margin:0; }
 .settings-channel-picker .settings-channel-menu { position:absolute; inset:auto 0 auto auto; width:200px; max-width:calc(100vw - 16px); margin:0; z-index:20; color:var(--crs-ink); box-shadow:0 12px 30px rgb(0 0 0 / .2); }
 .settings-channel-picker .settings-channel-menu[popover] { position:fixed; inset:auto; }
 .settings-channel-picker .settings-channel-menu[popover]:not(:popover-open) { display:none; }

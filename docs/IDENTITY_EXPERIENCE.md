@@ -6,6 +6,12 @@ Later 2026-10-08 refinement: [Login/Guest/domain contracts](LOGIN_GUEST_DOMAINS.
 
 ## Contracts
 
+### Mandatory in-app notices (2026-10-26)
+
+The operator removes the in-app checkbox for every activity/Admin/reminder row. In-app inbox and unread counts are always enabled for the current authorized recipient; historical `in_app=false` rows no longer hide retained notices. Preserve role/Borrow access and reminder currency checks. The compatible DTO always projects `inApp:true`, and the save endpoint rejects any client-authored `inApp` property. Users may select only PUSH/EMAIL as external channels, retaining the existing external opt-out, version checks and provider/session requirements. Saving a channel normalizes that owner's legacy flag to true; no bulk rewrite, schema migration, new History or external enrollment is required. Existing format-4 snapshots remain lossless, including old flags, which cannot override the new runtime policy after restore.
+
+The operator has not yet tested real Push receipt and requests a renewed account-only Production test. Renew its existing exact-owner diagnostic for at most 24 hours, keeping global dispatch disabled, explicit permission/one-shot rate limits and Production/Preview separation. Memory records actual expiry, source acceptance and deployment; no real device/OS receipt is inferred from source or smoke tests.
+
 ### Current-day reminders and notification presentation (2026-10-22)
 
 [ADR-037](adr/0007-calendar-due-reminders.md) owns the approved due-tomorrow/daily-overdue policy. Install `20261022091806_due_reminders.sql` before this runtime; it adds nullable calendar evidence without changing old notices or business History. A separate `DUE_REMINDERS_ENABLED` flag gates production, independently of global external delivery. Existing daily authenticated worker and owner inbox reads are bounded opportunities, not exact-time guarantees. Vercel Hobby's daily precision is limited; see [Cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing).

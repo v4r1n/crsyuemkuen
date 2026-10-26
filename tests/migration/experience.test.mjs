@@ -40,7 +40,7 @@ test('additive schema is idempotent/checksummed and private with no client polic
     await f.db.query("UPDATE crs.runtime_migrations SET sha256='changed'");await assert.rejects(applyAdditiveMigrations(f.transact),/source changed/);
   }finally{await f.db.close();}
 });
-test('preferences hide delivery only; History/notice persists and mark-all-read cannot affect another owner',async()=>{
+test('legacy opt-outs never hide owner inbox/counts; History and mark-all-read ownership stay intact',async()=>{
   const f=await setup();try{
     await f.transact(async db=>{
       const domain=await loadDomain(db,{session:{...f.session,userId:f.borrower.user_id,email:f.borrower.email}});
@@ -48,8 +48,10 @@ test('preferences hide delivery only; History/notice persists and mark-all-read 
       assert.equal(response.ok,true,JSON.stringify(response.error));await saveDomain(db,domain);
     });
     const before=(await f.db.query('SELECT count(*)::int AS n FROM crs.history')).rows[0].n;
-    await notificationPreferences(f.db,f.borrower,{event:'BORROW_REQUEST',inApp:false,expectedVersion:0});
-    assert.equal((await notificationInbox(f.db,f.borrower)).items.length,0);
+    await f.db.query("INSERT INTO crs.notification_preferences(user_id,event,in_app) VALUES($1,'BORROW_REQUEST',false)",[f.borrower.user_id]);
+    assert.equal((await notificationInbox(f.db,f.borrower)).items.length,1);
+    assert.equal((await notificationInbox(f.db,f.borrower)).unread,1);
+    assert.equal((await notificationPreferences(f.db,f.borrower)).items.find(item=>item.event==='BORROW_REQUEST').inApp,true);
     assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.history')).rows[0].n,before);
     assert.equal((await f.db.query('SELECT count(*)::int AS n FROM crs.notifications WHERE user_id=$1',[f.borrower.user_id])).rows[0].n,1);
     await notificationInbox(f.db,f.borrower,{markAllRead:true,user_id:f.admin.user_id});

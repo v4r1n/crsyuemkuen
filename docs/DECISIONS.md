@@ -2,6 +2,10 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## Notification-policy refinement — 2026-10-26
+
+The operator makes in-app display mandatory and removes its checkbox. This supersedes only ADR-034/036's user-configurable in-app display: inbox/counts ignore legacy false flags, DTOs report true, and APIs reject the removed client switch. Existing owner/role/custody checks, externally opt-in PUSH/EMAIL with opt-out, security email and delivery acceptance gates remain. Preserve old backup rows without a migration or fabricated History; the [current contract](IDENTITY_EXPERIENCE.md#mandatory-in-app-notices-2026-10-26) owns compatibility and diagnostic renewal.
+
 ## ADR-037 — Current-day due reminders
 
 [Decision](adr/0007-calendar-due-reminders.md): the operator accepts due-tomorrow and once-daily overdue reminders on 2026-10-22. Separate calendar evidence from custody History, deduplicate the current Thailand day, recheck due/custody before display or dispatch and preserve independent channel opt-in. This supersedes the earlier unavailable-reminder restriction only after additive activation; actual verification and rollout belong in Memory.

@@ -222,13 +222,13 @@ test('authoritative events enqueue once, retries do not duplicate; provider I/O 
 test('Push retries explicit rejection only, expired endpoint is removed, in-app state remains independent',async()=>{
   const f=await fixture();try {
     await ownPushSubscription(f.db,f.user,f.token,subscription());
-    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH',inApp:false,expectedVersion:0},f.token);
+    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH',expectedVersion:0},f.token);
     await f.borrow();let sent=0;
     const process=deliveryProcessor({transact:f.transact,push:async()=>{f.outside();return ++sent===1?'RETRY':'EXPIRED';}});
     await process();assert.equal((await f.rows())[0].status,'PENDING');
     await f.db.query("UPDATE crs.notification_delivery SET available_at=now()-interval '1 minute'");await process();
     assert.equal((await f.rows())[0].status,'CANCELLED');assert.equal((await f.db.query('SELECT id FROM crs.push_subscriptions')).rows.length,0);
-    assert.equal((await notificationPreferences(f.db,f.user)).items[0].inApp,false);
+    assert.equal((await notificationPreferences(f.db,f.user)).items[0].inApp,true);
   }finally{await f.db.close();}
 });
 

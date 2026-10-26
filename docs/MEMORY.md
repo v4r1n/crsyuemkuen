@@ -1,6 +1,13 @@
 # CRS Yuem-Kuen Project Memory
 
-Last updated: 2026-10-22
+Last updated: 2026-10-26
+
+## Current checkpoint — Mandatory in-app display and requested test renewal
+
+- The operator has not yet tested Push and requests removal of every in-app switch, always-on in-app delivery and reopening Production testing. Prepare four runtime-file changes: remove the checkbox and orphan CSS; ignore historical opt-outs in guarded inbox/count queries; always project `inApp:true`; reject all client `inApp` mutations and normalize true only during normal owner/version-checked external-channel saves. Preserve separate Push/Email opt-in/opt-out, mandatory security mail, reminder currency and authorization. No DDL, bulk preference rewrite, backup-format change, fake History/outbox or provider message is required.
+- Fresh cloud metadata and live denial probes verify accepted Production `ecda0bc`, eligible ACTIVE account, expired diagnostic, empty external outbox, five schema checksums/private boundaries, protected unchanged Preview, Production writable / Preview frozen and globally disabled external delivery. Keep all of these except the explicitly requested Production-only diagnostic expiry. Existing verified backups and both unrelated operator worktree edits remain intact.
+- Offline acceptance covers 446 component checks: 17 contracts, 83 preserved backend, 51 preserved frontend, 119 migration, eight compiled-artifact/privacy checks and 168 final Next/browser cases, including production build. After correcting a synthetic channel-save response to include its authoritative null channel, stop the redundant earlier Next pass and run the final full Next command separately; no timeout/retry is relaxed. A final focused repeat passes 35 experience/delivery/security cases, including normalization of an existing false flag during channel save. All execution uses the existing non-root credential-free/network-disabled Docker toolchain; no dependencies are installed. Native device receipt remains untested.
+- Renew only the existing Production diagnostic expiry to **2026-10-27 04:30:58 UTC (11:30:58 Asia/Bangkok)**. Keep its private allowlist, global dispatch false, reminders enabled, other settings and Preview unchanged. This is requested renewal, not provider/device acceptance or repeated automatic extension. Next: finish staged scope/exact-snapshot/actual-secret scanning, commit/push only phase files, stage a Production artifact, smoke and promote the SAME accepted artifact, verify canonical/error logs and record actual activation. No tag, main merge or writer-mode change.
 
 ## Current checkpoint — Reminder/UI Production READY; renewed device test awaits receipt
 
