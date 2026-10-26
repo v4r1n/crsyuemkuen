@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Mandatory in-app notices and renewed Push test (2026-10-26)
 
+- Source `973aa50` passes 446 component checks/build and a 35-case repeat, but its READY Production candidate is NOT promoted: fresh installation reports Next.js/Nodemailer advisories. Keep canonical `ecda0bc`; the requested expiry update is configuration/candidate-only until an accepted artifact is promoted. Await direction for pinned patched dependencies and sandbox preparation; do not claim renewed canonical testing, actual exploitability or device receipt.
 - Remove all in-app preference checkboxes and orphan styling. Keep only the Push/Email external-channel chooser and its existing external opt-out.
 - Enforce always-on owner inbox/unread display even with historical opt-outs; report true in compatible DTOs, reject client-authored in-app changes and normalize the flag on ordinary channel saves. Preserve access, reminder currency, optimistic versions and old backup data without DDL/backfill or business History changes.
 - Prepare renewed account-only Production Push testing at the operator's request, with general external delivery still disabled. Memory owns actual tests, activation, expiry and pending real-device receipt.
