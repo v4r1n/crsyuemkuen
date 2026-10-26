@@ -535,10 +535,10 @@ test('displayed app version is source-controlled and matches the package release
   const config = read('src/Config.gs');
   const manifest = JSON.parse(read('package.json'));
   const lock = JSON.parse(read('package-lock.json'));
-  assert.equal(manifest.version, '0.1.12');
+  assert.equal(manifest.version, '0.1.13');
   assert.equal(lock.version, manifest.version);
   assert.equal(lock.packages[''].version, manifest.version);
-  assert.match(config, /APP_VERSION:\s*'0\.1\.12'/);
+  assert.match(config, /APP_VERSION:\s*'0\.1\.13'/);
   assert.match(config, /APP_VERSION:\s*CONFIG\.APP_VERSION/);
   assert.doesNotMatch(config, /APP_VERSION:\s*valueOrDefault_\(properties\.APP_VERSION/);
 });

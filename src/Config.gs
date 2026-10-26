@@ -5,7 +5,7 @@
 var CONFIG = Object.freeze({
   APP_NAME: 'CRS Yuem-Kuen',
   APP_SHORT_NAME: 'CRS Yuem-Kuen',
-  APP_VERSION: '0.1.12',
+  APP_VERSION: '0.1.13',
   SPREADSHEET_ID: '',
   DRIVE_FOLDER_ID: '',
   WEB_APP_URL: '',

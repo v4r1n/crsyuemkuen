@@ -70,6 +70,7 @@ test('production artifact exposes guarded domain services and the authenticated 
   assert.equal(bootstrap.ok,true);assert.equal(bootstrap.data.session.user_id,user.user_id);
   assert.equal(bootstrap.data.session.role,'ADMIN');
   assert.equal(bootstrap.data.app.webAppUrl,'https://example.test');
+  assert.equal(bootstrap.data.app.version,JSON.parse(readFileSync('package.json','utf8')).version);
 });
 
 test('callback function trace packages its runtime stylesheet instead of relying on the workspace',()=>{

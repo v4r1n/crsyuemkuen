@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### 0.1.13 — Opt-in Production delivery (2026-10-26)
+
+- Record operator-confirmed Push receipt on tested Edge/Chrome and the requested test email in Inbox; this is not universal OS/browser certification.
+- Prepare a consistent 0.1.13 release across package/lock, Config metadata and version fixtures/contracts, plus the actual compiled-bootstrap version assertion. No dependency graph, authentication or borrowing behavior changes.
+- The operator explicitly authorizes Production-only activity Push/Email for new notices and opted-in users, without enrollment/backfill. The full offline command passes 446 checks and production build; staged/canonical rollout remains pending. Preview and all unrelated settings stay unchanged. Memory owns actual activation and remaining manual gates.
+
 ### Provider acceptance follow-up (2026-10-26)
 
 - Record the operator's confirmed real Windows/Edge Push display with supplied screenshot; do not extend that receipt to other OS/browser combinations or enable general dispatch.
