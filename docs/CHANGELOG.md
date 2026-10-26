@@ -8,7 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### 0.1.14 — Independent notification channels release (2026-10-26)
 
-- Prepare patch-version metadata and fixtures for the approved independent Push/Email source, with unchanged dependencies and borrowing/authentication semantics. The operator authorizes fresh private backup, the reviewed preference constraint expansion and Production activation. Fresh target/writer/protection checks, the eight-binary online backup and full 452-check/build command pass; additive application and staged rollout are next. Preview and all existing environment values remain unchanged; Memory owns actual activation evidence.
+- Activate immutable source `1d42ca3` on canonical Production after a fresh verified database/eight-binary online backup, checksum-ledger constraint expansion, full 452-check/build command, 26 protected candidate checks and same-artifact promotion. The 31.8-second build is READY; all 26 canonical checks and final six-ledger/private-schema/configuration/index guards pass. Durable data and existing opt-ins are unchanged; no historical delivery or synthetic event is created.
+- Release patch-version metadata/fixtures for independent Push/Email choices with unchanged dependencies, borrowing/authentication semantics and environment values. Preserve writable Production with activity delivery enabled and frozen/protected Preview with delivery disabled. Post-DDL advisor findings are unchanged except observation times. Bounded runtime logs contain only expected denials and no internal/worker/other errors; zero drains remains a monitoring gap. Memory owns receipt/rollback limitations and Session End evidence.
 
 ### Independent Push and Email choices (2026-10-26)
 
