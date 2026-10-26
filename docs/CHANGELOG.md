@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Approved dependency patch (2026-10-26)
+
+- Pin Next.js 16.4.1 and Nodemailer 10.1.4 with the npm-generated lockfile after explicit operator approval. Credential-free, script-disabled preparation and public metadata checks report zero advisories; other dependencies are unchanged.
+- Adapt the compiled-artifact regression harness to Turbopack's mangled/pruned exports by exercising the real compiled domain loader. Preserve current-user authorization/denial/bootstrap and private-file tracing assertions; no application-auth change or source fallback. Accept 446 component checks and production build across the non-Next aggregate gates and final full Next command. Staged/canonical release acceptance remains pending; Memory owns actual activation.
+
 ### Mandatory in-app notices and renewed Push test (2026-10-26)
 
 - Source `973aa50` passes 446 component checks/build and a 35-case repeat, but its READY Production candidate is NOT promoted: fresh installation reports Next.js/Nodemailer advisories. Keep canonical `ecda0bc`; the requested expiry update is configuration/candidate-only until an accepted artifact is promoted. Await direction for pinned patched dependencies and sandbox preparation; do not claim renewed canonical testing, actual exploitability or device receipt.

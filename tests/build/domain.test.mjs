@@ -20,34 +20,50 @@ test('Next Admin notes align centrally and audit controls use guarded queued-cle
 const entryPath='server/app/auth/callback/route.js';
 const entry=readFileSync(resolve('.next',entryPath),'utf8');
 const runtime=require(resolve('.next/server/chunks/[turbopack]_runtime.js'))(entryPath);
-let domainId;
+const domainIds=new Set();
 for(const [,chunk] of entry.matchAll(/R\.c\("([^"\n]+)"\)/g)) {
-  const source=readFileSync(resolve('.next',chunk),'utf8');
-  const match=/\.s\(\["createDomain"[\s\S]*?\],(\d+)\)/.exec(source);
-  if(match) domainId=Number(match[1]);
+  // Turbopack may mangle export names and prune createDomain's unused export.
+  // Find the registered production factory by its authoritative loader query,
+  // then exercise that loader, never an unbundled fallback or fixed module ID.
+  const registrations=require(resolve('.next',chunk)).flat(Infinity);
+  for(let i=1;i<registrations.length;i++){
+    const factory=registrations[i];
+    if(typeof factory==='function'&&factory.toString().includes('SELECT id,data,expires_at FROM crs.proofs')&&
+      factory.toString().includes('requireApplicationSession_')){
+      assert.equal(typeof registrations[i-1],'number');domainIds.add(registrations[i-1]);
+    }
+  }
   runtime.c(chunk);
 }
-assert.ok(domainId,'Compiled domain module must be present in the callback artifact');
-const {createDomain}=runtime.m(domainId).exports;
+assert.equal(domainIds.size,1,'Exactly one compiled domain module must be present in the callback artifact');
+const loaders=Object.values(runtime.m([...domainIds][0]).exports).filter(value=>
+  typeof value==='function'&&value.toString().includes('SELECT id,data,expires_at FROM crs.proofs'));
+assert.equal(loaders.length,1,'Compiled authoritative domain loader must remain exported');
+const [loadDomain]=loaders;
 process.env.WEB_APP_URL='https://example.test';
 process.env.GOOGLE_OAUTH_CLIENT_ID='build-test.apps.googleusercontent.com';
 process.env.ALLOWED_DOMAINS='gmail.com';
 const user={user_id:'USR-000001',email:'build-test@gmail.com',name:'Build test',role:'ADMIN',status:'ACTIVE',row_version:1};
-function domain(record=user){return createDomain({Users:record?[{...record}]:[]},{session:{
+async function domain(record=user){return loadDomain({async query(sql){
+  if(sql==='SELECT id,data,expires_at FROM crs.proofs WHERE expires_at > now()')return {rows:[]};
+  assert.match(sql,/^SELECT data FROM crs\.[a-z_]+ ORDER BY id$/);
+  return {rows:sql==='SELECT data FROM crs.users ORDER BY id'&&record?[{data:{...record}}]:[]};
+}},{session:{
   userId:user.user_id,email:user.email,clientId:process.env.GOOGLE_OAUTH_CLIENT_ID,expiresAt:Math.floor(Date.now()/1000)+600}});}
 
-test('production callback artifact authorizes a verified identity against current Users',()=>{
-  const value=domain().context.requireUserForIdentity_({email:user.email,subject:'test-subject'});
+test('production callback artifact authorizes a verified identity against current Users',async()=>{
+  const value=(await domain()).context.requireUserForIdentity_({email:user.email,subject:'test-subject'});
   assert.equal(value.user_id,user.user_id);assert.equal(value.role,'ADMIN');
 });
-test('production artifact retains inactive/unknown-user denial without auto-provisioning',()=>{
-  assert.throws(()=>domain({...user,status:'INACTIVE'}).context.requireUserForIdentity_({email:user.email}),error=>error.code==='USER_DISABLED');
-  const missing=domain(null);
+test('production artifact retains inactive/unknown-user denial without auto-provisioning',async()=>{
+  const inactive=await domain({...user,status:'INACTIVE'});
+  assert.throws(()=>inactive.context.requireUserForIdentity_({email:user.email}),error=>error.code==='USER_DISABLED');
+  const missing=await domain(null);
   assert.throws(()=>missing.context.requireUserForIdentity_({email:user.email}),error=>error.code==='FORBIDDEN');
   assert.deepEqual(missing.records.Users,[]);
 });
-test('production artifact exposes guarded domain services and the authenticated bootstrap',()=>{
-  const value=domain();
+test('production artifact exposes guarded domain services and the authenticated bootstrap',async()=>{
+  const value=await domain();
   for(const method of ['requireUserForIdentity_','getAppBootstrap','adminUpdateEquipment','adminDeleteEquipment',
     'createBorrowRequest','adminApproveBorrow','adminCheckoutBorrow']) assert.equal(typeof value.context[method],'function',method);
   const bootstrap=value.invoke('getAppBootstrap',['test-only-transport-token']);

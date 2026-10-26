@@ -21,8 +21,8 @@
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
     "jose": "6.2.12",
-    "next": "16.3.8",
-    "nodemailer": "10.0.16",
+    "next": "16.4.1",
+    "nodemailer": "10.1.4",
     "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
