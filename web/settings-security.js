@@ -158,7 +158,7 @@
             const selected=()=>item.channel==='PUSH_EMAIL'?['PUSH','EMAIL']:item.channel?[item.channel]:[];
             const sync=()=>{
               summary.setAttribute('aria-expanded',String(details.open));
-              const value=selected().map(channel=>channel==='PUSH'?t('พุช','Push'):t('อีเมล','Email')).join(', ')||'Off';
+              const value=selected().map(channel=>channel==='PUSH'?t('พุช','Push'):t('อีเมล','Email')).join(', ')||t('ปิด','Off');
               summary.textContent=value+' ▾';
               summary.setAttribute('aria-label',label.textContent+' · '+t('ช่องทางภายนอก','External channels')+' · '+value);
               for(const option of options){

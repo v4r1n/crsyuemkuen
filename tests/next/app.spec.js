@@ -84,7 +84,7 @@ test('Notification delivery popover fallback, outside dismissal and permission d
   const picker=page.locator('.settings-channel-picker').first(),summary=picker.locator('summary');await summary.click();
   await expect(picker.locator('[role="menu"]')).toBeVisible();await picker.locator('[data-channel="PUSH"]').click();
   await expect(page.locator('.settings-security-root > [role="status"]')).toHaveText('Fixture permission denied');
-  await expect(summary).toHaveText('Off ▾');expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
+  await expect(summary).toHaveText('ปิด ▾');expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
   await page.locator('#settings-heading').click();await expect(picker).not.toHaveAttribute('open','');await expectNoOverflow(page);
 });
 
@@ -102,7 +102,8 @@ for(const language of ['th','en'])for(const theme of ['light','dark'])test('Noti
   for(const width of [320,1440]) {
     await page.setViewportSize({width,height:900});
     const picker=page.locator('.settings-channel-picker').first(),summary=picker.locator('summary');
-    await expect(summary).toHaveText('Off ▾');
+    await expect(summary).toHaveText(language==='en'?'Off ▾':'ปิด ▾');
+    await expect(summary).toHaveAttribute('aria-label',new RegExp((language==='en'?'Off':'ปิด')+'$'));
     await summary.click();const choices=picker.getByRole('menuitemcheckbox');await expect(choices).toHaveCount(2);
     await expect(choices.first()).toHaveAttribute('aria-checked','false');
     await picker.locator('[data-channel="EMAIL"]').click();await expect(summary).toHaveText(language==='en'?'Email ▾':'อีเมล ▾');
@@ -116,13 +117,39 @@ for(const language of ['th','en'])for(const theme of ['light','dark'])test('Noti
     await expect(choices.first()).toHaveAttribute('aria-checked','true');await expect(choices.last()).toHaveAttribute('aria-checked','true');
     await expect(page.locator('[data-in-app],.settings-in-app')).toHaveCount(0);
     await picker.locator('[data-channel="EMAIL"]').click();await expect(summary).toHaveText(language==='en'?'Push ▾':'พุช ▾');
-    await picker.locator('[data-channel="PUSH"]').click();await expect(summary).toHaveText('Off ▾');
+    await picker.locator('[data-channel="PUSH"]').click();await expect(summary).toHaveText(language==='en'?'Off ▾':'ปิด ▾');
     await expect(choices.first()).toHaveAttribute('aria-checked','false');await expect(choices.last()).toHaveAttribute('aria-checked','false');
     await page.keyboard.press('Escape');await expect(summary).toBeFocused();await expect(picker).not.toHaveAttribute('open','');
     await expectNoOverflow(page);
   }
   expect(changes.map(item=>item.channel)).toEqual(['EMAIL','PUSH_EMAIL','PUSH',null,'EMAIL','PUSH_EMAIL','PUSH',null]);
   await page.evaluate(()=>CRS.navigate('dashboard'));await expect(page.locator('.settings-channel-menu')).toHaveCount(0);
+});
+
+test('Notification disabled labels follow real Settings language reloads across activity, Admin and reminder menus',async({page})=>{
+  const {calls}=await mock(page,{preserveSession:true});
+  await page.route('**/api/rpc',async route=>{
+    if(route.request().postDataJSON().method!=='getNotificationPreferences')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{items:['BORROW_REQUEST','ADMIN_BORROW_REQUEST','DUE_SOON'].map(event=>({event,inApp:true,channel:null,version:0})),channels:{push:false,email:false},dueRemindersAvailable:true}}});
+  });
+  await page.goto('/?view=settings');await expect(page.locator('#language-trigger')).toBeVisible();
+  const token=await page.evaluate(()=>sessionStorage.getItem('crs.auth.session.v1'));
+  for(const language of ['th','en','th']) {
+    if(language!=='th'||await page.locator('html').getAttribute('lang')!=='th') {
+      await page.goto('/?view=settings');await page.locator('#language-trigger').click();
+      await page.locator('#language-list [data-language-code="'+language+'"]').click();
+    }
+    await expect(page.locator('html')).toHaveAttribute('lang',language);
+    await expect(page.locator('#language-trigger')).toContainText(language==='en'?'English':'ไทย');
+    await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
+    const summaries=page.locator('.settings-channel-picker summary'),label=language==='en'?'Off':'ปิด';
+    await expect(summaries).toHaveCount(3);
+    for(const summary of await summaries.all()){
+      await expect(summary).toHaveText(label+' ▾');await expect(summary).toHaveAttribute('aria-label',new RegExp(label+'$'));
+    }
+    expect(await page.evaluate(()=>sessionStorage.getItem('crs.auth.session.v1'))).toBe(token);
+  }
+  expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
 });
 
 test('Notification delivery busy guard preserves focus and saved checks after a rejected multi-select save',async({page})=>{
@@ -311,7 +338,7 @@ test('stale notification preference refreshes its owner-scoped version without a
   const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
   const control=picker.locator('[data-channel="EMAIL"]');await control.click();await expect(control).toBeEnabled();
   expect(reads).toBe(2);await expect(page.locator('[data-in-app]')).toHaveCount(0);
-  await control.click();await expect(picker.locator('summary')).toHaveText('Off ▾');expect(versions).toEqual([0,2]);
+  await control.click();await expect(picker.locator('summary')).toHaveText('ปิด ▾');expect(versions).toEqual([0,2]);
   await expect(picker.locator('summary')).toBeFocused();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
 });
 
@@ -334,7 +361,7 @@ for(const width of [320,390,768,1440])for(const language of ['th','en'])for(cons
     await expect(picker.locator('[role="menuitemcheckbox"]:disabled')).toHaveCount(2);
     await expect(page.locator('[data-in-app],.settings-in-app')).toHaveCount(0);
     await expect(picker).toHaveAttribute('open','');
-    await expect(picker.locator('summary')).toHaveText('Off ▾');
+    await expect(picker.locator('summary')).toHaveText(language==='en'?'Off ▾':'ปิด ▾');
     await picker.locator('summary').focus();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   });
