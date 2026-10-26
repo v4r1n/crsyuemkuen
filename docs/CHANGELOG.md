@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Independent Push and Email choices (2026-10-26)
+
+- Replace the single-select notification menu with independent checkable Push/Email choices for activity, Admin and reminder events. Clicking an enabled choice again turns it off; the trigger shows both labels or `Off`, while in-app notices stay mandatory.
+- Prepare the preference constraint expansion without rewriting existing choices, enrolling users or backfilling notices. Queue and verify each selected channel independently, preserving owner/version/device guards, provider uncertainty and deduplication. Removing a channel remains possible after capability loss. Source preparation is not live schema/deployment acceptance; Memory records verification and next activation gates.
+- Accept 452 component checks across the preserved suites, migration gates and final full Next/build command (169 browser cases). Preserve open-menu keyboard focus during saves and when clearing a now-unavailable choice; duplicate activation and failed writes retain saved checks. Update obsolete single-select expectations to the new explicit contract without weakening unavailable-channel checks. No live provider message or cloud mutation is used for source acceptance.
+
 ### 0.1.13 — Opt-in Production delivery (2026-10-26)
 
 - Activate immutable source `66dac24` on canonical Production: fresh 32.8-second READY build, 446 offline checks/build, 26 candidate checks, same-artifact promotion and 26 canonical checks. Final configuration/schema/index guards pass; bounded logs contain only expected denials, with no internal/worker errors. No configured drains or broader live-workflow certification is implied.

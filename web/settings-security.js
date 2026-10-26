@@ -102,7 +102,7 @@
         const data=await request('getNotificationPreferences');if(!valid())return;status.textContent='';
         const labels={BORROW_REQUEST:t('คำขอยืม','Borrow request'),APPROVE:t('อนุมัติ','Approved'),REJECT:t('ไม่อนุมัติ','Rejected'),CHECKOUT:t('จ่ายอุปกรณ์','Checkout'),REQUEST_RETURN:t('คำขอคืน','Return request'),RETURN:t('ตรวจรับคืน','Returned'),ADMIN_BORROW_REQUEST:t('คำขอยืมใหม่','New borrow request'),ADMIN_REQUEST_RETURN:t('คำขอคืนใหม่','New return request'),DUE_SOON:t('ครบกำหนดคืนพรุ่งนี้','Due tomorrow'),OVERDUE:t('เกินกำหนดคืน','Overdue')};
         const availability=document.createElement('p');availability.className='settings-push-availability';availability.dataset.pushAvailability='';
-        availability.textContent=!data.channels.push&&!data.channels.email?t('การส่งภายนอกยังปิดอยู่ หากหน้าต่างทดสอบหมดอายุ กรุณาติดต่อผู้ดูแลระบบ','External delivery is disabled. Contact an administrator if the test window has expired.'):!global.CRSPush?.supported()?t('เบราว์เซอร์นี้ไม่รองรับ Push; บน iOS ต้องใช้เว็บแอปที่เพิ่มบนหน้าจอโฮม','Push is unsupported here; on iOS use the web app added to the Home Screen.'):global.Notification?.permission==='denied'?t('Push ถูกบล็อก กรุณาอนุญาตในการตั้งค่าเว็บไซต์ของเบราว์เซอร์','Push is blocked. Allow notifications in your browser’s site settings.'):t('เลือก Push เพื่ออนุญาตแจ้งเตือนบนอุปกรณ์นี้','Choose Push to allow notifications on this device.');
+        availability.textContent=!data.channels.push&&!data.channels.email?t('การส่งภายนอกยังปิดอยู่ หากหน้าต่างทดสอบหมดอายุ กรุณาติดต่อผู้ดูแลระบบ','External delivery is disabled. Contact an administrator if the test window has expired.'):!global.CRSPush?.supported()?t('เบราว์เซอร์นี้ไม่รองรับ Push; บน iOS ต้องใช้เว็บแอปที่เพิ่มบนหน้าจอโฮม','Push is unsupported here; on iOS use the web app added to the Home Screen.'):global.Notification?.permission==='denied'?t('Push ถูกบล็อก กรุณาอนุญาตในการตั้งค่าเว็บไซต์ของเบราว์เซอร์','Push is blocked. Allow notifications in your browser’s site settings.'):t('เปิด Push เพื่ออนุญาตแจ้งเตือนบนอุปกรณ์นี้ หากเลือก Push ไว้แล้ว หลังลงชื่อเข้าใช้ใหม่ให้ปิดแล้วเปิดอีกครั้งเพื่อลงทะเบียนอุปกรณ์','Enable Push to allow notifications on this device. After a new sign-in, turn an already selected Push off and on to register this device again.');
         if(data.pushTestAvailable) {
           const panel=document.createElement('section');panel.className='settings-card';panel.dataset.pushTest='';
           panel.innerHTML=heading(t('ทดสอบ Push เฉพาะบัญชีนี้','Account-only Push test'))+'<p>'+t('ยังไม่เปิดส่งทั่วระบบ กดอนุญาตบนอุปกรณ์นี้แล้วส่งทดสอบหนึ่งครั้ง ผลรับจาก provider ยังไม่ยืนยันว่าอุปกรณ์แสดงข้อความ','Global delivery is disabled. Grant permission on this device, then send one test. Provider acceptance does not confirm device display.')+'</p>';
@@ -143,12 +143,10 @@
             if(typeof menu.showPopover==='function')menu.setAttribute('popover','manual');
             const options=['PUSH','EMAIL'].map(channel=>{
               const option=document.createElement('button');option.type='button';option.dataset.channel=channel;
-              option.setAttribute('role','menuitemradio');
+              option.setAttribute('role','menuitemcheckbox');
               const name=document.createElement('span');name.textContent=channel==='PUSH'?t('พุช','Push'):t('อีเมล','Email');
               const check=document.createElement('i');check.className='bi bi-check-lg';check.setAttribute('aria-hidden','true');option.append(name,check);menu.append(option);return option;
             });
-            const clear=document.createElement('button');clear.type='button';clear.className='btn btn-outline-secondary';
-            clear.textContent=t('ปิดการส่งภายนอก','Turn off external delivery');clear.dataset.deliveryOff='';
             const close=()=>{if(menu.hasAttribute('popover')&&menu.matches(':popover-open'))menu.hidePopover();details.open=false;summary.setAttribute('aria-expanded','false');};
             const position=()=>{
               if(!details.open || !menu.hasAttribute('popover'))return;
@@ -157,20 +155,28 @@
               menu.style.top=Math.max(8,box.bottom+height+8>innerHeight?box.top-height-4:box.bottom+4)+'px';
             };
             let busy=false;
+            const selected=()=>item.channel==='PUSH_EMAIL'?['PUSH','EMAIL']:item.channel?[item.channel]:[];
             const sync=()=>{
               summary.setAttribute('aria-expanded',String(details.open));
-              summary.textContent=(item.channel==='PUSH'?t('พุช','Push'):item.channel==='EMAIL'?t('อีเมล','Email'):t('เลือกช่องทาง','Choose channel'))+' ▾';
-              clear.hidden=!item.channel;clear.disabled=busy;
+              const value=selected().map(channel=>channel==='PUSH'?t('พุช','Push'):t('อีเมล','Email')).join(', ')||'Off';
+              summary.textContent=value+' ▾';
+              summary.setAttribute('aria-label',label.textContent+' · '+t('ช่องทางภายนอก','External channels')+' · '+value);
               for(const option of options){
-                option.setAttribute('aria-checked',String(item.channel===option.dataset.channel));
-                option.disabled=busy || (option.dataset.channel==='PUSH'?(!data.channels.push || !global.CRSPush?.supported()):!data.channels.email);
+                const checked=selected().includes(option.dataset.channel);
+                const focused=document.activeElement===option;
+                option.setAttribute('aria-checked',String(checked));
+                // Native disabling during save drops keyboard focus from the open menu.
+                // Keep its focus target, while the shared busy guard rejects activation.
+                option.disabled=!checked && (option.dataset.channel==='PUSH'?(!data.channels.push || !global.CRSPush?.supported()):!data.channels.email);
+                if(focused&&option.disabled)summary.focus();
+                option.setAttribute('aria-disabled',String(busy||option.disabled));
                 option.title=option.disabled&&!busy?t('ยังไม่พร้อมใช้งาน','Unavailable'):'';
               }
             };sync();
             async function save(update){
               if(busy)return;busy=true;sync();status.textContent=t('กำลังบันทึก…','Saving…');
               try {
-                if(update.channel==='PUSH') {
+                if(['PUSH','PUSH_EMAIL'].includes(update.channel) && !selected().includes('PUSH')) {
                   if(!await global.CRSPush.enable(data.pushPublicKey,request,valid))return;
                   data.pushRegistered=true;
                 }
@@ -188,8 +194,12 @@
               }
               finally{if(valid()){busy=false;sync();}}
             }
-            clear.onclick=()=>save({channel:null});
-            for(const option of options)option.onclick=()=>{close();summary.focus();if(item.channel!==option.dataset.channel || option.dataset.channel==='PUSH'&&!data.pushRegistered)save({channel:option.dataset.channel});};
+            for(const option of options)option.onclick=()=>{
+              if(busy)return;
+              const next=new Set(selected());
+              if(next.has(option.dataset.channel))next.delete(option.dataset.channel);else next.add(option.dataset.channel);
+              save({channel:next.size===2?'PUSH_EMAIL':next.values().next().value||null});
+            };
             details.ontoggle=()=>{
               summary.setAttribute('aria-expanded',String(details.open));
               if(details.open){
@@ -211,7 +221,7 @@
             };
             // Browser scroll/resize must not strand a top-layer menu.
             details._close=close;details._position=position;
-            controls.append(details,clear);row.append(controls);panel.append(row);
+            controls.append(details);row.append(controls);panel.append(row);
           }
         }
         const recent=document.createElement('section');recent.className='settings-card';recent.innerHTML=heading(t('การแจ้งเตือนล่าสุด','Recent notifications'))+action(t('อ่านทั้งหมดแล้ว','Mark all as read'),'data-settings-read-all')+'<div class="notification-list mt-3" data-settings-inbox></div>';root.append(recent);inbox.mount(recent.querySelector('[data-settings-inbox]'));

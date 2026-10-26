@@ -11,6 +11,7 @@ import {assertWritable} from './images.mjs';
 import {fail} from './errors.mjs';
 import {deliveryConfiguration,pushTestConfiguration} from './notification-config.mjs';
 import {reminderCurrent} from './due-reminders.mjs';
+import {selectedChannels} from './notification-channels.mjs';
 export {deliveryConfiguration} from './notification-config.mjs';
 
 export function validateSubscription(input) {
@@ -106,7 +107,7 @@ export function deliveryProcessor({transact=transaction,email=sendEmail,push=sen
         }
         const allowed=Boolean(user && user.status==='ACTIVE' && config().ALLOWED_DOMAINS.includes(user.email?.split('@')[1]) &&
           digest(user.email)===job.recipient_digest && notice && reminderCurrent(notice,notice.borrow) &&
-          (!['DUE_SOON','OVERDUE'].includes(job.event)||process.env.DUE_REMINDERS_ENABLED==='true') && valid && pref?.external_channel===job.channel &&
+          (!['DUE_SOON','OVERDUE'].includes(job.event)||process.env.DUE_REMINDERS_ENABLED==='true') && valid && selectedChannels(pref?.external_channel).includes(job.channel) &&
           Number(pref.row_version)===job.preference_version && (!job.event.startsWith('ADMIN_') || user.role==='ADMIN') &&
           Date.now()-new Date(job.created_at).getTime()<86400000 && job.attempts<3);
         if(!allowed) {await db.query("UPDATE crs.notification_delivery SET status='CANCELLED',updated_at=now() WHERE id=$1",[job.id]);continue;}

@@ -15,6 +15,7 @@ import {pushTestConfiguration} from '../../server/notification-config.mjs';
 import {pushTestService} from '../../server/push-test.mjs';
 import {projectDueReminders,reminderCurrent,bangkokDate} from '../../server/due-reminders.mjs';
 import {notificationInbox} from '../../server/experience.mjs';
+import {enqueueDelivery} from '../../server/notification-outbox.mjs';
 const require=createRequire(import.meta.url),{bootstrappedHarness,createEquipment,createUser}=require('../backend/test-helpers.cjs');
 const keys=webpush.generateVAPIDKeys();
 test('expired Production diagnostic reproduces disabled Push independently of browser or OS',()=>{
@@ -31,7 +32,7 @@ Object.assign(process.env,{WEB_APP_URL:'https://delivery.example.test',GOOGLE_OA
   ALLOWED_DOMAINS:'example.com,gmail.com',WRITE_FREEZE:'false',NOTIFICATION_DELIVERY_ENABLED:'true',
   SMTP_HOST:'smtp.example.test',SMTP_PORT:'587',SMTP_USER:'fixture',SMTP_PASSWORD:'synthetic-only-password',SMTP_FROM:'fixture@example.com',
   WEB_PUSH_SUBJECT:'mailto:fixture@example.com',WEB_PUSH_PUBLIC_KEY:keys.publicKey,WEB_PUSH_PRIVATE_KEY:keys.privateKey});
-const migrations=['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile','20261016023629_notification_delivery','20261022091806_due_reminders'];
+const migrations=['202610050001_crs','202610070002_identity_experience','20261014054612_settings_security','20261015064806_owner_profile','20261016023629_notification_delivery','20261022091806_due_reminders','20261026065204_notification_multi_channel'];
 function subscription(suffix='fixture') {
   const curve=createECDH('prime256v1');curve.generateKeys();
   return {endpoint:'https://fcm.googleapis.com/fcm/send/'+suffix,keys:{p256dh:curve.getPublicKey().toString('base64url'),auth:Buffer.alloc(16,7).toString('base64url')}};
@@ -189,7 +190,7 @@ test('diagnostic ambiguity cannot resend, revoked/expired proof cannot dispatch'
   });}finally{await f.db.close();}
 });
 
-test('external opt-in is owner/version/admin guarded; Push requires this session device, channels are single-select',async()=>{
+test('external opt-in is owner/version/admin guarded; adding Push requires this session device',async()=>{
   const f=await fixture();try {
     const before=await notificationPreferences(f.db,f.user,undefined,f.token);assert.equal(before.items[0].channel,null);
     await assert.rejects(notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH',expectedVersion:0},f.token));
@@ -206,6 +207,88 @@ test('external opt-in is owner/version/admin guarded; Push requires this session
       assert.equal((await f.db.query('SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass',['crs.'+table])).rows[0].relrowsecurity,true);
       assert.equal((await f.db.query('SELECT count(*)::int AS n FROM pg_policies WHERE schemaname=$1 AND tablename=$2',['crs',table])).rows[0].n,0);
     }
+  }finally{await f.db.close();}
+});
+
+test('four channel states persist for every eligible event, with no auto-enrollment and strict validation',async()=>{
+  const f=await fixture();try {
+    await assert.rejects(notificationPreferences(f.db,f.user,{event:'APPROVE',channel:'PUSH_EMAIL',expectedVersion:0},f.token),e=>e.code==='NOTIFICATION_UNAVAILABLE');
+    assert.equal((await f.db.query('SELECT * FROM crs.notification_preferences')).rows.length,0);
+    await ownPushSubscription(f.db,f.user,f.token,subscription());
+    for(const item of (await notificationPreferences(f.db,f.user)).items) {
+      let version=0;
+      for(const channel of ['PUSH','PUSH_EMAIL','EMAIL',null]) {
+        const result=await notificationPreferences(f.db,f.user,{event:item.event,channel,expectedVersion:version},f.token);
+        const saved=result.items.find(value=>value.event===item.event);
+        assert.equal(saved.channel,channel);assert.equal(saved.inApp,true);assert.equal(saved.version,++version);
+      }
+    }
+    for(const channel of ['BOTH',[],['PUSH','EMAIL'],'push','',false])await assert.rejects(
+      notificationPreferences(f.db,f.user,{event:'APPROVE',channel,expectedVersion:4},f.token),e=>e.code==='VALIDATION_FAILED');
+    await assert.rejects(notificationPreferences(f.db,f.user,{event:'ADMIN_BORROW_REQUEST',channel:'PUSH_EMAIL',expectedVersion:0},f.token));
+    const adminToken=secret('admin_'),adminSession={userId:f.admin.user_id,email:f.admin.email,clientId:process.env.GOOGLE_OAUTH_CLIENT_ID,expiresAt:Math.floor(Date.now()/1000)+3600};
+    await f.db.query('INSERT INTO crs.sessions(id,data,expires_at) VALUES($1,$2,to_timestamp($3))',[digest(adminToken),adminSession,adminSession.expiresAt]);
+    await ownPushSubscription(f.db,f.admin,adminToken,subscription('admin'));
+    for(const event of ['ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']) {
+      const result=await notificationPreferences(f.db,f.admin,{event,channel:'PUSH_EMAIL',expectedVersion:0},adminToken);
+      assert.equal(result.items.find(item=>item.event===event).channel,'PUSH_EMAIL');
+    }
+    await assert.rejects(f.db.query("UPDATE crs.notification_preferences SET external_channel='INVALID'"));
+  }finally{await f.db.close();}
+});
+
+test('schema expansion preserves all old opt-ins without enrollment or new grants',async()=>{
+  const f=await fixture(),target=new PGlite();try {
+    for(const file of migrations.slice(0,-1))await target.exec(readFileSync(new URL('../../supabase/migrations/'+file+'.sql',import.meta.url),'utf8'));
+    await target.query('INSERT INTO crs.users(data) VALUES($1)',[JSON.stringify(f.user)]);
+    for(const [event,channel] of [['BORROW_REQUEST',null],['APPROVE','PUSH'],['RETURN','EMAIL']])await target.query(
+      'INSERT INTO crs.notification_preferences(user_id,event,external_channel) VALUES($1,$2,$3)',[f.user.user_id,event,channel]);
+    const before=(await target.query('SELECT * FROM crs.notification_preferences ORDER BY event')).rows;
+    await target.exec(readFileSync(new URL('../../supabase/migrations/'+migrations.at(-1)+'.sql',import.meta.url),'utf8'));
+    assert.deepEqual((await target.query('SELECT * FROM crs.notification_preferences ORDER BY event')).rows,before);
+    assert.equal((await target.query("SELECT relrowsecurity FROM pg_class WHERE oid='crs.notification_preferences'::regclass")).rows[0].relrowsecurity,true);
+    assert.equal((await target.query("SELECT * FROM pg_policies WHERE schemaname='crs'")).rows.length,0);
+  }finally{await f.db.close();await target.close();}
+});
+
+test('removing either channel remains possible after configuration or session-device loss',async()=>{
+  const f=await fixture(),enabled=process.env.NOTIFICATION_DELIVERY_ENABLED;try {
+    await ownPushSubscription(f.db,f.user,f.token,subscription());
+    await notificationPreferences(f.db,f.user,{event:'APPROVE',channel:'PUSH_EMAIL',expectedVersion:0},f.token);
+    await notificationPreferences(f.db,f.user,{event:'RETURN',channel:'PUSH_EMAIL',expectedVersion:0},f.token);
+    await f.db.query('DELETE FROM crs.push_subscriptions');process.env.NOTIFICATION_DELIVERY_ENABLED='false';
+    for(const [event,channel] of [['APPROVE','EMAIL'],['RETURN','PUSH']]) {
+      const saved=await notificationPreferences(f.db,f.user,{event,channel,expectedVersion:1},f.token);
+      assert.equal(saved.items.find(item=>item.event===event).channel,channel);
+      await notificationPreferences(f.db,f.user,{event,channel:null,expectedVersion:2},f.token);
+    }
+    await assert.rejects(notificationPreferences(f.db,f.user,{event:'APPROVE',channel:'EMAIL',expectedVersion:3},f.token),e=>e.code==='NOTIFICATION_UNAVAILABLE');
+  }finally{process.env.NOTIFICATION_DELIVERY_ENABLED=enabled;await f.db.close();}
+});
+
+test('both channels fan out independently and dedupe; uncertain email does not block or repeat Push',async()=>{
+  const f=await fixture();try {
+    await ownPushSubscription(f.db,f.user,f.token,subscription());
+    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH_EMAIL',expectedVersion:0},f.token);
+    await f.borrow();const rows=await f.rows();assert.deepEqual(rows.map(row=>row.channel).sort(),['EMAIL','PUSH']);
+    await enqueueDelivery(f.db,rows[0].notification_id,f.user.user_id,'BORROW_REQUEST');assert.equal((await f.rows()).length,2);
+    let mails=0,pushes=0;
+    const worker=deliveryProcessor({transact:f.transact,email:async()=>{f.outside();mails++;return 'UNCERTAIN';},push:async()=>{f.outside();pushes++;return 'ACCEPTED';}});
+    await worker();await worker();assert.equal(mails,1);assert.equal(pushes,1);
+    assert.deepEqual((await f.rows()).map(row=>row.status).sort(),['ACCEPTED','UNCERTAIN']);
+  }finally{await f.db.close();}
+});
+
+test('both selection with an expired device still queues email; Off cancels pending and creates no further jobs',async()=>{
+  const f=await fixture();try {
+    await ownPushSubscription(f.db,f.user,f.token,subscription());
+    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH_EMAIL',expectedVersion:0},f.token);
+    await f.db.query('DELETE FROM crs.push_subscriptions');await f.borrow();
+    assert.deepEqual((await f.rows()).map(row=>row.channel),['EMAIL']);
+    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:null,expectedVersion:1},f.token);
+    await deliveryProcessor({transact:f.transact,email:async()=>assert.fail('Off must cancel pending mail')})();
+    assert.equal((await f.rows())[0].status,'CANCELLED');
+    await enqueueDelivery(f.db,(await f.rows())[0].notification_id,f.user.user_id,'BORROW_REQUEST');assert.equal((await f.rows()).length,1);
   }finally{await f.db.close();}
 });
 
@@ -271,14 +354,14 @@ test('worker authority is current: a demoted admin cannot receive another owner 
 test('format-4 preferences survive empty-target restore but capabilities/attempts never replay historical delivery',async()=>{
   const f=await fixture();let target;try {
     await ownPushSubscription(f.db,f.user,f.token,subscription());
-    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH',expectedVersion:0},f.token);await f.borrow();
-    assert.equal((await f.rows()).length,1);
+    await notificationPreferences(f.db,f.user,{event:'BORROW_REQUEST',channel:'PUSH_EMAIL',expectedVersion:0},f.token);await f.borrow();
+    assert.equal((await f.rows()).length,2);
     const snapshot={format:4,tables:{}};for(const table of snapshotTables)snapshot.tables[table]=(await f.db.query('SELECT * FROM crs.'+table)).rows;
     assert.ok(!snapshotTables.includes('notification_delivery'));assert.ok(!snapshotTables.includes('push_subscriptions'));
     target=new PGlite();for(const file of migrations)await target.exec(readFileSync(new URL('../../supabase/migrations/'+file+'.sql',import.meta.url),'utf8'));
     const transact=async work=>{await target.exec('BEGIN');try{const result=await work(target);await target.exec('COMMIT');return result;}catch(error){await target.exec('ROLLBACK');throw error;}};
     await reserveRestore(snapshot,transact);await commitRestore(snapshot,transact);
-    assert.equal((await target.query('SELECT external_channel FROM crs.notification_preferences')).rows[0].external_channel,'PUSH');
+    assert.equal((await target.query('SELECT external_channel FROM crs.notification_preferences')).rows[0].external_channel,'PUSH_EMAIL');
     assert.equal((await target.query('SELECT count(*)::int AS n FROM crs.sessions')).rows[0].n,0);
     assert.equal((await target.query('SELECT count(*)::int AS n FROM crs.push_subscriptions')).rows[0].n,0);
     assert.equal((await target.query('SELECT count(*)::int AS n FROM crs.notification_delivery')).rows[0].n,0);

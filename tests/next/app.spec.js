@@ -84,11 +84,11 @@ test('Notification delivery popover fallback, outside dismissal and permission d
   const picker=page.locator('.settings-channel-picker').first(),summary=picker.locator('summary');await summary.click();
   await expect(picker.locator('[role="menu"]')).toBeVisible();await picker.locator('[data-channel="PUSH"]').click();
   await expect(page.locator('.settings-security-root > [role="status"]')).toHaveText('Fixture permission denied');
-  await expect(summary).toContainText('เลือกช่องทาง');expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
-  await summary.click();await page.locator('#settings-heading').click();await expect(picker).not.toHaveAttribute('open','');await expectNoOverflow(page);
+  await expect(summary).toHaveText('Off ▾');expect(calls.filter(call=>call.method==='saveNotificationPreference')).toHaveLength(0);
+  await page.locator('#settings-heading').click();await expect(picker).not.toHaveAttribute('open','');await expectNoOverflow(page);
 });
 
-for(const language of ['th','en'])for(const theme of ['light','dark'])test('Notification delivery single-select popover '+language+' '+theme,async({page})=>{
+for(const language of ['th','en'])for(const theme of ['light','dark'])test('Notification delivery independent multi-select popover '+language+' '+theme,async({page})=>{
   await mock(page);let version=0,channel=null;const changes=[];
   await page.addInitScript(({language,theme})=>{localStorage.setItem('crs-ui-language',language);localStorage.setItem('crs-theme',theme);},{language,theme});
   await page.route('**/api/rpc',async route=>{
@@ -102,23 +102,49 @@ for(const language of ['th','en'])for(const theme of ['light','dark'])test('Noti
   for(const width of [320,1440]) {
     await page.setViewportSize({width,height:900});
     const picker=page.locator('.settings-channel-picker').first(),summary=picker.locator('summary');
-    await summary.click();const choices=picker.getByRole('menuitemradio');await expect(choices).toHaveCount(2);
-    await expect(choices.first()).toHaveAttribute('aria-checked',String(channel==='PUSH'));
+    await expect(summary).toHaveText('Off ▾');
+    await summary.click();const choices=picker.getByRole('menuitemcheckbox');await expect(choices).toHaveCount(2);
+    await expect(choices.first()).toHaveAttribute('aria-checked','false');
     await picker.locator('[data-channel="EMAIL"]').click();await expect(summary).toHaveText(language==='en'?'Email ▾':'อีเมล ▾');
-    await expect(picker).not.toHaveAttribute('open','');
+    await expect(picker).toHaveAttribute('open','');
     await summary.focus();await page.keyboard.press('ArrowDown');await expect(choices.first()).toBeFocused();
     await expect(picker.locator('[data-channel="EMAIL"]')).toHaveAttribute('aria-checked','true');
     expect(await picker.locator('[data-channel="EMAIL"] .bi-check-lg').evaluate(node=>getComputedStyle(node).visibility)).toBe('visible');
     const box=await picker.locator('[role="menu"]').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
     await captureUi(page,'delivery-'+language+'-'+theme+'-'+width,{staticView:true});
-    await page.keyboard.press('Enter');await expect(summary).toHaveText(language==='en'?'Push ▾':'พุช ▾');
+    await page.keyboard.press('Enter');await expect(summary).toHaveText(language==='en'?'Push, Email ▾':'พุช, อีเมล ▾');
+    await expect(choices.first()).toHaveAttribute('aria-checked','true');await expect(choices.last()).toHaveAttribute('aria-checked','true');
     await expect(page.locator('[data-in-app],.settings-in-app')).toHaveCount(0);
-    await summary.click();await page.keyboard.press('Escape');await expect(summary).toBeFocused();await expect(picker).not.toHaveAttribute('open','');
-    await picker.locator('..').locator('[data-delivery-off]').click();await expect(summary).toContainText(language==='en'?'Choose channel':'เลือกช่องทาง');
+    await picker.locator('[data-channel="EMAIL"]').click();await expect(summary).toHaveText(language==='en'?'Push ▾':'พุช ▾');
+    await picker.locator('[data-channel="PUSH"]').click();await expect(summary).toHaveText('Off ▾');
+    await expect(choices.first()).toHaveAttribute('aria-checked','false');await expect(choices.last()).toHaveAttribute('aria-checked','false');
+    await page.keyboard.press('Escape');await expect(summary).toBeFocused();await expect(picker).not.toHaveAttribute('open','');
     await expectNoOverflow(page);
   }
-  expect(changes.map(item=>item.channel)).toEqual(['EMAIL','PUSH',null,'EMAIL','PUSH',null]);
+  expect(changes.map(item=>item.channel)).toEqual(['EMAIL','PUSH_EMAIL','PUSH',null,'EMAIL','PUSH_EMAIL','PUSH',null]);
   await page.evaluate(()=>CRS.navigate('dashboard'));await expect(page.locator('.settings-channel-menu')).toHaveCount(0);
+});
+
+test('Notification delivery busy guard preserves focus and saved checks after a rejected multi-select save',async({page})=>{
+  await mock(page);let saves=0,release;
+  const pending=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/rpc',async route=>{
+    const input=route.request().postDataJSON();
+    if(input.method==='saveNotificationPreference'){
+      saves++;await pending;return route.fulfill({json:{ok:false,error:{code:'RATE_LIMITED',message:'Fixture save denied'}}});
+    }
+    if(input.method!=='getNotificationPreferences')return route.fallback();
+    return route.fulfill({json:{ok:true,data:{items:[{event:'APPROVE',inApp:true,channel:'EMAIL',version:1}],channels:{push:true,email:true},pushRegistered:true,pushPublicKey:'fixture'}}});
+  });
+  await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();
+  await page.evaluate(()=>{window.CRSPush={supported:()=>true,enable:async()=>true};CRS.navigate('settings',{section:'notifications'});});
+  const picker=page.locator('.settings-channel-picker').first(),push=picker.locator('[data-channel="PUSH"]');
+  await picker.locator('summary').click();await push.click();await expect(push).toHaveAttribute('aria-disabled','true');
+  await expect(push).toBeFocused();await page.keyboard.press('Enter');expect(saves).toBe(1);
+  release();await expect(page.locator('.settings-security-root > [role="status"]')).toHaveText('Fixture save denied');
+  await expect(picker.locator('summary')).toHaveText('อีเมล ▾');await expect(push).toHaveAttribute('aria-checked','false');
+  await expect(picker.locator('[data-channel="EMAIL"]')).toHaveAttribute('aria-checked','true');
+  await page.keyboard.press('Escape');await expect(picker.locator('summary')).toBeFocused();
 });
 
 for(const language of ['th','en'])test('Notification delivery Account restore label follows language without changing shortcut behaviour '+language,async({page})=>{
@@ -283,9 +309,10 @@ test('stale notification preference refreshes its owner-scoped version without a
   });
   await page.goto('/');await expect(page.locator('#app-shell')).toBeVisible();await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
   const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
-  const control=picker.locator('..').locator('[data-delivery-off]');await control.click();await expect(control).toBeEnabled();
+  const control=picker.locator('[data-channel="EMAIL"]');await control.click();await expect(control).toBeEnabled();
   expect(reads).toBe(2);await expect(page.locator('[data-in-app]')).toHaveCount(0);
-  await control.click();await expect(control).toBeHidden();expect(versions).toEqual([0,2]);
+  await control.click();await expect(picker.locator('summary')).toHaveText('Off ▾');expect(versions).toEqual([0,2]);
+  await expect(picker.locator('summary')).toBeFocused();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
 });
 
 for(const width of [320,390,768,1440])for(const language of ['th','en'])for(const theme of ['light','dark']) {
@@ -304,10 +331,10 @@ for(const width of [320,390,768,1440])for(const language of ['th','en'])for(cons
     await expect(page.locator('.settings-account-fields')).toBeVisible();await expect(page.locator('.settings-account-fields input')).toHaveCount(1);await expect(page.locator('.settings-account-fields [name="name"]')).toBeEditable();await expect(page.locator('.settings-account-fields [type="email"]')).toHaveCount(0);
     await page.evaluate(()=>CRS.navigate('settings',{section:'notifications'}));
     const picker=page.locator('.settings-channel-picker').first();await picker.locator('summary').click();
-    await expect(picker.locator('[role="menuitemradio"]:disabled')).toHaveCount(2);
+    await expect(picker.locator('[role="menuitemcheckbox"]:disabled')).toHaveCount(2);
     await expect(page.locator('[data-in-app],.settings-in-app')).toHaveCount(0);
     await expect(picker).toHaveAttribute('open','');
-    await expect(picker.locator('summary')).toContainText(language==='en'?'Choose channel':'เลือกช่องทาง');
+    await expect(picker.locator('summary')).toHaveText('Off ▾');
     await picker.locator('summary').focus();await page.keyboard.press('Escape');await expect(picker).not.toHaveAttribute('open','');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   });

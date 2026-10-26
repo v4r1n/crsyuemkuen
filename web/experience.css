@@ -221,7 +221,7 @@ input::-ms-reveal,.password-field input::-ms-clear { display:none; }
 .settings-channel-picker .settings-channel-menu[popover]:not(:popover-open) { display:none; }
 .settings-channel-menu button { display:flex; align-items:center; justify-content:space-between; gap:1rem; width:100%; min-height:44px; padding:.5rem .75rem; border:0; border-radius:var(--crs-radius-sm); background:transparent; color:inherit; text-align:start; font:inherit; }
 .settings-channel-menu button:enabled { cursor:pointer; }
-.settings-channel-menu button:disabled { opacity:.5; cursor:not-allowed; }
+.settings-channel-menu button:disabled,.settings-channel-menu button[aria-disabled="true"] { opacity:.5; cursor:not-allowed; }
 .settings-channel-menu button:enabled:hover,.settings-channel-menu button:focus-visible { background:var(--crs-surface-hover); }
 .settings-channel-menu button:focus-visible { outline:2px solid var(--crs-focus-outline); outline-offset:-2px; }
 .settings-channel-menu button[aria-checked="false"] .bi-check-lg { visibility:hidden; }

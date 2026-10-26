@@ -2,6 +2,10 @@
 
 Decisions are append-only. A later decision may supersede an earlier one but must not erase it.
 
+## Independent external-channel policy — 2026-10-26
+
+The operator supersedes ADR-036's single-select restriction: Push and Email may each be enabled or disabled, including both or neither. Keep the existing nullable preference field and expand its check to include PUSH_EMAIL, avoiding new columns, table ownership or backup-format churn. Existing null/PUSH/EMAIL choices stay unchanged; each selected channel still owns separate deterministic attempt IDs and provider outcomes. Exact preference-version rechecks conservatively cancel pending old-version work after any choice changes. The [current contract](IDENTITY_EXPERIENCE.md#independent-external-channels-2026-10-26-source-preparation) owns UI/permission/compatibility semantics; additive migration and cloud activation remain separately gated. Mandatory in-app and security email remain unaffected.
+
 ## Notification-policy refinement — 2026-10-26
 
 The operator makes in-app display mandatory and removes its checkbox. This supersedes only ADR-034/036's user-configurable in-app display: inbox/counts ignore legacy false flags, DTOs report true, and APIs reject the removed client switch. Existing owner/role/custody checks, externally opt-in PUSH/EMAIL with opt-out, security email and delivery acceptance gates remain. Preserve old backup rows without a migration or fabricated History; the [current contract](IDENTITY_EXPERIENCE.md#mandatory-in-app-notices-2026-10-26) owns compatibility and diagnostic renewal.

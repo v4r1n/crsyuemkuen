@@ -5,7 +5,8 @@ const additions=[
   {id:'20261014054612_settings_security',sql:readFileSync(new URL('../supabase/migrations/20261014054612_settings_security.sql',import.meta.url),'utf8')},
   {id:'20261015064806_owner_profile',sql:readFileSync(new URL('../supabase/migrations/20261015064806_owner_profile.sql',import.meta.url),'utf8')},
   {id:'20261016023629_notification_delivery',sql:readFileSync(new URL('../supabase/migrations/20261016023629_notification_delivery.sql',import.meta.url),'utf8')},
-  {id:'20261022091806_due_reminders',sql:readFileSync(new URL('../supabase/migrations/20261022091806_due_reminders.sql',import.meta.url),'utf8')}
+  {id:'20261022091806_due_reminders',sql:readFileSync(new URL('../supabase/migrations/20261022091806_due_reminders.sql',import.meta.url),'utf8')},
+  {id:'20261026065204_notification_multi_channel',sql:readFileSync(new URL('../supabase/migrations/20261026065204_notification_multi_channel.sql',import.meta.url),'utf8')}
 ];
 // Caller supplies the same advisory-locked transaction used by the runtime.
 // Never reset or rewrite an existing installation; record exact additive source.

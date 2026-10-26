@@ -4,6 +4,7 @@ import { digest, loadDomain, saveDomain } from './domain.mjs';
 import { fail } from './errors.mjs';
 import {deliveryConfiguration,pushTestConfiguration} from './notification-config.mjs';
 import {assertWritable} from './images.mjs';
+import {selectedChannels} from './notification-channels.mjs';
 
 export const preferenceEvents = Object.freeze(['BORROW_REQUEST','APPROVE','REJECT','CHECKOUT','REQUEST_RETURN','RETURN','ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN','DUE_SOON','OVERDUE']);
 const adminEvents = new Set(['ADMIN_BORROW_REQUEST','ADMIN_REQUEST_RETURN']);
@@ -103,15 +104,15 @@ export async function notificationPreferences(db,user,input,token) {
   if(input!==undefined) {
     if(!input || typeof input!=='object' || !preferenceEvents.includes(input.event) || (adminEvents.has(input.event) && user.role!=='ADMIN') ||
       Object.hasOwn(input,'inApp') ||
-      (input.channel!==undefined && ![null,'PUSH','EMAIL'].includes(input.channel)) ||
+      (input.channel!==undefined && ![null,'PUSH','EMAIL','PUSH_EMAIL'].includes(input.channel)) ||
       input.channel===undefined || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion<0) fail('VALIDATION_FAILED');
-    if(input.channel!==undefined) {
-      assertWritable();
-      if(input.channel==='EMAIL'&&!channels.email || input.channel==='PUSH'&&(!channels.push || !pushRegistered))
-        fail('NOTIFICATION_UNAVAILABLE','กรุณาเปิดใช้งานช่องทางแจ้งเตือนก่อน');
-    }
-    const prior=(await db.query('SELECT row_version FROM crs.notification_preferences WHERE user_id=$1 AND event=$2',[user.user_id,input.event])).rows[0];
+    assertWritable();
+    const prior=(await db.query('SELECT external_channel,row_version FROM crs.notification_preferences WHERE user_id=$1 AND event=$2',[user.user_id,input.event])).rows[0];
     if(Number(prior?.row_version || 0)!==input.expectedVersion) fail('STATE_CONFLICT','ข้อมูลเปลี่ยนไป กรุณาโหลดใหม่');
+    // Removing a choice must remain possible after capability/configuration loss.
+    const added=selectedChannels(input.channel).filter(channel=>!selectedChannels(prior?.external_channel).includes(channel));
+    if(added.includes('EMAIL')&&!channels.email || added.includes('PUSH')&&(!channels.push || !pushRegistered))
+      fail('NOTIFICATION_UNAVAILABLE','กรุณาเปิดใช้งานช่องทางแจ้งเตือนก่อน');
     await db.query(`INSERT INTO crs.notification_preferences(user_id,event,in_app,external_channel) VALUES($1,$2,true,$3)
       ON CONFLICT(user_id,event) DO UPDATE SET in_app=true,external_channel=$3,
       row_version=crs.notification_preferences.row_version+1,updated_at=now()`,[user.user_id,input.event,input.channel]);
