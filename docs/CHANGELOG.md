@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Provider acceptance follow-up (2026-10-26)
+
+- Record the operator's confirmed real Windows/Edge Push display with supplied screenshot; do not extend that receipt to other OS/browser combinations or enable general dispatch.
+- At the operator's request, send exactly one new generic email test through the private configured SMTP transport using prepared Nodemailer 10.1.4 after read-only Production target/configuration checks. TLS/authentication and single-recipient SMTP acceptance pass; latest Inbox/Spam placement still needs operator confirmation. Preserve Secret protection, no automatic resends, no fabricated business/outbox events and disabled global delivery. Runtime remains `32201ee`; no source/configuration change or redeploy.
+
 ### Approved dependency patch (2026-10-26)
 
 - Activate source `32201ee` on canonical Production after 446 offline checks/build, clean fresh remote install, 26 protected candidate checks, same-artifact promotion and 26 canonical checks. The 27.9-second Singapore build is READY; bounded logs contain only expected denial probes, with no INTERNAL/worker/other errors and no configured drains. Preserve writable Production / frozen protected Preview and globally disabled external delivery. The mandatory-inbox UI and previously approved account-only Push window are now live until 11:30:58 Thai on 2026-10-27; actual device receipt remains pending.
