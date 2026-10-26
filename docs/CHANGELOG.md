@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### 0.1.14 — Independent notification channels release (2026-10-26)
+
+- Prepare patch-version metadata and fixtures for the approved independent Push/Email source, with unchanged dependencies and borrowing/authentication semantics. The operator authorizes fresh private backup, the reviewed preference constraint expansion and Production activation. Fresh target/writer/protection checks, the eight-binary online backup and full 452-check/build command pass; additive application and staged rollout are next. Preview and all existing environment values remain unchanged; Memory owns actual activation evidence.
+
 ### Independent Push and Email choices (2026-10-26)
 
 - Replace the single-select notification menu with independent checkable Push/Email choices for activity, Admin and reminder events. Clicking an enabled choice again turns it off; the trigger shows both labels or `Off`, while in-app notices stay mandatory.

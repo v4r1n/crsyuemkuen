@@ -1,6 +1,6 @@
 {
   "name": "crs-yuem-kuen-system",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "description": "CRS Yuem-Kuen on Next.js, PostgreSQL and private Supabase Storage.",
   "scripts": {
