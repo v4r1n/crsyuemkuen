@@ -9,7 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### 0.1.15 — Localized disabled notification label (2026-10-26)
 
 - Correct the shared notification-picker disabled label and accessible name to ปิด in Thai and Off in English. The former hard-coded literal and same-literal tests missed this requirement; updated Thai assertions reproduce the bug before the runtime fix.
-- Add real Settings language-switch regression coverage across activity/Admin/reminder menus, retaining sessions and saved preferences. Prepare patch metadata/fixtures without dependency, server, schema or delivery-setting changes. The full sandbox command passes 453 checks and the production build; staged Production activation remains pending. Memory owns actual results.
+- Add real Settings language-switch regression coverage across activity/Admin/reminder menus, retaining sessions and saved preferences. Release patch metadata/fixtures without dependency, server, schema or delivery-setting changes. The full sandbox command passes 453 checks and the production build.
+- Activate immutable source `7241e43` on canonical Production after 26 protected candidate checks and same-artifact promotion; all 26 canonical checks and final configuration/six-ledger/private-boundary guards pass. Fresh build is READY in 29.6 seconds with zero install advisories. Production remains writable with activity delivery enabled; protected Preview remains frozen with delivery disabled. Bounded logs contain only 22 expected denials and no internal/worker/other errors; zero drains remains a monitoring gap. Memory owns detailed evidence and Session End constraints.
 
 ### 0.1.14 — Independent notification channels release (2026-10-26)
 
