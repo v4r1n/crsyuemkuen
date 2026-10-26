@@ -8,9 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### 0.1.13 — Opt-in Production delivery (2026-10-26)
 
+- Activate immutable source `66dac24` on canonical Production: fresh 32.8-second READY build, 446 offline checks/build, 26 candidate checks, same-artifact promotion and 26 canonical checks. Final configuration/schema/index guards pass; bounded logs contain only expected denials, with no internal/worker errors. No configured drains or broader live-workflow certification is implied.
 - Record operator-confirmed Push receipt on tested Edge/Chrome and the requested test email in Inbox; this is not universal OS/browser certification.
-- Prepare a consistent 0.1.13 release across package/lock, Config metadata and version fixtures/contracts, plus the actual compiled-bootstrap version assertion. No dependency graph, authentication or borrowing behavior changes.
-- The operator explicitly authorizes Production-only activity Push/Email for new notices and opted-in users, without enrollment/backfill. The full offline command passes 446 checks and production build; staged/canonical rollout remains pending. Preview and all unrelated settings stay unchanged. Memory owns actual activation and remaining manual gates.
+- Release consistent 0.1.13 metadata across package/lock, Config and version fixtures/contracts, plus the actual compiled-bootstrap version assertion. No dependency graph, authentication or borrowing behavior changes.
+- Enable Production-only activity Push/Email for new eligible notices and opted-in users after explicit operator authorization, without enrollment/backfill. Preview delivery remains disabled/frozen, Production writable and all unrelated settings unchanged. In-app delivery stays mandatory; Push still requires permission and current-session device registration. Memory owns activation details, the corrected UTF-8 private smoke probe and remaining manual gates.
 
 ### Provider acceptance follow-up (2026-10-26)
 
