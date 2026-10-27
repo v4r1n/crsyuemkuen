@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-27
 
+## Current checkpoint — Thai user guide and local sandbox
+
+- Created a Thai user guide for 0.1.15 in the separate guide workspace, with step screenshots, expected outcomes, FAQ, A4 DOCX and PDF. Both outputs render to 17 pages; their table-of-contents page maps agree, and all 15 annotated figures are present. The Word layout was checked through an offline LibreOffice render with the same Thai font; the PDF was inspected independently.
+- Tested password login, equipment selection, submitting and finding a request, requesting a return, and viewing the returned status in an isolated local Docker PostgreSQL sandbox with synthetic records. The admin completion used the real domain logic locally. Storage and reCAPTCHA were simulated; Google sign-in and external provider behavior were not end-to-end tested. The sandbox is ephemeral and disconnected from external networks.
+- Production catalog was accessed publicly during earlier screenshot preparation; its public RPC includes rate-limit bookkeeping, so that access may have changed rate-limit metadata. No Production business-record mutation was performed. Preview remains frozen and shares the Production database; do not use either environment for test-account writes. Next phase: user review of the delivered guide or a separately isolated acceptance environment if actual external authentication must be tested.
+
 ## Current checkpoint — Preview refreshed to 0.1.15; shared data remains frozen
 
 - Canonical Preview now serves the same immutable source as Production, `7241e43d252810b5eddf0aa095de873a934e0c7f` (0.1.15), as a protected built-in staging deployment in Singapore. Fresh `npm ci` reports zero vulnerabilities; an isolated source build and the Vercel build pass. Every source file visible in the deployment tree matches the accepted Production source; seven served UI assets match Production byte for byte. The CLI excludes the non-runtime `.gitignore` from the upload.

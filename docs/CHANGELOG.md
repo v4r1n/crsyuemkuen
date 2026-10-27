@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Thai user guide and isolated workflow verification (2026-10-27)
+
+- Produce and inspect a Thai A4 DOCX and PDF user guide with annotated screenshots, status explanations and FAQ. Verify matching 17-page contents maps and the presence of all 15 figures.
+- Verify the borrower password, request, status and return workflow with synthetic data in a local isolated PostgreSQL sandbox; validate admin return completion using the local domain logic. Storage/reCAPTCHA are simulated and Google sign-in is not end-to-end verified. Earlier public Production catalog access may have updated rate-limit bookkeeping; no Production business-record mutation was made.
+
 ### Preview refresh to 0.1.15 (2026-10-27)
 
 - Refresh protected canonical Preview from the accepted Production source `7241e43` using a built-in staging deployment in `sin1`. A clean install and build pass, the deployment source matches the accepted source, and seven served UI assets match Production byte for byte.
