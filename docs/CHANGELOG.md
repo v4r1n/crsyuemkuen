@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Preview refresh to 0.1.15 (2026-10-27)
+
+- Refresh protected canonical Preview from the accepted Production source `7241e43` using a built-in staging deployment in `sin1`. A clean install and build pass, the deployment source matches the accepted source, and seven served UI assets match Production byte for byte.
+- Verify the Preview shell, Vercel Authentication, same-origin guard and `WRITE_FROZEN` without creating a session or business record. Production's canonical binding and environment/protection settings remain unchanged. Preview shares the database and stays frozen; end-to-end borrow/return testing requires isolated test data.
+
 ### 0.1.15 — Localized disabled notification label (2026-10-26)
 
 - Correct the shared notification-picker disabled label and accessible name to ปิด in Thai and Off in English. The former hard-coded literal and same-literal tests missed this requirement; updated Thai assertions reproduce the bug before the runtime fix.

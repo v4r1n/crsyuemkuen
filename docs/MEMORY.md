@@ -1,6 +1,13 @@
 # CRS Yuem-Kuen Project Memory
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
+
+## Current checkpoint — Preview refreshed to 0.1.15; shared data remains frozen
+
+- Canonical Preview now serves the same immutable source as Production, `7241e43d252810b5eddf0aa095de873a934e0c7f` (0.1.15), as a protected built-in staging deployment in Singapore. Fresh `npm ci` reports zero vulnerabilities; an isolated source build and the Vercel build pass. Every source file visible in the deployment tree matches the accepted Production source; seven served UI assets match Production byte for byte. The CLI excludes the non-runtime `.gitignore` from the upload.
+- Candidate and canonical checks return the CRS shell, execute in `sin1`, reject the wrong Origin, and return `WRITE_FROZEN` to a sessionless borrow-mutation probe before database access. Anonymous Preview access redirects to Vercel Authentication. Preview protection and the Production canonical binding are unchanged; no environment value, schema, business record, session or provider message is changed by this refresh.
+- Two preliminary staging candidates used the default `iad1` region and were not assigned to canonical Preview. Vercel listed the built-in staging alias on those candidates; the accepted `sin1` candidate now owns both that staging alias and canonical Preview. The previous Preview deployment remains available as rollback evidence; review current schema compatibility before any rollback.
+- Project records describe Preview and Production as sharing the database. Preview remains frozen, and normal sign-in also writes authentication/session metadata. A complete borrow/return manual verified with a test account therefore needs an isolated test database and account to honor the operator's instruction not to alter Production data; do not unfreeze or use the shared database for that test.
 
 ## Current checkpoint — 0.1.15 Production READY; localized disabled-channel label verified
 
